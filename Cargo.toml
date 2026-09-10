@@ -1,0 +1,10 @@
+[package]
+name = "polyrust"
+version = "0.1.0"
+edition = "2021"
+description = "Mini-Rust 宏的代數形式化管線：CDCL + Buchberger + QAP"
+
+[dependencies]
+
+[profile.release]
+debug = false
