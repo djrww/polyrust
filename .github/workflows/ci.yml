@@ -168,6 +168,14 @@ jobs:
     # 故補上 workflow_dispatch 讓已存在的 tag 也能重新產出附件）。
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     runs-on: ${{ matrix.os }}
+    # 必須獨立於頂層 concurrency：頂層 group 只含 github.ref，三個 matrix leg
+    # 的 ref 相同，會互相 cancel（實測 ubuntu/windows 被 cancelled）。
+    concurrency:
+      group: release-${{ matrix.target }}-${{ github.ref }}
+      cancel-in-progress: true
+    env:
+      # workflow_dispatch 的 github.ref 是分支而非 tag，故需自行決定 tag 名。
+      TAG: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v0.1.0' }}
     strategy:
       matrix:
         include:
@@ -188,7 +196,7 @@ jobs:
         shell: bash
         run: |
           set -e
-          name=polyrust-${GITHUB_REF_NAME}-${{ matrix.target }}
+          name="polyrust-${TAG}-${{ matrix.target }}"
           mkdir -p "$name"
           cp target/${{ matrix.target }}/release/polyrust* "$name"/
           cp README.md docs/THEOREMS.md docs/LEAN.md docs/EVIDENCE.md "$name"/ 2>/dev/null || true
@@ -197,7 +205,12 @@ jobs:
           else
             tar czf "$name.tar.gz" "$name"
           fi
+          ls -l "$name".*
       - name: 上傳到 Release
         uses: softprops/action-gh-release@v3
         with:
+          # 必須顯式給 tag_name：workflow_dispatch 時 github.ref 是分支，
+          # action 會報「GitHub Releases requires a tag」（實測踩到）。
+          tag_name: ${{ env.TAG }}
           files: polyrust-*
+          fail_on_unmatched_files: true
