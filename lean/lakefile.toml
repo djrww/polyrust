@@ -5,5 +5,17 @@ defaultTargets = ["Polyrust"]
 # polyrust 的 Lean 4 形式化：docs/THEOREMS.md 核心引理的機械證明。
 # 無 Mathlib 依賴，僅用 Lean 4 core（自包含、易復現）。
 
+# ---- v0.1.0 發布版：最優化執行期效能 ----
+# buildType = "release"：C 編譯採 -O3 -DNDEBUG（關閉斷言、最高一般優化）。
+# moreLeancArgs：
+#   -march=native -mtune=native：針對本機 CPU（x86-64，AVX2/AVX-512）生成特化指令；
+#   -flto=thin：ThinLTO 跨模組合併優化（連結期亦需 -flto=thin，見 moreLinkArgs）；
+#   -ffat-lto-objects：.o 同時內嵌原生碼，靜態庫（.a）即使不用 LTO 連結亦可正常使用。
+# 注意：-march=native 產物僅保證在本機同級 CPU 上執行；需可攜版請改用
+# -march=x86-64-v3（或刪去此兩行回到預設 -O3 -DNDEBUG）後重建。
+buildType = "release"
+moreLeancArgs = ["-march=native", "-mtune=native", "-flto=thin", "-ffat-lto-objects"]
+moreLinkArgs = ["-flto=thin", "-march=native"]
+
 [[lean_lib]]
 name = "Polyrust"
