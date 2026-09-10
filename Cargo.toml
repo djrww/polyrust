@@ -2,9 +2,25 @@
 name = "polyrust"
 version = "0.1.0"
 edition = "2021"
-description = "Mini-Rust 宏的代數形式化管線：CDCL + Buchberger + QAP"
+description = "Mini-Rust 宏的代数形式化管線：CDCL + Buchberger + QAP"
 
 [dependencies]
 
+# 讓 cargo 不要把此 crate 當隱式 workspace 根
+[workspace]
+
 [profile.release]
-debug = false
+# 最優化執行期效能編譯（polyrust obligations 為 CPU-bound 的 Buchberger 全量統計）
+debug = false        # 不帶除錯符號
+opt-level = 3        # 最高最佳化等級（release 預設，明確寫出）
+lto = "fat"          # 全程式連結期最佳化：跨 crate/模組內聯與去死碼
+codegen-units = 1    # 單一 codegen unit，給 LLVM 最大最佳化視野
+panic = "abort"      # 移除 landing pad，縮小體積、減少展開開銷
+strip = true         # 剝除符號表
+overflow-checks = false
+
+[profile.release-debug]
+inherits = "release"
+debug = true
+strip = false
+panic = "unwind"

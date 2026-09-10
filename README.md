@@ -41,4 +41,34 @@ cargo test --release                    # 17 个单元测试
 | 九条定理义务自证 | 全部通过 ✓ |
 | Lean 4 形式化 | **14 模块 273 条定理全编译通过、零 sorry、零自定义公理**：T3(a) 对偶、T3(b) 消解恒等式、T4 终止界、T5 S-多项式准则、T6 无根证书、T7(a) 简化基唯一、T7(b) 宏展开同态、T8 QAP 忠实、L0 嵌入、T9 判定等价与代码生成 round-trip、**借用/所有权区间冲突** ✓ |
 | Lean 4 审计 | `bash scripts/lean-audit.sh`：逐定理 `#print axioms`（仅 Lean 标准三公理）✓ |
+| Lean 全环境公理审计 | `lean/AuditAll.lean`：`Polyrust.*` **1115 条宣告**全数受检（不只手列清单），`sorryAx` 0、非标准公理 0、纯构造性 567 条 ✓ |
 | 12 样本实测 ↔ Lean 定理对照 | **[docs/EVIDENCE.md](docs/EVIDENCE.md)**（9/9 义务自证、17/17 测试、4/4 demo；原始输出 `docs/evidence/`，脚本 `scripts/lean-evidence.sh`）✓ |
+
+## CI
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml)（`main` / `v0.1.0` 分支、`v*` tag、PR 触发）：
+
+| Job | 内容 | 闸门 |
+|---|---|---|
+| `rust` | `cargo test --release`、最优化 release 编译 | **硬** |
+| `rust` | `cargo fmt --check`、`cargo clippy` | 资讯性（基线有 1294 行重排 / 67 条风格建议，待后续清理） |
+| `lean` | `lake build`（`leanprover/lean-action`，读 `lean/lean-toolchain`） | **硬** |
+| `lean` | `AuditAll.lean` 全环境公理审计 | **硬**（`AUDIT_RESULT=CLEAN`） |
+| `verify` | 上述两者汇总 | **硬** |
+| `obligations` | 九条定理义务自证（约 6 分钟） | 独立，不挡 `verify` |
+| `release-assets` | tag `v*` 时交叉编译 linux/macOS/Windows 并附到 Release | — |
+
+### release profile
+
+`Cargo.toml` 的 `[profile.release]` 采 `lto = "fat"` + `codegen-units = 1` + `panic = "abort"` + `strip = true`。
+
+实测（`obligations` 工作负载，各 3 次；输出与基准**逐位元组一致**）：
+
+| | 二进制 | `obligations` 均值 | 标准差 |
+|---|---|---|---|
+| 基准（仅 `debug = false`） | 1 223 712 B | 369.25 s | ±16.70 s |
+| 最优化 profile | **785 624 B（−35.8%）** | **346.98 s（−6.03%）** | ±10.69 s |
+
+体积缩减是确定收益。执行时间**逐轮配对 3/3 都是最优化版较快**，但两组 ±1σ 区间重叠
+（且同一二进制重跑的波动达 8%），故 6% 这个数字**不足以宣称统计显著**——
+主要收益应记在体积上。除错用 `[profile.release-debug]`（保留符号、`panic = "unwind"`）。

@@ -21,6 +21,22 @@ lake build        # 無外部依賴；需要 Lean 4.33+
 
 `Polyrust.lean` 為根模組，`import Polyrust` 即可得全部定理。
 
+### 兩項審計的差別（重要）
+
+* `Audit.lean` 檢查的是**手列清單**（84 條）——若新增定理忘了加進清單，缺口不會被發現。
+* `AuditAll.lean` 直接掃描環境裡 `Polyrust.*` 的**每一條宣告**（1115 條），底層用 Lean 內建的
+  `Lean.collectAxioms`（即 `#print axioms` 背後的同一個函式），因此新增定理也會被自動覆蓋。
+  末行輸出 `AUDIT_RESULT=CLEAN` / `DIRTY`，CI 以此作為硬閘門。
+
+已做過反向驗證：注入一條 `theorem ... := sorry` 後，`AuditAll.lean` 報 `DIRTY` 並點名該宣告，
+而 `Audit.lean` 完全沒發現（仍報 0 個 `sorryAx`）。
+
+```bash
+lake env lean Audit.lean      # 逐定理 #print axioms（84 條手列清單）
+lake env lean AuditAll.lean   # 全環境掃描（Polyrust.* 每一條宣告）
+bash scripts/lean-audit.sh    # 一次跑完：來源掃描 + 建置 + 兩項審計
+```
+
 ## 設計說明
 
 - **求值層面陳述**：多項式以升冪係數列表表示（與 Rust 版 `qap.rs` 的

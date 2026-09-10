@@ -1,0 +1,184 @@
+name: CI
+
+# polyrust 的驗測管線：Rust 側（fmt / clippy / 測試 / 最優化 release 編譯）
+# 與 Lean 4 側（lake build + #print axioms 公理審計，零 sorry / 零自訂公理）。
+
+on:
+  push:
+    branches: [main, v0.1.0]
+    tags: ['v*']
+  pull_request:
+    branches: [main, v0.1.0]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # ── Rust 側 ──────────────────────────────────────────────────────────
+  rust:
+    name: Rust · fmt / clippy / test / release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: rust
+
+      # 以下兩項為風格債（非阻斷）：v0.1.0 基線有 1294 行 rustfmt 重排與
+      # 67 條 clippy 風格建議，留待後續版本清理，不在發行 tag 上塞巨量格式化 diff。
+      - name: cargo fmt --check（資訊性，非阻斷）
+        run: cargo fmt --all --check
+        continue-on-error: true
+
+      - name: cargo clippy（資訊性，非阻斷）
+        run: cargo clippy --all-targets --release
+        continue-on-error: true
+
+      - name: cargo clippy 警告計數
+        run: |
+          n=$(cargo clippy --all-targets --release --message-format=short 2>/dev/null | grep -c ': warning:' || true)
+          echo "clippy 警告數：$n（非阻斷，趨勢追蹤用）" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: cargo test --release（硬閘門）
+        run: cargo test --release
+
+      - name: 最優化 release 編譯（LTO=fat / CGU=1，硬閘門）
+        run: |
+          cargo build --release
+          ls -l target/release/polyrust
+          test -x target/release/polyrust
+
+      - name: 上傳 release 二進位
+        uses: actions/upload-artifact@v4
+        with:
+          name: polyrust-linux-x86_64
+          path: target/release/polyrust
+          if-no-files-found: error
+
+  # ── Lean 4 側 ────────────────────────────────────────────────────────
+  lean:
+    name: Lean · lake build / 公理審計
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 官方 Lean CI action：安裝 elan、依 lean/lean-toolchain 裝 v4.33.1、lake build。
+      # Lake 套件在 lean/ 子目錄，故用 lake-package-directory 指定。
+      - name: 安裝工具鏈並 lake build
+        uses: leanprover/lean-action@v1.6.0
+        with:
+          lake-package-directory: lean
+          build: 'true'
+          test: 'false'
+          lint: 'false'
+
+      # 硬閘門：全環境掃描（Lean.collectAxioms），涵蓋 Polyrust.* 每一條宣告，
+      # 不只 Audit.lean 手列的清單——新增定理也會被自動檢查。
+      - name: 公理審計（全環境掃描，硬閘門）
+        working-directory: lean
+        run: |
+          set -o pipefail
+          lake env lean AuditAll.lean | tee /tmp/audit_all.txt
+          grep -qx 'AUDIT_RESULT=CLEAN' /tmp/audit_all.txt \
+            || { echo "❌ 全環境公理審計未通過"; exit 1; }
+
+      # 逐條 #print axioms：保留供人工判讀與趨勢比對（84 條手列清單）
+      - name: 公理審計（逐條 #print axioms）
+        working-directory: lean
+        run: |
+          set -o pipefail
+          lake env lean Audit.lean | tee /tmp/audit.txt
+          if grep -q 'sorryAx' /tmp/audit.txt; then
+            echo "❌ 出現 sorryAx"; exit 1
+          fi
+          {
+            echo "受檢（手列清單）：$(grep -cE 'depends on axioms|does not depend' /tmp/audit.txt) 條"
+            grep -m1 '受檢宣告數' /tmp/audit_all.txt || true
+            grep -m1 '純構造性' /tmp/audit_all.txt || true
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 公理審計輸出留檔
+        uses: actions/upload-artifact@v4
+        with:
+          name: lean-axiom-audit
+          path: |
+            /tmp/audit_all.txt
+            /tmp/audit.txt
+
+  # ── 匯總閘門 ─────────────────────────────────────────────────────────
+  verify:
+    name: verify（匯總）
+    needs: [rust, lean]
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Rust 側與 Lean 側驗測全數通過"
+
+  # ── 端到端義務自證（較久，約 6 分鐘；不入匯總閘門） ──────────────────
+  obligations:
+    name: 九條定理義務自證（12 樣本）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: rust
+      - name: 編譯並執行 obligations
+        run: |
+          cargo build --release
+          ./target/release/polyrust obligations | tee /tmp/obligations.txt
+      - name: 上傳
+        uses: actions/upload-artifact@v4
+        with:
+          name: obligations-report
+          path: /tmp/obligations.txt
+
+  # ── 發行：tag v* 時打包各平台二進位 ───────────────────────────────────
+  release-assets:
+    name: Release 二進位
+    needs: [verify]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: 交叉編譯（最優化 release）
+        run: cargo build --release --target ${{ matrix.target }}
+      - name: 打包
+        shell: bash
+        run: |
+          set -e
+          name=polyrust-${GITHUB_REF_NAME}-${{ matrix.target }}
+          mkdir -p "$name"
+          cp target/${{ matrix.target }}/release/polyrust* "$name"/
+          cp README.md docs/THEOREMS.md docs/LEAN.md docs/EVIDENCE.md "$name"/ 2>/dev/null || true
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            7z a "$name.zip" "$name"
+          else
+            tar czf "$name.tar.gz" "$name"
+          fi
+      - name: 上傳到 Release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: polyrust-*
