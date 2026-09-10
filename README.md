@@ -73,12 +73,32 @@ cargo test --release                    # 17 个单元测试
 （且同一二进制重跑的波动达 8%），故 6% 这个数字**不足以宣称统计显著**——
 主要收益应记在体积上。除错用 `[profile.release-debug]`（保留符号、`panic = "unwind"`）。
 
-### Lean 侧的最优化编译设定目前是 inert 的
+### Lean 侧的最优化编译设定：只对原生 target 生效
 
-`lean/lakefile.toml` 的 `buildType = "release"` + `-march=native -flto=thin`（v0.1.0 分支先前提交）
-经实测**不产生任何效果**：本套件只有 `lean_lib`（无 `lean_exe`），且全库零 `@[extern]`、
-零 `native_decide`，`lake build` 只产 `.olean`、从不调用 C 编译器。
-实测（`lake build -v` 全量重建）产物为 15×`.olean` / 15×`.ilean` / 15×`.c` / 15×`.trace` /
-45×`.hash` / 15×`.json`，**0 个 `.o`、0 个 `.a`**，`leanc`/`clang`/`gcc` 出现 0 次。
-`.c` 档生成了但从未编译。这些参数保留待日后加入原生码时自动生效；
-在那之前 `-march=native` 只会让产物失去可携性，届时应一并重新评估。
+`lean/lakefile.toml` 的 `buildType = "release"` + `-march=native -flto=thin`
+**只在建原生 target 时生效**，这点很容易误判：
+
+```bash
+lake build                                   # 只建 defaultTargets（Polyrust）
+                                             # → 仅 .olean/.ilean/.c，17 jobs，
+                                             #   从不调用 C 编译器，旗标完全不参与
+lake build Polyrust:static Polyrust:shared   # 33 jobs：15 个模块各编一个 :c.o，
+                                             # → ar 成 .a、lld 成 .so，旗标在此生效
+```
+
+实测佐证（Lean v4.33.1，AVX2/AVX-512 可用之主机）：
+
+| 旗标 | `.a` | `.so` |
+|---|---|---|
+| 含 `-march=native -flto=thin` | 874 818 B | 253 944 B |
+| 拿掉 `-march=native` | 787 954 B（**−11.0%**） | 254 248 B |
+
+`.a` 相差 11% 证明旗标确实作用于物件码（`.o` 是中间产物、建完即清，所以 `find` 看不到，
+但 `.a` 内含 15 个物件）。
+
+两点须留意：
+
+1. 本库零 `@[extern]`、零 `native_decide`，**原生库不改变任何证明的可信度**——
+   定理判定一律走 Lean kernel 检查 `.olean`；原生库仅供需要嵌入执行时使用。
+2. `-march=native` 的产物**只能在同级 CPU 上执行，不宜作为对外发布的可携 artifact**。
+   需可携版请改 `-march=x86-64-v3` 后重建。

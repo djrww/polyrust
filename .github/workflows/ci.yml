@@ -82,6 +82,23 @@ jobs:
           test: 'false'
           lint: 'false'
 
+      # 原生 target：release-assets 附件（.a / .so）即由此而來，故必須納入 CI 驗證。
+      # 注意：旗标含 -march=native，产物只能同级 CPU 执行，故只验证「能编出来」，
+      # 不上传为对外 artifact（需可携版请改 -march=x86-64-v3 重建）。
+      - name: 原生 target 建置（Polyrust:static / :shared，硬閘門）
+        working-directory: lean
+        run: |
+          set -o pipefail
+          lake build Polyrust:static Polyrust:shared
+          A=$(find .lake/build/lib -name '*.a' | head -1)
+          S=$(find .lake/build/lib -name '*.so' | head -1)
+          test -s "$A" || { echo "❌ 未產生靜態庫"; exit 1; }
+          test -s "$S" || { echo "❌ 未產生共享庫"; exit 1; }
+          {
+            echo "靜態庫：\`$(basename "$A")\` = $(stat -c %s "$A") bytes（$(ar t "$A" | wc -l) 個物件）"
+            echo "共享庫：\`$(basename "$S")\` = $(stat -c %s "$S") bytes"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       # 硬閘門：全環境掃描（Lean.collectAxioms），涵蓋 Polyrust.* 每一條宣告，
       # 不只 Audit.lean 手列的清單——新增定理也會被自動檢查。
       - name: 公理審計（全環境掃描，硬閘門）
