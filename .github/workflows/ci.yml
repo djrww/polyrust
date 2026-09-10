@@ -169,6 +169,12 @@ jobs:
     # 先前加上它反而造成 dispatch run 與 tag-push run 同組 concurrency 互相取消。
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ${{ matrix.os }}
+    # 本 repo 的 default_workflow_permissions 是 "read"（實測：run log 顯示
+    # Contents: read），GITHUB_TOKEN 因此無法 PATCH release，會報
+    # 「Resource not accessible by integration - releases#update-a-release」。
+    # 只在此 job 提升為 contents: write，不動 repo 全域設定。
+    permissions:
+      contents: write
     # 必須獨立於頂層 concurrency：頂層 group 只含 github.ref，三個 matrix leg
     # 的 ref 相同，會互相 cancel（實測 ubuntu/windows 被 cancelled）。
     concurrency:
