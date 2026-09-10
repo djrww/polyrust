@@ -213,11 +213,22 @@ jobs:
           fi
           ls -l "$name".*
       - name: 上傳到 Release
-        uses: softprops/action-gh-release@v3
-        with:
-          # 注意：`env` context 在 with: 不可用（實測踩到——${{ env.TAG }} 解析為空，
-          # action 退回用 github.ref 而報「Resource not accessible by integration」）。
-          # 故直接用 github.ref_name。
-          tag_name: ${{ github.ref_name }}
-          files: polyrust-*
-          fail_on_unmatched_files: true
+        # 不用 softprops/action-gh-release：它找到既有 release 後會先 PATCH 更新
+        # 該 release，而本 repo 的 GITHUB_TOKEN 即使有 contents: write 仍被 403 拒絕
+        # （實測 run #12：「Resource not accessible by integration -
+        # releases#update-a-release」，且該 action 的錯誤訊息誤導為「fetching」）。
+        # release 本體已存在、無需修改，故直接用 gh 只上傳 asset。
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh --version
+          for f in polyrust-*.tar.gz polyrust-*.zip; do
+            [ -e "$f" ] || continue
+            echo "上傳 $f"
+            gh release upload "$TAG" "$f" --repo "$GITHUB_REPOSITORY" --clobber
+          done
+          echo "=== Release 現有附件 ==="
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets \
+            --jq '.assets[] | "  \(.name)  \(.size) B"'
