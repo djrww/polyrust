@@ -53,10 +53,13 @@ cargo test --release                    # 17 个单元测试
 | `rust` | `cargo test --release`、最优化 release 编译 | **硬** |
 | `rust` | `cargo fmt --check`、`cargo clippy` | 资讯性（基线有 1294 行重排 / 67 条风格建议，待后续清理） |
 | `lean` | `lake build`（`leanprover/lean-action`，读 `lean/lean-toolchain`） | **硬** |
+| `lean` | 原生 target `Polyrust:static` / `:shared`（`.a` / `.so`） | **硬** |
 | `lean` | `AuditAll.lean` 全环境公理审计 | **硬**（`AUDIT_RESULT=CLEAN`） |
 | `verify` | 上述两者汇总 | **硬** |
 | `obligations` | 九条定理义务自证（约 6 分钟） | 独立，不挡 `verify` |
-| `release-assets` | tag `v*` 时交叉编译 linux/macOS/Windows 并附到 Release | — |
+| `release-assets` | tag `v*` 时交叉编译 linux/macOS/Windows 并上传到 Release | — |
+
+`v0.1.0` 的实测：[CI run #14](https://github.com/djrww/polyrust/actions/runs/34478029730) — **7/7 job success**。
 
 ### release profile
 
