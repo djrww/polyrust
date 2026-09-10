@@ -13,6 +13,15 @@ defaultTargets = ["Polyrust"]
 #   -ffat-lto-objects：.o 同時內嵌原生碼，靜態庫（.a）即使不用 LTO 連結亦可正常使用。
 # 注意：-march=native 產物僅保證在本機同級 CPU 上執行；需可攜版請改用
 # -march=x86-64-v3（或刪去此兩行回到預設 -O3 -DNDEBUG）後重建。
+#
+# 【實測標註 2026-09-10】以上 leanc/link 參數目前**不產生任何效果**：
+# 本套件只有 `lean_lib`（無 `lean_exe`），且全庫零 `@[extern]`、零 `native_decide`，
+# 因此 `lake build` 只產生 .olean，從不呼叫 C 編譯器。實測（Lean v4.33.1，
+# `lake build -v` 全量重建）產物為 15×.olean / 15×.ilean / 15×.c / 15×.trace /
+# 45×.hash / 15×.json，**0 個 .o、0 個 .a**，`leanc`/`clang`/`gcc` 出現 0 次
+# ——.c 檔生成了但從未編譯。
+# 保留這些參數是為了日後加入原生碼時自動生效；在那之前它們是 inert 的，
+# 且 -march=native 會使產物失去可攜性，屆時應一併重新評估。
 buildType = "release"
 moreLeancArgs = ["-march=native", "-mtune=native", "-flto=thin", "-ffat-lto-objects"]
 moreLinkArgs = ["-flto=thin", "-march=native"]

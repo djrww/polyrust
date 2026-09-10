@@ -72,3 +72,13 @@ cargo test --release                    # 17 个单元测试
 体积缩减是确定收益。执行时间**逐轮配对 3/3 都是最优化版较快**，但两组 ±1σ 区间重叠
 （且同一二进制重跑的波动达 8%），故 6% 这个数字**不足以宣称统计显著**——
 主要收益应记在体积上。除错用 `[profile.release-debug]`（保留符号、`panic = "unwind"`）。
+
+### Lean 侧的最优化编译设定目前是 inert 的
+
+`lean/lakefile.toml` 的 `buildType = "release"` + `-march=native -flto=thin`（v0.1.0 分支先前提交）
+经实测**不产生任何效果**：本套件只有 `lean_lib`（无 `lean_exe`），且全库零 `@[extern]`、
+零 `native_decide`，`lake build` 只产 `.olean`、从不调用 C 编译器。
+实测（`lake build -v` 全量重建）产物为 15×`.olean` / 15×`.ilean` / 15×`.c` / 15×`.trace` /
+45×`.hash` / 15×`.json`，**0 个 `.o`、0 个 `.a`**，`leanc`/`clang`/`gcc` 出现 0 次。
+`.c` 档生成了但从未编译。这些参数保留待日后加入原生码时自动生效；
+在那之前 `-march=native` 只会让产物失去可携性，届时应一并重新评估。
