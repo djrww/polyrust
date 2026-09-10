@@ -1,0 +1,9 @@
+name = "polyrust-formal"
+version = "1.0.0"
+defaultTargets = ["Polyrust"]
+
+# polyrust 的 Lean 4 形式化：docs/THEOREMS.md 核心引理的機械證明。
+# 無 Mathlib 依賴，僅用 Lean 4 core（自包含、易復現）。
+
+[[lean_lib]]
+name = "Polyrust"

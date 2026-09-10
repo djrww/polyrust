@@ -171,3 +171,23 @@ cargo build --release
 ./target/release/polyrust gen A         # 打印指定 demo 生成碼
 ./target/release/polyrust debug <file>  # σ_D 逐約束合法性檢查
 ```
+
+---
+
+## 13. Lean 4 形式化（機械證明骨架）
+
+docs 之外，倉庫的 [`lean/`](../lean) 目錄提供上述證明骨幹的 **Lean 4 機械化**
+（無 Mathlib 依賴，自包含；`lake build` 數秒完成，Lean 4.33）：
+
+| Lean 模組 | 對應 | 機械化的定理 |
+|---|---|---|
+| `Polyrust.ClauseDuality` | T3(a) | `clause_duality`：σ ⊨ C ⟺ P_C(σ)=0（列表歸納 + 首文字分況）；`field_poly_bit`（域多項式）；`cnf_duality`（CNF 全式） |
+| `Polyrust.UniPoly` | T8 | `eval_add/mul/sub`（求值環同態）；`div_linear`（構造性 Horner 除法）；`vanishing_prod_dvd`（互異根 + ℤ 無零因子 ⇒ ∏(X−tᵢ) ∣ p）；`qap_duality`（∀j a_j·b_j=c_j ⟺ Z ∣ A·B−C） |
+| `Polyrust.Squarefree` | T4 | `standard_implies_squarefree`（xᵢ² 入首項理想 ⇒ 標準單項式平方自由）；`toBits/ofBits` 雙射；`squarefree_count`（恰 2ⁿ 個） |
+| `Polyrust.Embedding` | L0 | `L0_mod_faithful`（\|n\| < 2⁶¹−1 ⇒ 模零 ⟺ 為零）；`eval_abs_bound`（0/1 點求值 ≤ 2²⁸）；`L0_eval_faithful`（𝔽_p ⟺ ℤ 保真） |
+| `Polyrust.MicroInstance` | T1/T2/T6/T7 | 加法規則/上下文矛盾/宏選臂三個微型系統的 2^k 全枚舉（Lean `cases` + `simp` 窮舉） |
+
+Rust 側的 `obligations` 子命令（§12）對 12 個程序樣本自證全部義務，
+Lean 側把證明的**數學骨幹**（對偶、終止性、嵌入保真、QAP 忠實性）
+從「樣本檢查」提升為「通用定理 + 機器檢查證明」。二者互補：
+義務自證覆蓋工程實現的每一步；Lean 定理覆蓋任意尺寸輸入的一般性。
