@@ -59,7 +59,9 @@ cargo test --release                    # 17 个单元测试
 | `obligations` | 九条定理义务自证（约 6 分钟） | 独立，不挡 `verify` |
 | `release-assets` | tag `v*` 时交叉编译 linux/macOS/Windows 并上传到 Release | — |
 
-`v0.1.0` 的实测：[CI run #18](https://github.com/djrww/polyrust/actions/runs/34481648821) — **7/7 job success**。
+v0.1.0 的实测结果记录在 [Release 说明](https://github.com/djrww/polyrust/releases/tag/v0.1.0) 中，
+CI 历史见 [Actions](https://github.com/djrww/polyrust/actions)（本表列的每一项都是硬闸门，
+除了标注「资讯性」的 fmt/clippy）。
 
 ### release profile
 
