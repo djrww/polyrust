@@ -27,7 +27,7 @@ namespace Polyrust
 def addPoly1 (tx ty tr : Bool) : Int := bit tx + bit ty - bit tr - 1
 
 /-- 規則方程 2：t_x − t_y。 -/
-def addPoly2 (tx ty tr : Bool) : Int := bit tx - bit ty
+def addPoly2 (tx ty _tr : Bool) : Int := bit tx - bit ty
 
 /-- 良構性：推導存在（兩操作數 i32、結果 i32）。 -/
 def wellTypedAdd (tx ty tr : Bool) : Prop := tx = true ∧ ty = true ∧ tr = true
@@ -73,10 +73,10 @@ theorem T6_micro_sat :
 def armPoly (a tx tr : Bool) : Int := bit a * (bit tx - bit tr)
 
 /-- 臂 2 約束 A：(1−a)·t_x。 -/
-def arm2PolyA (a tx tr : Bool) : Int := (1 - bit a) * bit tx
+def arm2PolyA (a tx _tr : Bool) : Int := (1 - bit a) * bit tx
 
 /-- 臂 2 約束 B：(1−a)·(1−t_r)。 -/
-def arm2PolyB (a tx tr : Bool) : Int := (1 - bit a) * (1 - bit tr)
+def arm2PolyB (a _tx tr : Bool) : Int := (1 - bit a) * (1 - bit tr)
 
 /-- **T7 微實例（exists-arm 可解）**：對任意 x 的類型，總存在臂選擇
 使系統可解（宏總能定型）——臂選擇的存在量化語義。 -/

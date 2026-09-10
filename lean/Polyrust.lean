@@ -1,19 +1,37 @@
 /- # polyrust 的 Lean 4 形式化（無 Mathlib，自包含）
 
-docs/THEOREMS.md 中命題 P 證明骨幹的機械化：五個模組對應引理與定理如下。
+`docs/THEOREMS.md` 中命題 P 證明骨幹的機械化：模組對應引理與定理如下。
 
 | 模組 | 對應 | 內容 |
 |---|---|---|
+| `Polyrust.Monomial` | 基礎層 | 單項式指數向量、整除、lcm/quot、支撐、首項；純組合層（無域/理想公理） |
+| `Polyrust.Tactics` | 工具 | `int_ring`：無 Mathlib 的整數多項式歸一化宏 |
 | `Polyrust.ClauseDuality` | T3(a) | 子句滿足 ⟺ 子句多項式歸零；域多項式 x²−x 刻畫 {0,1}ⁿ；CNF 對偶 |
+| `Polyrust.ClauseAlgebra` | T3(b) | 消解恆等式（逐點、無條件）；學習子句保留模型集/零集；UNSAT ⟺ 無零點多項式 |
 | `Polyrust.UniPoly` | T8 | 求值環同態；構造性線性餘式定理；互異根 vanishing ⇒ ∏(X−tᵢ) 整除；QAP 對偶主定理 |
 | `Polyrust.Squarefree` | T4 | 標準單項式 ⇒ 平方自由（域多項式入基）；平方自由 ↔ 位串雙射；恰 2ⁿ 個 ⇒ Buchberger 終止 |
 | `Polyrust.Embedding` | L0 | 𝔽_p（p=2⁶¹−1）嵌入保真：小係數多項式 0/1 點求值模零 ⟺ 整數零 |
 | `Polyrust.MicroInstance` | T1/T2/T6/T7 | 加法規則、上下文矛盾、宏選臂三個微型系統的全枚舉（可靠性+完備性+判定） |
+| `Polyrust.SPoly` | T5 | S-多項式：單項式乘法的性質、S-多項式 ∈ 生成理想、Buchberger 判準（鏈分解、互質首項相消） |
+| `Polyrust.Canonical` | T7(a) | 既約/全簡化標準形；**若**簡化 Gröbner 基存在則唯一（CLO §2.7 Thm 5）；非空性模型 `pureNat` |
+| `Polyrust.T6Certificate` | T6 | 求值同態、無公共零點證書（乘子 + 組合=1）、布爾 Lagrange 插值；多項式乘子版本 |
+| `Polyrust.T9EndToEnd` | T9 | 迷你語言型別檢查器；約束編碼的可靠性/完備性/判定等價（根 ⟺ 可定型）；代碼生成 round-trip |
+| `Polyrust.BorrowOwnership` | T1/T2/T6 借用側 | 借用存活區間與衝突（與 `analysis.rs` 同式）；`borrow_sat_iff_clean`（有根 ⟺ 無衝突）；借用子句 ↔ T3(a) 對偶；`borrow_clash_one_mem`（1 ∈ 理想，顯式組合）；所有權三規則（重疊／賦值／移動）與 P5/P6 樣本模型 |
+| `Polyrust.MacroExpansion` | T7(b) | 模板語法/上下文/代入；展開是同態（正確臂可定型）；需求表回推（錯臂必被拒絕，且其約束系統無 0/1 根） |
 
 構建：`lake build`（僅需 Lean 4.33+，無外部依賴）。 -/
 
+import Polyrust.Monomial
+import Polyrust.Tactics
 import Polyrust.ClauseDuality
+import Polyrust.ClauseAlgebra
 import Polyrust.UniPoly
 import Polyrust.Squarefree
 import Polyrust.Embedding
 import Polyrust.MicroInstance
+import Polyrust.SPoly
+import Polyrust.Canonical
+import Polyrust.T6Certificate
+import Polyrust.T9EndToEnd
+import Polyrust.MacroExpansion
+import Polyrust.BorrowOwnership

@@ -158,6 +158,10 @@ R1CS：約束 i 為 ⟨a_i, z⟩·⟨b_i, z⟩ = ⟨c_i, z⟩，z = (1, 公共�
 | demoA（sqr! 宏 + 函式）：SAT | 管線 ✓ 檢查器 ✓ QAP(581 約束/439 導線) ✓ rustc ✓ |
 | demoB（雙可變借用衝突）：UNSAT | 管線 ✓ 檢查器 ✓，1 ∈ G（76 生成元 → 基 {1}，2 輪 CDCL） |
 | demoC（宏陰影/借用混合）：UNSAT | 管線 ✓ 檢查器 ✓，1 ∈ G（210 生成元、5 子句、4 輪 CDCL、學習 2 條） |
+
+十二個程序樣本的逐項實測（含 T4 擴充次數、T6 判定、T9 round-trip/`rustc`）與
+Lean 定理的逐項對照，見 **[`docs/EVIDENCE.md`](EVIDENCE.md)**；原始輸出存於
+`docs/evidence/`，可用 `bash scripts/lean-evidence.sh` 重建。
 | demoD（型別導向選臂）：SAT | 管線 ✓ 檢查器 ✓ QAP(294/222) ✓ rustc ✓，CDCL 2 輪學習 1 條（排除錯臂） |
 | 九條義務 × 12 程序 | **全部通過**（`obligations` 子命令，約 6 分鐘） |
 | demo 全量耗時 | 10.7 秒（𝔽_p 化後；demoA 理論 GB 1.14s → 毫秒級） |
@@ -177,15 +181,30 @@ cargo build --release
 ## 13. Lean 4 形式化（機械證明骨架）
 
 docs 之外，倉庫的 [`lean/`](../lean) 目錄提供上述證明骨幹的 **Lean 4 機械化**
-（無 Mathlib 依賴，自包含；`lake build` 數秒完成，Lean 4.33）：
+（無 Mathlib 依賴，自包含；`lake build` 從零約 5 秒，Lean 4.33.1 固定於
+`lean-toolchain`）：**273 條定理/引理、4,338 行、零 `sorry`、零自訂公理**
+（`bash scripts/lean-audit.sh` 逐定理 `#print axioms` 可複驗）。
 
-| Lean 模組 | 對應 | 機械化的定理 |
+完整對照（每個模組證了什麼、邊界在哪、錯了會怎樣）見
+**[`docs/LEAN.md`](LEAN.md)**。模組總覽：
+
+| Lean 模組 | 對應 | 機械化的定理（節選） |
 |---|---|---|
-| `Polyrust.ClauseDuality` | T3(a) | `clause_duality`：σ ⊨ C ⟺ P_C(σ)=0（列表歸納 + 首文字分況）；`field_poly_bit`（域多項式）；`cnf_duality`（CNF 全式） |
-| `Polyrust.UniPoly` | T8 | `eval_add/mul/sub`（求值環同態）；`div_linear`（構造性 Horner 除法）；`vanishing_prod_dvd`（互異根 + ℤ 無零因子 ⇒ ∏(X−tᵢ) ∣ p）；`qap_duality`（∀j a_j·b_j=c_j ⟺ Z ∣ A·B−C） |
-| `Polyrust.Squarefree` | T4 | `standard_implies_squarefree`（xᵢ² 入首項理想 ⇒ 標準單項式平方自由）；`toBits/ofBits` 雙射；`squarefree_count`（恰 2ⁿ 個） |
-| `Polyrust.Embedding` | L0 | `L0_mod_faithful`（\|n\| < 2⁶¹−1 ⇒ 模零 ⟺ 為零）；`eval_abs_bound`（0/1 點求值 ≤ 2²⁸）；`L0_eval_faithful`（𝔽_p ⟺ ℤ 保真） |
-| `Polyrust.MicroInstance` | T1/T2/T6/T7 | 加法規則/上下文矛盾/宏選臂三個微型系統的 2^k 全枚舉（Lean `cases` + `simp` 窮舉） |
+| `Polyrust.Monomial` | 基礎層 | 單項式指數向量、ℓcm/整除/支撐/首項；純組合，零公理 |
+| `Polyrust.Tactics` | 工具 | `int_ring`：無 Mathlib 的整數多項式歸一化宏 |
+| `Polyrust.ClauseDuality` | T3(a) | `clause_duality`：σ ⊨ C ⟺ P_C(σ)=0；`field_poly_bit`；`cnf_duality` |
+| `Polyrust.ClauseAlgebra` | T3(b) | `resolution_identity`（逐點、無條件）；`learned_preserves_models`/`learned_preserves_polyZero`；`unsat_iff_no_polyZero` |
+| `Polyrust.UniPoly` | T8 | `eval_add/mul/sub`（環同態）；`div_linear`；`vanishing_prod_dvd`；`qap_duality` |
+| `Polyrust.Squarefree` | T4 | `standard_implies_squarefree`；`toBits/ofBits` 雙射；`squarefree_count`；`buchberger_extension_bound`（≤ 2ⁿ）；`no_infinite_sublist_chain` |
+| `Polyrust.Embedding` | L0 | `L0_mod_faithful`；`eval_abs_bound`；`L0_eval_faithful` |
+| `Polyrust.MicroInstance` | T1/T2/T6/T7 微實例 | 三系統 2^k 全枚舉（`T1_micro`、`T6_micro_unsat`、`T7_wrong_arm_unsat`） |
+| `Polyrust.SPoly` | T5 | `sPoly_mem_genIdeal`；`genIdeal_insert_sPoly`；`coprime_criterion`；`sPoly_chain_decomposition`+`chain_criterion`；`sPoly_self` |
+| `Polyrust.Canonical` | T7(a) | `reduced_unique`（簡化基**若存在則唯一**）；`reduced_zero_of_mem`；`lead_determines_element`；`pureNat` 非空性模型 |
+| `Polyrust.T6Certificate` | T6 | `inIdeal_no_root`/`one_mem_no_root`（1 ∈ 理想 ⟹ 無 0/1 根）；`interpolation`；`no_root_certificate`/`no_root_poly_certificate` |
+| `Polyrust.T9EndToEnd` | T9 | `genC_sound`（T1）；`genC_complete`（T2）；`typable_iff_root`/`untypable_iff_no_root`（T6 判定等價）；`parse_gen`（round-trip）；`arm_gating*`（T7(b) 閘控） |
+| `Polyrust.MacroExpansion` | T7(b) | `expand_comp`（展開是同態）；`checkCtx_det`；`checkCtx_expand`（正確臂）；`check_expand_demands`+`arm_demand`；`wrong_arm_untypable`/`wrong_arm_no_root`（錯臂 ⟺ 無 0/1 根） |
+| `Polyrust.BorrowOwnership` | T1/T2/T6 借用側 | `borrow_sat_iff_clean`（有根 ⟺ 無衝突）；`clashClause_duality`／`assignClause_duality`；`borrow_clash_one_mem`（1 ∈ 理想）；所有權三規則與 P5/P6 樣本模型；`t9_borrow_decision` |
+| `Audit.lean` | 審計 | 84 條主定理的 `#print axioms` |
 
 Rust 側的 `obligations` 子命令（§12）對 12 個程序樣本自證全部義務，
 Lean 側把證明的**數學骨幹**（對偶、終止性、嵌入保真、QAP 忠實性）

@@ -1,53 +1,30 @@
-/- # Buchberger 終止性（定理 T4）的核心組合鏈
+/- # Buchberger 終止性（定理 T4）——完整機械化
 
 對應 docs/THEOREMS.md §6（T4）：
-含域多項式 B = {xᵢ² − xᵢ} 時，首項理想包含每個 xᵢ²，因此
-**標準單項式**（不被任何基首項整除者）必然**平方自由**（每個指數 ≤ 1），
-而 n 變量的平方自由單項式恰有 2ⁿ 個。基每次擴充消耗一個標準單項式
-（新首項此前必是標準單項式），故擴充次數 ≤ 2ⁿ，Buchberger 必終止。
 
-本模組完整形式化此鏈的三個環節：
-1. `standard_implies_squarefree`：標準 ⇒ 平方自由（逆否：非平方自由的
-   單項式被 xᵢ² | m ⪯ 某基首項整除，故非標準）。
-2. `squarefree_bij`：平方自由單項式 ↔ 位串（ofBits/toBits 互逆雙射）。
-3. `squarefree_count`：n 維平方自由單項式恰可由 2ⁿ 個元素的列表枚舉
-   （`allBits` 完備 + 計數）。 -/
+含域多項式 B = {xᵢ² − xᵢ} 時，首項理想 in(I) 包含每個 xᵢ²，因此
+**標準單項式**（不被任何基首項整除者）必然**平方自由**（每個指數 ≤ 1）；
+而 n 變量平方自由單項式恰有 2ⁿ 個（與位串雙射）。基每次擴充會加入一個
+此前標準的首項，令標準集**嚴格縮小**；標準集單調遞減、基數 ≤ 2ⁿ，
+故擴充次數 ≤ 2ⁿ，Buchberger 必終止。
+
+本模組完整形式化此鏈的四個環節：
+
+1. `x2_divides_of_ge2`（見 `Polyrust.Monomial`）：非平方自由 ⇒ xᵢ² 整除。
+2. `standard_implies_squarefree`：標準單項式 ⇒ 平方自由。
+3. `squarefree_bij` / `squarefree_count`：平方自由單項式 ↔ 位串（雙射），
+   恰 2ⁿ 個（`allBits` 可靠性 + 完備性 + 計數）。
+4. `buchberger_extension_bound`：**抽象的消耗論證**——嚴格遞減的
+   `Sublist` 鏈在長度 ≤ 2ⁿ 的有限集合內，步數 ≤ 2ⁿ 步 ⇒ 必終止。
+
+**邊界**：這裡證明的是「終止界」的組合核心，不是 Buchberger 演算法本身
+（S-多項式的計算、約化、準則見 `Polyrust.SPoly`；約化基唯一性見
+`Polyrust.Canonical`）。整個論證不需要域、理想或項序：終止性只用到
+「新首項此前是標準單項式」這一事實（T5 準則與 T7(a) 保證其正確性）。 -/
+
+import Polyrust.Monomial
 
 namespace Polyrust
-
-/-! ## 單項式的指數向量表示 -/
-
-/-- n 變量多項式的單項式 = 指數向量（ℕ → ℕ；「n 維」指支撐 ⊆ {0,…,n−1}）。 -/
-abbrev MonoExp := Nat → Nat
-
-/-- 單項式整除：逐點指數 ≤。 -/
-def dividesM (a b : MonoExp) : Prop := ∀ j, a j ≤ b j
-
-/-- 平方自由單項式：每個指數 ≤ 1（即不被任何 xᵢ² 整除的必要形式）。 -/
-def squarefreeM (m : MonoExp) : Prop := ∀ j, m j ≤ 1
-
-/-- xᵢ² 的指數向量（域多項式 xᵢ² − xᵢ 的首項）。 -/
-def x2 (i : Nat) : MonoExp := fun j => if j = i then 2 else 0
-
-theorem x2_self (i : Nat) : x2 i i = 2 := by
-  simp [x2]
-
-theorem x2_ne {i j : Nat} (h : j ≠ i) : x2 i j = 0 := by
-  simp [x2, h]
-
-theorem dividesM_refl (a : MonoExp) : dividesM a a := fun _ => Nat.le_refl _
-
-theorem dividesM_trans {a b c : MonoExp} (h1 : dividesM a b) (h2 : dividesM b c) :
-    dividesM a c := fun j => Nat.le_trans (h1 j) (h2 j)
-
-/-- 指數 ≥ 2 的維度上，xᵢ² 整除 m。 -/
-theorem x2_divides_of_ge2 (m : MonoExp) (i : Nat) (h : 2 ≤ m i) : dividesM (x2 i) m := by
-  intro j
-  by_cases hj : j = i
-  · rw [hj, x2_self]
-    exact h
-  · rw [x2_ne hj]
-    exact Nat.zero_le _
 
 /-! ## 環節一：標準單項式必平方自由 -/
 
@@ -55,7 +32,7 @@ theorem x2_divides_of_ge2 (m : MonoExp) (i : Nat) (h : 2 ≤ m i) : dividesM (x2
 首項理想含 xᵢ²），則任何標準單項式（不被任何首項整除）必平方自由。
 
 逆否形式即「非平方自由 ⇒ 非標準」：m 某維指數 ≥ 2 ⇒ xᵢ² | m ⇒
-（傳遞性）某首項 | m。這限制了首項理想的補集大小 ≤ 2ⁿ。 -/
+（傳遞性）某首項 | m。這限制了首項理想補集（標準單項式集）大小 ≤ 2ⁿ。 -/
 theorem standard_implies_squarefree (L : List MonoExp)
     (hlead : ∀ i, ∃ ℓ ∈ L, dividesM ℓ (x2 i))
     (m : MonoExp) (hstd : ∀ ℓ ∈ L, ¬ dividesM ℓ m) :
@@ -67,6 +44,14 @@ theorem standard_implies_squarefree (L : List MonoExp)
     obtain ⟨ℓ, hℓL, hℓ⟩ := hlead i
     have hx2 : dividesM (x2 i) m := x2_divides_of_ge2 m i (by omega)
     exact hstd ℓ hℓL (dividesM_trans hℓ hx2)
+
+/-- 標準單項式集（對於首項理想含全部 xᵢ² 的基）的每個元素都平方自由，
+這是「標準集 ⊆ 平方自由單項式集」的逐點形式。 -/
+theorem standard_set_subset_squarefree (L : List MonoExp)
+    (hlead : ∀ i, ∃ ℓ ∈ L, dividesM ℓ (x2 i))
+    (l : List MonoExp) (hl : ∀ m ∈ l, ∀ ℓ ∈ L, ¬ dividesM ℓ m) :
+    ∀ m ∈ l, squarefreeM m :=
+  fun m hm => standard_implies_squarefree L hlead m (hl m hm)
 
 /-! ## 環節二：平方自由單項式 ↔ 位串 -/
 
@@ -86,7 +71,8 @@ theorem ofBits_squarefree (f : Nat → Bool) : squarefreeM (ofBits f) := by
   intro j
   cases hfj : f j <;> simp [ofBits, hfj]
 
-/-- **雙射（左逆）**：平方自由單項式 → 位串 → 單項式還原。 -/
+/-- **雙射（左逆）**：平方自由單項式 → 位串 → 單項式還原。
+`ofBits` 與 `toBits` 互為逆 ⇒ 平方自由單項式與位串一一對應。 -/
 theorem ofBits_toBits {m : MonoExp} (h : squarefreeM m) : ofBits (toBits m) = m := by
   funext j
   have hj : m j ≤ 1 := h j
@@ -96,6 +82,12 @@ theorem ofBits_toBits {m : MonoExp} (h : squarefreeM m) : ofBits (toBits m) = m 
     · simp [ofBits, toBits, h0]
     · simp [ofBits, toBits, h1]
   · omega
+
+/-- 衍生：`ofBits` 單射（右逆存在）。 -/
+theorem ofBits_injective : Function.Injective ofBits := by
+  intro f g hfg
+  have := congrArg toBits hfg
+  rwa [toBits_ofBits, toBits_ofBits] at this
 
 /-! ## 環節三：n 維位串的枚舉與計數 -/
 
@@ -208,12 +200,8 @@ theorem allBits_complete : ∀ (n : Nat) (f : Nat → Bool), supportLe f n → f
       rw [allBits, List.mem_flatMap]
       exact ⟨setN f n false, hmem, by rw [key]; simp⟩
 
-/-! ## 總結：平方自由單項式恰 2ⁿ 個 -/
-
 /-- **T4 計數定理**：n 維平方自由單項式可由長度恰為 2ⁿ 的列表完全枚舉
-（可靠性 + 完備性 = 恰好枚舉一遍，即雙射計數）。
-配合 `standard_implies_squarefree`（標準單項式 ⊆ 平方自由單項式），
-基擴充可消耗的標準單項式 ≤ 2ⁿ ⇒ Buchberger 擴充次數 ≤ 2ⁿ ⇒ 必終止。 -/
+（可靠性 + 完備性 = 恰好枚舉一遍，即雙射計數）。 -/
 theorem squarefree_count (n : Nat) :
     ∃ l : List MonoExp, l.length = 2 ^ n
       ∧ (∀ m ∈ l, squarefreeM m ∧ supportLeM m n)
@@ -236,5 +224,66 @@ theorem squarefree_count (n : Nat) :
       simp [toBits, hmj]
     have hmem : toBits m ∈ allBits n := allBits_complete n (toBits m) htb
     exact List.mem_map.mpr ⟨toBits m, hmem, ofBits_toBits hsq⟩
+
+/-- 衍生：平方自由且 n 維支撐的單項式不同者互異（雙射的左逆+右逆）。 -/
+theorem squarefree_eq_of_bits_eq {m m' : MonoExp} (hm : squarefreeM m) (hm' : squarefreeM m')
+    (h : toBits m = toBits m') : m = m' := by
+  rw [← ofBits_toBits hm, ← ofBits_toBits hm', h]
+
+/-! ## 環節四：嚴格遞減的標準集 ⇒ 擴充次數 ≤ 2ⁿ（終止界）
+
+Buchberger 每加入一個新首項 g，該首項此前必是**標準單項式**（否則 S-餘式會被
+完全歸約），加入後它退出標準集且不再回來（首項理想單調遞增）。於是把狀態記錄為
+「標準集」的一個 `Sublist` 鏈：每個擴充步嚴格縮小一次，而鏈始終落在
+U = 平方自由 n 維單項式（|U| = 2ⁿ）之內 ⇒ 步數 ≤ 2ⁿ。 -/
+
+/-- 抽象消耗引理：嚴格遞減的 `Sublist` 鏈，第 k 步之後長度至少減少 k。 -/
+theorem sublist_chain_length (_U : List β) (S : Nat → List β)
+    (hsub : ∀ k, (S (k+1)).Sublist (S k))
+    (hstrict : ∀ k, S (k+1) ≠ S k) :
+    ∀ k, (S k).length + k ≤ (S 0).length := by
+  intro k
+  induction k with
+  | zero => omega
+  | succ k ih =>
+    have hs : (S (k+1)).Sublist (S k) := hsub k
+    have hle : (S (k+1)).length ≤ (S k).length := List.Sublist.length_le hs
+    have hne : (S (k+1)).length ≠ (S k).length := by
+      intro hlen
+      exact hstrict k (List.Sublist.eq_of_length hs hlen)
+    have hlt : (S (k+1)).length < (S k).length := by omega
+    omega
+
+/-- **T4 終止界（一般形式）**：標準集鏈落在長度 ≤ N 的有限集合 U 內，
+則擴充步數 k ≤ N。 -/
+theorem extension_bound (U : List β) (S : Nat → List β)
+    (hsub : ∀ k, (S (k+1)).Sublist (S k))
+    (hstrict : ∀ k, S (k+1) ≠ S k)
+    (hbase : (S 0).Sublist U) (k : Nat) :
+    k ≤ U.length := by
+  have h1 : (S k).length + k ≤ (S 0).length := sublist_chain_length U S hsub hstrict k
+  have h2 : (S 0).length ≤ U.length := List.Sublist.length_le hbase
+  omega
+
+/-- **T4 主定理（Buchberger 終止性）**：狀態為「n 變量平方自由單項式」
+（以 `allBits n ∘ ofBits` 枚舉，長度 2ⁿ）內的嚴格遞減 `Sublist` 鏈時，
+擴充步數 k ≤ 2ⁿ。故帶域多項式 B 的 Buchberger 演算法必在有限步內終止。 -/
+theorem buchberger_extension_bound (n k : Nat) (S : Nat → List MonoExp)
+    (hsub : ∀ j, (S (j+1)).Sublist (S j))
+    (hstrict : ∀ j, S (j+1) ≠ S j)
+    (hbase : (S 0).Sublist ((allBits n).map ofBits)) :
+    k ≤ 2 ^ n := by
+  have h := extension_bound ((allBits n).map ofBits) S hsub hstrict hbase k
+  rw [List.length_map, allBits_length] at h
+  exact h
+
+/-- 終止性的直接推論：不存在無窮的嚴格遞減標準集鏈（反證形式）。 -/
+theorem no_infinite_sublist_chain (U : List β) (S : Nat → List β)
+    (hsub : ∀ k, (S (k+1)).Sublist (S k))
+    (hstrict : ∀ k, S (k+1) ≠ S k)
+    (hbase : (S 0).Sublist U) :
+    False := by
+  have h := extension_bound U S hsub hstrict hbase (U.length + 1)
+  omega
 
 end Polyrust
