@@ -164,9 +164,10 @@ jobs:
   release-assets:
     name: Release 二進位
     needs: [verify]
-    # tag 推送時自動跑；也允許手動觸發（GitHub 對「移動既有 tag」不發 push 事件，
-    # 故補上 workflow_dispatch 讓已存在的 tag 也能重新產出附件）。
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    # 只由 tag 觸發。實測更正：GitHub 對「移動既有 tag」**會**發 push 事件
+    # （run #4 即由 tag 移動自動觸發），故不需要 workflow_dispatch；
+    # 先前加上它反而造成 dispatch run 與 tag-push run 同組 concurrency 互相取消。
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ${{ matrix.os }}
     # 必須獨立於頂層 concurrency：頂層 group 只含 github.ref，三個 matrix leg
     # 的 ref 相同，會互相 cancel（實測 ubuntu/windows 被 cancelled）。
@@ -174,8 +175,7 @@ jobs:
       group: release-${{ matrix.target }}-${{ github.ref }}
       cancel-in-progress: true
     env:
-      # workflow_dispatch 的 github.ref 是分支而非 tag，故需自行決定 tag 名。
-      TAG: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v0.1.0' }}
+      TAG: ${{ github.ref_name }}
     strategy:
       matrix:
         include:
@@ -209,8 +209,9 @@ jobs:
       - name: 上傳到 Release
         uses: softprops/action-gh-release@v3
         with:
-          # 必須顯式給 tag_name：workflow_dispatch 時 github.ref 是分支，
-          # action 會報「GitHub Releases requires a tag」（實測踩到）。
-          tag_name: ${{ env.TAG }}
+          # 注意：`env` context 在 with: 不可用（實測踩到——${{ env.TAG }} 解析為空，
+          # action 退回用 github.ref 而報「Resource not accessible by integration」）。
+          # 故直接用 github.ref_name。
+          tag_name: ${{ github.ref_name }}
           files: polyrust-*
           fail_on_unmatched_files: true
