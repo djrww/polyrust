@@ -182,8 +182,9 @@ cargo build --release
 
 docs 之外，倉庫的 [`lean/`](../lean) 目錄提供上述證明骨幹的 **Lean 4 機械化**
 （無 Mathlib 依賴，自包含；`lake build` 從零約 5 秒，Lean 4.33.1 固定於
-`lean-toolchain`）：**273 條定理/引理、4,338 行、零 `sorry`、零自訂公理**
-（`bash scripts/lean-audit.sh` 逐定理 `#print axioms` 可複驗）。
+`lean-toolchain`）：**377 條定理/引理（另含實例化 `example`）、5,864 行、
+零 `sorry`、零自訂公理**（`AuditAll`：受檢宣告 1722、純構造 960；
+`bash scripts/lean-audit.sh` 逐定理 `#print axioms` 可複驗）。
 
 完整對照（每個模組證了什麼、邊界在哪、錯了會怎樣）見
 **[`docs/LEAN.md`](LEAN.md)**。模組總覽：
@@ -202,11 +203,107 @@ docs 之外，倉庫的 [`lean/`](../lean) 目錄提供上述證明骨幹的 **L
 | `Polyrust.Canonical` | T7(a) | `reduced_unique`（簡化基**若存在則唯一**）；`reduced_zero_of_mem`；`lead_determines_element`；`pureNat` 非空性模型 |
 | `Polyrust.T6Certificate` | T6 | `inIdeal_no_root`/`one_mem_no_root`（1 ∈ 理想 ⟹ 無 0/1 根）；`interpolation`；`no_root_certificate`/`no_root_poly_certificate` |
 | `Polyrust.T9EndToEnd` | T9 | `genC_sound`（T1）；`genC_complete`（T2）；`typable_iff_root`/`untypable_iff_no_root`（T6 判定等價）；`parse_gen`（round-trip）；`arm_gating*`（T7(b) 閘控） |
+| `Polyrust.T9Generalized` | T9 泛化 (a) | 型別宇宙參數化（`Lang`：`enumAll`/`nodup`/`complete`/`numTy`/`eqbTy`/`num_ne_eqb`）；`genC_soundG`（T1）、`genC_completeG`（T2）、`typable_iff_rootG`（T6/T9）對任意可枚舉宇宙成立（詳見 §14） |
+| `Polyrust.ProductReduction` | T9 泛化 (b) | 積型（引用 × 基本）：`typable_pair_iff`（AND）；`pairBitSum_eq_mul`（one-hot 乘積） |
+| `Polyrust.SumReduction` | T9 泛化 (c) | 和型（`bool`/`()` 變體）：`type_typable_sum_iff`（OR）；`sumBits_sum_eq_add`（位元相加） |
+| `Polyrust.OpAbstraction` | T9 泛化 (e) | 運算子規格化（`BinSpec`）：`genC_soundG2`（T1）、`genC_completeG2`（T2）、`typable_iff_rootG2`（T6/T9）對任意規格成立；9 種 `BinOp` 零新證明 |
 | `Polyrust.MacroExpansion` | T7(b) | `expand_comp`（展開是同態）；`checkCtx_det`；`checkCtx_expand`（正確臂）；`check_expand_demands`+`arm_demand`；`wrong_arm_untypable`/`wrong_arm_no_root`（錯臂 ⟺ 無 0/1 根） |
 | `Polyrust.BorrowOwnership` | T1/T2/T6 借用側 | `borrow_sat_iff_clean`（有根 ⟺ 無衝突）；`clashClause_duality`／`assignClause_duality`；`borrow_clash_one_mem`（1 ∈ 理想）；所有權三規則與 P5/P6 樣本模型；`t9_borrow_decision` |
-| `Audit.lean` | 審計 | 84 條主定理的 `#print axioms` |
+| `Audit.lean`／`AuditAll.lean` | 審計 | 主定理 `#print axioms`；全庫掃描（受檢 1722、純構造 960、0 sorry、0 自訂公理 ⇒ `AUDIT_RESULT=CLEAN`） |
 
 Rust 側的 `obligations` 子命令（§12）對 12 個程序樣本自證全部義務，
 Lean 側把證明的**數學骨幹**（對偶、終止性、嵌入保真、QAP 忠實性）
 從「樣本檢查」提升為「通用定理 + 機器檢查證明」。二者互補：
 義務自證覆蓋工程實現的每一步；Lean 定理覆蓋任意尺寸輸入的一般性。
+
+---
+
+## 14. T9 泛化（2026-09-14）：從「2 型別玩具證明」到「任意型別宇宙 + 任意運算子規格」
+
+**動機.** §13 的 `T9EndToEnd` 把型別宇宙寫死為 `{i32, bool}`、把運算子寫死為
+`add`／`eqb` 兩個建構子。這與真實 Rust（7 種基本型別、9 種 `BinOp`、一元
+`!`/`-`、引用型別）之間存在「樣本 ≠ 通用」的缺口。泛化分四步完成，全部
+機械化、零 Mathlib、零自訂公理（`AuditAll` CLEAN：**1722 宣告、960 純構造、
+0 sorry、0 非標準公理**）：
+
+| 步 | 模組（`lean/Polyrust/`） | 補的缺口 | 核心定理 |
+|---|---|---|---|
+| (a) 型別宇宙 | `T9Generalized.lean`（786 行、50 定理） | 2 型別 → 任意可枚舉宇宙 | `tycheck_exclusive`、`genC_soundG`（T1）、`genC_completeG`（T2）、`typable_iff_rootG`（T6/T9） |
+| (b) 積型 | `ProductReduction.lean`（208 行、12 定理） | 引用型別 `&`/`&mut` × 基本型別 = 複合型別 | `typable_pair_iff`（AND 語義）、`pairBitSum_eq_mul`（one-hot 乘積） |
+| (c) 和型 | `SumReduction.lean`（166 行、10 定理） | `bool` = `true \| false` 的變體和 | `type_typable_sum_iff`（OR 語義）、`sumBits_sum_eq_add`（位元相加） |
+| (e) 運算子 | `OpAbstraction.lean`（543 行、32 定理） | 9 種 `BinOp` = 規格實例 | `tycheckG_exclusive`、`genC_soundG2`（T1）、`genC_completeG2`（T2）、`typable_iff_rootG2`（T6/T9） |
+
+### 14.1 (a) 型別宇宙參數化
+
+型別宇宙從兩個寫死的建構子抽象為一個**可枚舉宇宙**：
+
+```
+structure Lang (Ty : Type) where
+  enumAll   : List Ty        -- 全枚舉
+  nodup     : enumAll.Nodup
+  complete  : ∀ t, t ∈ enumAll
+  numTy eqbTy : Ty           -- 數值／布爾代表元
+  num_ne_eqb  : numTy ≠ eqbTy
+```
+
+T9EndToEnd 的全部構造（`tycheck`、`oneHot`、約束表 `genC`、見證 `witness`）
+照抄但參數化為 `L : Lang Ty`；one-hot 從兩項相加推廣為 `List.sum`。
+關鍵在於 **T1／T2／T6 的證明對 `L` 完全參數化**：換一個更大的宇宙
+（例如加上 `Unit`、`Ref*`），定理自動成立，**零新證明**。
+
+### 14.2 (b) 積型歸約（引用型別）
+
+真實 Rust 的 `&i32`、`&mut i32`、`&bool`、`&mut bool` 是「引用修飾 ∘ 基本
+型別」的複合。形式化為積型：`pair e₁ e₂` 可定型於 `(τ₁, τ₂)` ⟺ 兩個分量
+分別可定型（`typable_pair_iff`，AND 語義），且積的 one-hot 位元 = 分量
+one-hot 位元之**乘積**（`pairBitSum_eq_mul`），從而约束編碼的可靠性／完備性
+直接歸約到分量層。
+
+### 14.3 (c) 和型歸約（變體型別）
+
+`bool` 本質是 `true | false` 的雙變體和、`()` 是單變體和。形式化為
+`inl e`／`inr e`：可定型語義為 **OR**（`type_typable_sum_iff`：`τ` 可定型
+`inl e` 或 `inr e` 之一），和的位元 = 變體位元之**加**（`sumBits_sum_eq_add`）。
+與 (b) 的乘積對偶，合起來覆蓋「複合型別 = 積 × 和」的兩種組合方式。
+
+### 14.4 (e) 運算子規則抽象
+
+最關鍵的一步：把運算子從**語法**（寫死的 `add`/`eqb` 建構子）降為**資料**：
+
+```
+structure BinSpec (Ty : Type) where
+  in1 in2 out : Ty           -- 輸入1 型別、輸入2 型別、輸出型別
+
+inductive ExprG (Ty : Type)
+  | num : Int → ExprG Ty
+  | binop : BinSpec Ty → ExprG Ty → ExprG Ty → ExprG Ty   -- 規格是標籤
+  | ite : …
+```
+
+規則方程用**輸出標記** `outMark s t = bit (decide (t = s.out))` 寫成：
+`binop s a b` 在型別 `t` 的位元 = `outMark s t · bit(a@s.in1) · bit(b@s.in2)`。
+由於單型性（`tycheckG_exclusive`）對**任意**規格 `s` 成立、不需要「規格互斥」
+的額外假設，Rust 的 9 種 `BinOp` 全部是同一個定理的實例：
+
+| `BinSpec` 實例 | 覆蓋的 `BinOp` | `in1 → in2 → out` |
+|---|---|---|
+| `arithSpec L` | Add / Sub / Mul | `numTy → numTy → numTy` |
+| `cmpSpec L` | Lt / Le / Ge / Eq / Ne | `numTy → numTy → eqbTy` |
+| `andSpec L` | And | `eqbTy → eqbTy → eqbTy` |
+
+三個實例化 `example`（§十）已在 Lean 中機械驗證，含負例
+（`1 + 2` 不會被定型為 `eqbTy`，由 `num_ne_eqb` 保證）。
+**新增一個運算子 = 新增一個 `BinSpec`，零新證明**——這正是擴展不變性，
+也因此原計劃的 (d)「逐運算子規則」沒有單獨做：它與 (e) 完全重複，多做只會多 bug。
+
+### 14.5 「Rust 7 型別 vs Lean 2 型別」缺口的歸檔
+
+| 缺口 | 由哪一步補齊 |
+|---|---|
+| 型別個數（2 → 任意） | (a) 可枚舉宇宙 |
+| 4 個引用型別 `&i32`/`&mut i32`/`&bool`/`&mut bool` | (b) 積型 |
+| `bool`（雙變體）、`()`（單變體） | (c) 和型 |
+| 9 種 `BinOp` + 一元 `!`/`-` | (e) `BinSpec` 實例 |
+
+**重現**：`cd lean && lake build`（21 jobs 全綠）；
+`lake env lean AuditAll.lean` 輸出 `AUDIT_RESULT=CLEAN`。

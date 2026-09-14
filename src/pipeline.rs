@@ -13,11 +13,10 @@ use crate::minirust::macros::Expander;
 use crate::minirust::parse::Parser;
 use crate::poly::{Order, Poly};
 use crate::qap::{qap_from_r1cs, Qap, R1cs};
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 
 #[derive(Clone, Debug, Default)]
 pub struct PipelineResult {
-    pub name: String,
     pub n_vars: usize,
     pub n_polys: usize,          // 生成元數（含域多項式與子句多項式）
     pub n_clauses: usize,
@@ -61,8 +60,9 @@ pub fn clause_to_poly(clause: &[cdcl::Lit], nvars: usize) -> Poly {
 }
 
 /// 完整管線。
+#[allow(unused_assignments)] // stage! 巨集每次測時後重設 t0；末次重設值不再被讀取（預期）
 pub fn run_pipeline(name: &str, source: &str, do_codegen: bool) -> Result<PipelineResult, String> {
-    let mut res = PipelineResult { name: name.to_string(), ..Default::default() };
+    let mut res = PipelineResult::default();
     let mut t0 = std::time::Instant::now();
     macro_rules! stage { ($m:expr) => {
         if std::env::var("PL_DBG").is_ok() {
@@ -123,7 +123,6 @@ pub fn run_pipeline(name: &str, source: &str, do_codegen: bool) -> Result<Pipeli
 
     let mut cdcl_stats_acc = CdclStats::default();
     let mut learned_total: Vec<Vec<cdcl::Lit>> = vec![];
-    let mut sat_model: Option<Vec<bool>> = None;
     let mut rounds = 0usize;
     loop {
         rounds += 1;
@@ -178,7 +177,6 @@ pub fn run_pipeline(name: &str, source: &str, do_codegen: bool) -> Result<Pipeli
             }
             continue;
         }
-        sat_model = Some(model);
         break;
     }
     res.cdcl_rounds = rounds;
@@ -298,40 +296,3 @@ pub fn run_pipeline(name: &str, source: &str, do_codegen: bool) -> Result<Pipeli
     Ok(res)
 }
 
-/// 顯示多項式（帶變量名）。
-pub fn show_polys(polys: &[Poly], names: &[String], limit: usize) -> String {
-    let mut s = String::new();
-    for (i, f) in polys.iter().take(limit).enumerate() {
-        s.push_str(&format!("  [{:>3}] {} = 0\n", i, f.display(names)));
-    }
-    if polys.len() > limit {
-        s.push_str(&format!("  …（共 {} 條）\n", polys.len()));
-    }
-    s
-}
-
-/// 基中非零非常數元素（顯示用）。
-pub fn basis_summary(basis: &[Poly], names: &[String], limit: usize) -> String {
-    if basis.len() == 1 && basis[0].is_constant().map_or(false, |c| c.is_one()) {
-        return "  { 1 }（系統矛盾）".to_string();
-    }
-    let mut s = String::new();
-    for (i, g) in basis.iter().take(limit).enumerate() {
-        s.push_str(&format!("  [{:>3}] {}\n", i, g.display(names)));
-    }
-    if basis.len() > limit {
-        s.push_str(&format!("  …（共 {} 條）\n", basis.len()));
-    }
-    s
-}
-
-/// 借用統計
-pub fn used_var_count(polys: &[Poly]) -> usize {
-    let mut s = BTreeSet::new();
-    for f in polys {
-        for v in f.vars() {
-            s.insert(v);
-        }
-    }
-    s.len()
-}

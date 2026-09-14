@@ -16,6 +16,10 @@
 | `Polyrust.Canonical` | T7(a) | 既約/全簡化標準形；**若**簡化 Gröbner 基存在則唯一（CLO §2.7 Thm 5）；非空性模型 `pureNat` |
 | `Polyrust.T6Certificate` | T6 | 求值同態、無公共零點證書（乘子 + 組合=1）、布爾 Lagrange 插值；多項式乘子版本 |
 | `Polyrust.T9EndToEnd` | T9 | 迷你語言型別檢查器；約束編碼的可靠性/完備性/判定等價（根 ⟺ 可定型）；代碼生成 round-trip |
+| `Polyrust.T9Generalized` | T9 泛化 | 型別宇宙泛化：把寫死的 2 型別抽象為任意可枚舉宇宙（`Lang`：`enumAll`/`nodup`/`complete`/`numTy`/`eqbTy`/`num_ne_eqb`），one-hot 用 `List.sum`；T1/T2/T6/T9 全部參數化，新增型別零新證明 |
+| `Polyrust.ProductReduction` | T9 泛化 (b) | 積型歸約：複合型別（`pair`/積型）檢查與可定型性歸約為逐欄位檢查；pair one-hot = 分量 one-hot 之乘積（`pairBitSum_eq_mul`） |
+| `Polyrust.SumReduction` | T9 泛化 (c) | 和型歸約：複合型別（`inl`/`inr`/和型）檢查與可定型性歸約為變體檢查；OR 語義（`type_typable_sum_iff`）；sum 位元 = 變體位元之和（`sumBits_sum_eq_add`） |
+| `Polyrust.OpAbstraction` | T9 泛化 (e) | 運算子規則抽象：二元運算子抽象為 `BinSpec {in1,in2,out}`，`binop s a b` 帶規格標籤；T1/T2/T6/T9 對**任意**規格成立，Rust 9 種 `BinOp` 是 9 個實例（`arithSpec`/`cmpSpec`/`andSpec`），新增運算子零新證明 |
 | `Polyrust.BorrowOwnership` | T1/T2/T6 借用側 | 借用存活區間與衝突（與 `analysis.rs` 同式）；`borrow_sat_iff_clean`（有根 ⟺ 無衝突）；借用子句 ↔ T3(a) 對偶；`borrow_clash_one_mem`（1 ∈ 理想，顯式組合）；所有權三規則（重疊／賦值／移動）與 P5/P6 樣本模型 |
 | `Polyrust.MacroExpansion` | T7(b) | 模板語法/上下文/代入；展開是同態（正確臂可定型）；需求表回推（錯臂必被拒絕，且其約束系統無 0/1 根） |
 
@@ -33,5 +37,9 @@ import Polyrust.SPoly
 import Polyrust.Canonical
 import Polyrust.T6Certificate
 import Polyrust.T9EndToEnd
+import Polyrust.T9Generalized
+import Polyrust.ProductReduction
+import Polyrust.SumReduction
+import Polyrust.OpAbstraction
 import Polyrust.MacroExpansion
 import Polyrust.BorrowOwnership

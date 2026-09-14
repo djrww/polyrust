@@ -50,8 +50,13 @@ impl Type {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum BinOp {
     Add,
+    Sub,
     Mul,
     Lt,
+    Le,
+    Ge,
+    Eq,
+    Ne,
     And,
 }
 
@@ -59,17 +64,14 @@ impl BinOp {
     pub fn name(&self) -> &'static str {
         match self {
             BinOp::Add => "+",
+            BinOp::Sub => "-",
             BinOp::Mul => "*",
             BinOp::Lt => "<",
+            BinOp::Le => "<=",
+            BinOp::Ge => ">=",
+            BinOp::Eq => "==",
+            BinOp::Ne => "!=",
             BinOp::And => "&&",
-        }
-    }
-    pub fn rule_name(&self) -> &'static str {
-        match self {
-            BinOp::Add => "T-Add",
-            BinOp::Mul => "T-Mul",
-            BinOp::Lt => "T-Lt",
-            BinOp::And => "T-And",
         }
     }
 }
@@ -93,6 +95,8 @@ pub enum EKind {
     Seq(Box<E>, Box<E>),
     BinOp(BinOp, Box<E>, Box<E>),
     Not(Box<E>),
+    /// 一元負號 -e
+    Neg(Box<E>),
     If(Box<E>, Box<E>, Box<E>),
     /// &x
     Ref(String),
@@ -105,17 +109,22 @@ pub enum EKind {
     /// *lhs = e;（lhs 須為 &mut）
     AssignDeref(Box<E>, Box<E>),
     /// f(e)
-    Call(String, Box<E>),
+    Call(String, Vec<E>),
     /// name!(原始 token)——宏調用（arm 選擇是管線的決策點）
     Invoke(String, Vec<Tok>),
 }
 
 #[derive(Clone, Debug)]
+pub struct FnParam {
+    pub name: String,
+    pub node: usize, // 參數的專屬節點 id（型別位元用）
+    pub ty: Type,
+}
+
+#[derive(Clone, Debug)]
 pub struct FnDef {
     pub name: String,
-    pub param: String,
-    pub param_node: usize, // 參數的專屬節點 id（型別位元用）
-    pub param_ty: Type,
+    pub params: Vec<FnParam>,
     pub ret_ty: Type,
     pub body: E,
 }

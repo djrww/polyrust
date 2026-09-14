@@ -10,15 +10,13 @@ use crate::minirust::parse::Parser;
 pub struct CodeGenConfig {
     /// let 綁定加顯式型別標註
     pub annotate_types: bool,
-    /// 行內註解每個節點選定的規則
-    pub annotate_rules: bool,
     /// 宏展開處註解臂選擇
     pub annotate_arm: bool,
 }
 
 impl Default for CodeGenConfig {
     fn default() -> Self {
-        CodeGenConfig { annotate_types: true, annotate_rules: false, annotate_arm: true }
+        CodeGenConfig { annotate_types: true, annotate_arm: true }
     }
 }
 
@@ -50,21 +48,31 @@ pub fn generate_rust(
     }
     out.push('\n');
     for f in &p.fns {
+        let params: Vec<String> = f
+            .params
+            .iter()
+            .map(|prm| format!("{}: {}", sanitize(&prm.name), prm.ty.name()))
+            .collect();
         out.push_str(&format!(
-            "fn {}({}: {}) -> {} {{\n",
+            "fn {}({}) -> {} {{\n",
             sanitize(&f.name),
-            sanitize(&f.param),
-            f.param_ty.name(),
+            params.join(", "),
             f.ret_ty.name()
         ));
         let mut buf = String::new();
-        emit_expr(&f.body, exp, deriv, cfg, &mut buf, 1);
+        emit_expr(&f.body, exp, deriv, cfg, &mut buf, 1, false);
         out.push_str(&buf);
         out.push_str("}\n\n");
     }
     out.push_str("fn main() {\n");
     let mut buf = String::new();
-    emit_expr(&p.main_body, exp, deriv, cfg, &mut buf, 1);
+    // 真 Rust 要求 main 回傳 ()。若 Mini-Rust main 的尾表達式非 unit，
+    // 以語句形式丟棄之（加 `;`），既保持 round-trip 可解析，又過到真 rustc。
+    let main_discard = !matches!(
+        deriv.node_types.get(&p.main_body.id),
+        Some(Type::Unit)
+    );
+    emit_expr(&p.main_body, exp, deriv, cfg, &mut buf, 1, main_discard);
     out.push_str(&buf);
     out.push_str("}\n");
     out
@@ -81,13 +89,30 @@ fn emit_expr(
     cfg: &CodeGenConfig,
     out: &mut String,
     depth: usize,
+    discard_tail: bool,
 ) {
     let ty = |id: usize| d.node_types.get(&id).map(|t| t.name().to_string()).unwrap_or_else(|| "?".into());
+    // 若此表達式是 main 的非 unit 尾表達式，則以語句形式丟棄（補 `;`）。
+    let is_unit = ty(e.id) == "()";
+    let maybe_discard = |out: &mut String| {
+        if discard_tail && !is_unit {
+            out.push(';');
+        }
+    };
     match &e.kind {
-        EKind::Int(n) => out.push_str(&n.to_string()),
-        EKind::BoolV(b) => out.push_str(if *b { "true" } else { "false" }),
+        EKind::Int(n) => {
+            out.push_str(&n.to_string());
+            maybe_discard(out);
+        }
+        EKind::BoolV(b) => {
+            out.push_str(if *b { "true" } else { "false" });
+            maybe_discard(out);
+        }
         EKind::UnitLit => out.push_str("()"),
-        EKind::Var(x) => out.push_str(&sanitize(x)),
+        EKind::Var(x) => {
+            out.push_str(&sanitize(x));
+            maybe_discard(out);
+        }
         EKind::Let(x, e1, e2) => {
             // let x[: T] = e1;
             out.push_str(&indent(depth));
@@ -96,59 +121,82 @@ fn emit_expr(
             } else {
                 out.push_str(&format!("let mut {} = ", sanitize(x)));
             }
-            emit_expr(e1, exp, d, cfg, out, depth);
+            emit_expr(e1, exp, d, cfg, out, depth, false);
             out.push_str(";\n");
-            emit_expr(e2, exp, d, cfg, out, depth);
+            emit_expr(e2, exp, d, cfg, out, depth, discard_tail);
         }
         EKind::Seq(e1, e2) => {
-            emit_expr(e1, exp, d, cfg, out, depth);
+            // e1 是語句位：非 unit 則補 `;`（恆真丟棄）
+            emit_expr(e1, exp, d, cfg, out, depth, true);
             out.push('\n');
-            emit_expr(e2, exp, d, cfg, out, depth);
+            emit_expr(e2, exp, d, cfg, out, depth, discard_tail);
         }
         EKind::BinOp(op, a, b) => {
             out.push('(');
-            emit_expr(a, exp, d, cfg, out, depth);
+            emit_expr(a, exp, d, cfg, out, depth, false);
             out.push_str(&format!(" {} ", op.name()));
-            emit_expr(b, exp, d, cfg, out, depth);
+            emit_expr(b, exp, d, cfg, out, depth, false);
             out.push(')');
+            maybe_discard(out);
         }
         EKind::Not(a) => {
             out.push_str("(!");
-            emit_expr(a, exp, d, cfg, out, depth);
+            emit_expr(a, exp, d, cfg, out, depth, false);
             out.push(')');
+            maybe_discard(out);
+        }
+        EKind::Neg(a) => {
+            out.push_str("(-");
+            emit_expr(a, exp, d, cfg, out, depth, false);
+            out.push(')');
+            maybe_discard(out);
         }
         EKind::If(c, a, b) => {
             out.push_str("if ");
-            emit_expr(c, exp, d, cfg, out, depth);
+            emit_expr(c, exp, d, cfg, out, depth, false);
             out.push_str(" {\n");
-            emit_expr(a, exp, d, cfg, out, depth + 1);
+            emit_expr(a, exp, d, cfg, out, depth + 1, false);
             out.push_str(&format!("\n{}}} else {{\n", indent(depth)));
-            emit_expr(b, exp, d, cfg, out, depth + 1);
+            emit_expr(b, exp, d, cfg, out, depth + 1, false);
             out.push_str(&format!("\n{}}}", indent(depth)));
+            maybe_discard(out);
         }
-        EKind::Ref(x) => out.push_str(&format!("&{}", sanitize(x))),
-        EKind::RefMut(x) => out.push_str(&format!("&mut {}", sanitize(x))),
+        EKind::Ref(x) => {
+            out.push_str(&format!("&{}", sanitize(x)));
+            maybe_discard(out);
+        }
+        EKind::RefMut(x) => {
+            out.push_str(&format!("&mut {}", sanitize(x)));
+            maybe_discard(out);
+        }
         EKind::Deref(a) => {
             out.push_str("*(");
-            emit_expr(a, exp, d, cfg, out, depth);
+            emit_expr(a, exp, d, cfg, out, depth, false);
             out.push(')');
+            maybe_discard(out);
         }
         EKind::AssignVar(x, rhs) => {
             out.push_str(&format!("{}{} = ", indent(depth), sanitize(x)));
-            emit_expr(rhs, exp, d, cfg, out, depth);
+            emit_expr(rhs, exp, d, cfg, out, depth, false);
             out.push(';');
         }
         EKind::AssignDeref(lhs, rhs) => {
             out.push_str(&indent(depth));
-            emit_expr(lhs, exp, d, cfg, out, depth);
+            emit_expr(lhs, exp, d, cfg, out, depth, false);
             out.push_str(" = ");
-            emit_expr(rhs, exp, d, cfg, out, depth);
+            emit_expr(rhs, exp, d, cfg, out, depth, false);
             out.push(';');
         }
-        EKind::Call(f, a) => {
+        EKind::Call(f, args) => {
             out.push_str(&format!("{}(", sanitize(f)));
-            emit_expr(a, exp, d, cfg, out, depth);
+            for (i, a) in args.iter().enumerate() {
+                if i > 0 {
+                    out.push_str(", ");
+                }
+                emit_expr(a, exp, d, cfg, out, depth, false);
+            }
             out.push(')');
+            maybe_discard(out);
         }
         EKind::Invoke(name, _) => {
             // 展開所選臂
@@ -162,7 +210,7 @@ fn emit_expr(
                 ));
             }
             if let Some(tree) = exp.memo.get(&(e.id, arm)) {
-                emit_expr(tree, exp, d, cfg, out, depth);
+                emit_expr(tree, exp, d, cfg, out, depth, discard_tail);
             } else {
                 out.push_str(&format!("/* 展開缺失：{}! */", name));
             }

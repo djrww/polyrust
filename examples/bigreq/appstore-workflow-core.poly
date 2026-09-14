@@ -1,0 +1,20 @@
+# @intent: 「App 發佈平台」的最小計算核心模型（簡化：用條件表達式模擬狀態機——草稿/審核中/已發佈/已撤回，無真實 I/O 與持久化）
+fn publish(app_state: i32, version: i32) -> i32 {
+    if app_state == 0 {
+        if version >= 1 { 1 } else { 0 }
+    } else { app_state }
+}
+fn approve_review(app_state: i32, auditor_ok: bool) -> i32 {
+    if app_state == 1 {
+        if auditor_ok { 2 } else { 1 }
+    } else { app_state }
+}
+fn withdraw(app_state: i32) -> i32 {
+    if app_state == 2 { 3 } else { app_state }
+}
+fn main() {
+    let s0 = 0;
+    let s1 = publish(s0, 3);
+    let s2 = approve_review(s1, true);
+    let s3 = withdraw(s2);
+}

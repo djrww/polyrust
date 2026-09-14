@@ -24,14 +24,15 @@ bash ../scripts/lean-audit.sh   # 可信度審計：sorry 掃描 + #print axioms
 ```
 
 實測環境：Lean **4.33.1**（commit `819816b`）、Lake 5.0.0-src、零外部依賴、
-`lake build` 從零約 6 秒（17 jobs）。`lean-toolchain` 已固定版本，任何人
+`lake build` 從零約 6 秒（21 jobs）。`lean-toolchain` 已固定版本，任何人
 `git clone` 後 `lake build` 即得同一結果。
 
 **無 `sorry`、無 `admit`、無自訂 `axiom`**：`Audit.lean` 逐定理
 `#print axioms`，全部只列出 Lean 標準三公理（`propext`、`Classical.choice`、
 `Quot.sound`）或不依賴任何公理。若有 `sorry`，清單會出現 `sorryAx`。
 
-規模：**273 條定理/引理，4,338 行**（不含註解行另有數百行說明）。
+規模：**377 條定理/引理，5,864 行**（不含註解行另有數百行說明）。
+`AuditAll.lean` 全庫審計：受檢宣告 1722、純構造 960、零 `sorry`、零自訂公理。
 
 ---
 
@@ -52,6 +53,10 @@ bash ../scripts/lean-audit.sh   # 可信度審計：sorry 掃描 + #print axioms
 | `Polyrust/T6Certificate.lean` | 427 | **T6** | `inIdeal_no_root`、`one_mem_no_root`（1 ∈ 理想 ⟹ 無 0/1 根）；`interpolation`（布爾 Lagrange 插值）；`no_root_certificate`、`no_root_poly_certificate`（無公共零點 ⟹ 存在乘子使組合恆等於非零） |
 | `Polyrust/T9EndToEnd.lean` | 764 | **T9** | `check`（獨立型別檢查器）、`genC`（約束編碼）、`genC_sound`（T1）、`genC_complete`（T2）、`root_implies_typable`、`typable_iff_root`（T6 判定等價）、`untypable_iff_no_root`、`isMonoAt_of_root`、`parseFuel_gen`/`parse_gen`（代碼生成 round-trip）、`arm_gating*`（T7(b) 閘控） |
 | `Polyrust/BorrowOwnership.lean` | 511 | **T1/T2/T6 借用側** | 借用存活區間與衝突（與 `analysis.rs` 同式）；`borrow_sat_iff_clean`：**系統有 0/1 根 ⟺ 無衝突**；`clashClause_duality`／`assignClause_duality`（借用子句 ↔ T3(a) 對偶）；`borrow_clash_one_mem`／`borrow_assign_one_mem`（**1 ∈ 理想**，顯式組合）；所有權三規則（重疊／賦值／移動）＋ P5/P6 樣本模型；`t9_borrow_decision`（T9 加借用的端到端判定） |
+| `Polyrust/T9Generalized.lean` | 786 | **T9 泛化 (a)** | 型別宇宙參數化：`Lang`（`enumAll`/`nodup`/`complete`/`numTy`/`eqbTy`/`num_ne_eqb`）；one-hot 用 `List.sum`；`tycheck_exclusive`、`genC_soundG`（T1）、`genC_completeG`（T2）、`typable_iff_rootG`（T6/T9）全部對任意可枚舉宇宙成立 |
+| `Polyrust/ProductReduction.lean` | 208 | **T9 泛化 (b)** | 積型（引用型別 `&`/`&mut` × 基本型別）：`typable_pair_iff`（AND 語義）、`typable_pair_fst/snd`、`pairBitSum_eq_mul`（one-hot 乘積）、`pairBitSum_eq_one_imp` |
+| `Polyrust/SumReduction.lean` | 166 | **T9 泛化 (c)** | 和型（`bool`=`true\|false` 變體和、`()` 單變體）：`type_typable_sum_iff`（OR 語義）、`sumBits_sum_eq_add`（位元相加）、`sumBits_sum_eq_two` |
+| `Polyrust/OpAbstraction.lean` | 543 | **T9 泛化 (e)** | 運算子規則抽象：`BinSpec {in1,in2,out}` 為資料；`tycheckG_exclusive`、`genC_soundG2`（T1）、`genC_completeG2`（T2）、`typable_iff_rootG2`（T6/T9）對**任意**規格成立；Rust 9 種 `BinOp` = `arithSpec`/`cmpSpec`/`andSpec` 三個實例（§十機械驗證） |
 | `Polyrust/MacroExpansion.lean` | 440 | **T7(b)** | 模板語法 + 上下文 + 代入；`subst_id/subst_comp/expand_comp`（**展開是同態**）；`mem_vars_subst`；`checkCtx_det`（型別唯一）；`checkCtx_expand`（**正確臂**）；`check_expand_reflect`、`check_expand_demands` + `arm_demand`（**需求表回推**）；`wrong_arm_untypable`、`wrong_arm_no_root`（**錯臂必被拒絕、其約束系統無 0/1 根**） |
 | `Audit.lean` | 100 | 審計 | 84 條主定理的 `#print axioms`（不屬於 `lake build` 預設目標） |
 

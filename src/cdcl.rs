@@ -362,9 +362,6 @@ impl Solver {
         self.clauses[self.n_orig..].to_vec()
     }
 
-    pub fn all_clauses(&self) -> &[Vec<Lit>] {
-        &self.clauses
-    }
 }
 
 fn lit_neg_of_var(v: usize, s: &Solver) -> Lit {

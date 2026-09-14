@@ -3,7 +3,7 @@
 //! a(t)·b(t) − c(t) ≡ 0 (mod Z(t))，Z 為定義域上的 vanishing 多項式。
 //! 定理 8：z 是 R1CS 見證 ⟺ Z | a·b − c。
 
-use crate::fp::{Fp, P};
+use crate::fp::Fp;
 
 /// 𝔽_p 上的一元多項式（低次到高次）。
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -73,6 +73,7 @@ impl UniPoly {
     pub fn scale(&self, k: Fp) -> UniPoly {
         UniPoly::from_coeffs(self.c.iter().map(|c| *c * k).collect())
     }
+    #[allow(dead_code)] // 供單元測試使用
     pub fn eval(&self, x: Fp) -> Fp {
         let mut acc = Fp::zero();
         for &k in self.c.iter().rev() {
@@ -104,6 +105,7 @@ impl UniPoly {
 }
 
 /// Lagrange 插值：過點集 {(x_i, y_i)} 的唯一 ≤ m−1 次多項式。
+#[allow(dead_code)] // 供單元測試使用
 pub fn lagrange_interpolate(points: &[(Fp, Fp)]) -> UniPoly {
     let m = points.len();
     let mut acc = UniPoly::zero();
@@ -168,13 +170,11 @@ impl R1cs {
 /// QAP：每條導線的 A/B/C 多項式 + vanishing 多項式 Z。
 pub struct Qap {
     pub n_wires: usize,
-    pub n_constraints: usize,
     /// wire j 的三條多項式（deg ≤ m−1）
     pub a: Vec<UniPoly>,
     pub b: Vec<UniPoly>,
     pub c: Vec<UniPoly>,
     pub z: UniPoly,
-    pub domain: Vec<Fp>, // t_i = 1..=m
 }
 
 /// 由 R1CS 構造 QAP（定義域 H = {1..m}）。
@@ -223,7 +223,7 @@ pub fn qap_from_r1cs(r: &R1cs) -> Qap {
             }
         }
     }
-    Qap { n_wires: r.n_wires, n_constraints: m, a, b, c, z, domain }
+    Qap { n_wires: r.n_wires, a, b, c, z }
 }
 
 impl Qap {
@@ -264,10 +264,6 @@ impl Qap {
     }
 }
 
-/// 有限的輔助：輸出域大小（供報告）。
-pub fn prime() -> u64 {
-    P
-}
 
 #[cfg(test)]
 mod tests {

@@ -542,7 +542,7 @@ pub fn obligation_t8() -> ObligationResult {
     let mut detail = String::new();
     let mut pass = true;
     let mut checked = 0;
-    for (name, r) in &results {
+    for (_name, r) in &results {
         if let Some(v) = r.qap_verified {
             pass &= v == true;
             checked += 1;

@@ -1,0 +1,11 @@
+# @intent: 模板：計算 (x + K) 的平方與立方
+# @import: basic
+# @import: math
+# @set init = 5
+# @set k = 1
+
+fn main() {
+    let x = {{init}};
+    let y = sqr!(x + {{k}});
+    let z = cube(x);
+}

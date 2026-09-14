@@ -1,0 +1,7 @@
+# @intent: 嵌入式數據庫的最小計算核心模型（簡化：用條件表達式模擬固定槽位的鍵值查詢與插入，無真實 I/O 與持久化）
+fn db_get(key: i32, k1: i32, v1: i32, k2: i32, v2: i32, k3: i32, v3: i32) -> i32 {
+    if key == k1 { v1 } else { if key == k2 { v2 } else { if key == k3 { v3 } else { 0 } } }
+}
+fn main() {
+    let result = db_get(2, 1, 100, 2, 200, 3, 300);
+}

@@ -29,9 +29,6 @@ impl Parser {
         self.toks.get(self.pos)
     }
 
-    fn peek2(&self) -> Option<&Tok> {
-        self.toks.get(self.pos + 1)
-    }
 
     fn bump(&mut self) -> Option<Tok> {
         let t = self.toks.get(self.pos).cloned();
@@ -85,17 +82,32 @@ impl Parser {
                         main_body = Some(body);
                     } else {
                         p.expect(&Tok::LParen)?;
-                        let param = p.expect_ident()?;
-                        p.expect(&Tok::Colon)?;
-                        let param_ty = p.parse_ty()?;
-                        p.expect(&Tok::RParen)?;
+                        // 參數列表（name: ty，逗號分隔）
+                        let mut params = vec![];
+                        loop {
+                            match p.peek() {
+                                Some(Tok::RParen) => {
+                                    p.bump();
+                                    break;
+                                }
+                                _ => {
+                                    let pname = p.expect_ident()?;
+                                    p.expect(&Tok::Colon)?;
+                                    let pty = p.parse_ty()?;
+                                    let pnode = p.fresh_pub_id();
+                                    params.push(FnParam { name: pname, node: pnode, ty: pty });
+                                    if let Some(Tok::Comma) = p.peek() {
+                                        p.bump();
+                                    }
+                                }
+                            }
+                        }
                         p.expect(&Tok::Arrow)?;
                         let ret_ty = p.parse_ty()?;
-                        let param_node = p.fresh_pub_id();
                         p.expect(&Tok::LBrace)?;
                         let body = p.parse_seq()?;
                         p.expect(&Tok::RBrace)?;
-                        fns.push(FnDef { name, param, param_node, param_ty, ret_ty, body });
+                        fns.push(FnDef { name, params, ret_ty, body });
                     }
                 }
                 Some(Tok::Kw("macro_rules")) => {
@@ -368,20 +380,38 @@ impl Parser {
 
     fn parse_cmp(&mut self) -> Result<E, String> {
         let l = self.parse_add()?;
-        if let Some(Tok::Lt) = self.peek() {
+        let op = match self.peek() {
+            Some(Tok::Lt) => Some(BinOp::Lt),
+            Some(Tok::Le) => Some(BinOp::Le),
+            Some(Tok::Ge) => Some(BinOp::Ge),
+            Some(Tok::EqEq) => Some(BinOp::Eq),
+            Some(Tok::Ne) => Some(BinOp::Ne),
+            _ => None,
+        };
+        if let Some(op) = op {
             self.bump();
             let r = self.parse_add()?;
-            return Ok(E::new(self.fresh_id(), EKind::BinOp(BinOp::Lt, Box::new(l), Box::new(r))));
+            return Ok(E::new(self.fresh_id(), EKind::BinOp(op, Box::new(l), Box::new(r))));
         }
         Ok(l)
     }
 
     fn parse_add(&mut self) -> Result<E, String> {
         let mut l = self.parse_mul()?;
-        while let Some(Tok::Plus) = self.peek() {
-            self.bump();
-            let r = self.parse_mul()?;
-            l = E::new(self.fresh_id(), EKind::BinOp(BinOp::Add, Box::new(l), Box::new(r)));
+        loop {
+            let op = match self.peek() {
+                Some(Tok::Plus) => Some(BinOp::Add),
+                Some(Tok::Minus) => Some(BinOp::Sub),
+                _ => None,
+            };
+            match op {
+                Some(op) => {
+                    self.bump();
+                    let r = self.parse_mul()?;
+                    l = E::new(self.fresh_id(), EKind::BinOp(op, Box::new(l), Box::new(r)));
+                }
+                None => break,
+            }
         }
         Ok(l)
     }
@@ -402,6 +432,11 @@ impl Parser {
                 self.bump();
                 let e = self.parse_unary()?;
                 Ok(E::new(self.fresh_id(), EKind::Not(Box::new(e))))
+            }
+            Some(Tok::Minus) => {
+                self.bump();
+                let e = self.parse_unary()?;
+                Ok(E::new(self.fresh_id(), EKind::Neg(Box::new(e))))
             }
             Some(Tok::Star) => {
                 self.bump();
@@ -457,9 +492,22 @@ impl Parser {
                 match self.peek() {
                     Some(Tok::LParen) => {
                         self.bump();
-                        let arg = self.parse_expr()?;
-                        self.expect(&Tok::RParen)?;
-                        Ok(E::new(self.fresh_id(), EKind::Call(name, Box::new(arg))))
+                        let mut args = vec![];
+                        loop {
+                            match self.peek() {
+                                Some(Tok::RParen) => {
+                                    self.bump();
+                                    break;
+                                }
+                                _ => {
+                                    args.push(self.parse_expr()?);
+                                    if let Some(Tok::Comma) = self.peek() {
+                                        self.bump();
+                                    }
+                                }
+                            }
+                        }
+                        Ok(E::new(self.fresh_id(), EKind::Call(name, args)))
                     }
                     Some(Tok::Not) => {
                         self.bump();
@@ -497,9 +545,6 @@ impl Parser {
         }
     }
 
-    pub fn next_id_after(&self) -> usize {
-        self.next_id
-    }
 }
 
 /// 解析一段 token 作為語句序列（宏轉錄結果用）。

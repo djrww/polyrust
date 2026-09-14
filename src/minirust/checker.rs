@@ -41,9 +41,11 @@ pub fn check_program(p: &Program, exp: &mut Expander) -> Result<Vec<Derivation>,
             return Err(format!("函式 {} 體借用衝突", f.name));
         }
         let mut types = HashMap::new();
-        types.insert(f.param.clone(), f.param_ty);
         let mut defs = HashMap::new();
-        defs.insert(f.param.clone(), f.param_node);
+        for param in &f.params {
+            types.insert(param.name.clone(), param.ty);
+            defs.insert(param.name.clone(), param.node);
+        }
         let ds = check_expr(&f.body, &Scope::with(types, defs), p, exp);
         let accept = ds.iter().find(|d| d.ty == f.ret_ty);
         match accept {
@@ -59,7 +61,9 @@ pub fn check_program(p: &Program, exp: &mut Expander) -> Result<Vec<Derivation>,
                 for (k, v) in &d.node_types {
                     fn_types.insert(*k, *v);
                 }
-                fn_types.insert(f.param_node, f.param_ty);
+                for param in &f.params {
+                    fn_types.insert(param.node, param.ty);
+                }
             }
         }
     }
@@ -126,13 +130,14 @@ fn check_expr(e: &E, scope: &Scope, p: &Program, exp: &mut Expander) -> Vec<Deri
             for da in check_expr(a, scope, p, exp) {
                 for db in check_expr(b, scope, p, exp) {
                     let ok = match op {
-                        BinOp::Add | BinOp::Mul => da.ty == Type::I32 && db.ty == Type::I32,
-                        BinOp::Lt => da.ty == Type::I32 && db.ty == Type::I32,
+                        BinOp::Add | BinOp::Sub | BinOp::Mul => da.ty == Type::I32 && db.ty == Type::I32,
+                        BinOp::Lt | BinOp::Le | BinOp::Ge => da.ty == Type::I32 && db.ty == Type::I32,
+                        BinOp::Eq | BinOp::Ne => da.ty == db.ty && (da.ty == Type::I32 || da.ty == Type::Bool),
                         BinOp::And => da.ty == Type::Bool && db.ty == Type::Bool,
                     };
                     if ok {
                         let ty = match op {
-                            BinOp::Lt | BinOp::And => Type::Bool,
+                            BinOp::Lt | BinOp::Le | BinOp::Ge | BinOp::Eq | BinOp::Ne | BinOp::And => Type::Bool,
                             _ => Type::I32,
                         };
                         out.push(Derivation {
@@ -150,6 +155,17 @@ fn check_expr(e: &E, scope: &Scope, p: &Program, exp: &mut Expander) -> Vec<Deri
                     out.push(Derivation {
                         ty: Type::Bool,
                         node_types: merged(&[(e.id, Type::Bool)], &[&da.node_types], &[]),
+                        arm_choice: da.arm_choice.clone(),
+                    });
+                }
+            }
+        }
+        EKind::Neg(a) => {
+            for da in check_expr(a, scope, p, exp) {
+                if da.ty == Type::I32 {
+                    out.push(Derivation {
+                        ty: Type::I32,
+                        node_types: merged(&[(e.id, Type::I32)], &[&da.node_types], &[]),
                         arm_choice: da.arm_choice.clone(),
                     });
                 }
@@ -261,16 +277,49 @@ fn check_expr(e: &E, scope: &Scope, p: &Program, exp: &mut Expander) -> Vec<Deri
                 }
             }
         }
-        EKind::Call(f, a) => {
+        EKind::Call(f, args) => {
             if let Some(fd) = p.fns.iter().find(|f_| f_.name == *f) {
-                for da in check_expr(a, scope, p, exp) {
-                    if da.ty == fd.param_ty {
-                        out.push(Derivation {
-                            ty: fd.ret_ty,
-                            node_types: merged(&[(e.id, fd.ret_ty)], &[&da.node_types], &[]),
-                            arm_choice: da.arm_choice.clone(),
-                        });
+                // 參數個數必須一致
+                if fd.params.len() != args.len() {
+                    return out;
+                }
+                // 每個實參的推導與對應形參型別匹配
+                let mut arg_derivs: Vec<Vec<Derivation>> = Vec::new();
+                for a in args {
+                    arg_derivs.push(check_expr(a, scope, p, exp));
+                }
+                // 笛卡爾積：每個實參選一條推導，全部型別匹配才接受
+                fn cartesian(ds: &[Vec<Derivation>], i: usize, acc: &mut Vec<Derivation>, out: &mut Vec<Vec<Derivation>>) {
+                    if i == ds.len() {
+                        out.push(acc.clone());
+                        return;
                     }
+                    for d in &ds[i] {
+                        acc.push(d.clone());
+                        cartesian(ds, i + 1, acc, out);
+                        acc.pop();
+                    }
+                }
+                let mut combos: Vec<Vec<Derivation>> = Vec::new();
+                cartesian(&arg_derivs, 0, &mut Vec::new(), &mut combos);
+                for combo in combos {
+                    let all_match = combo.iter().zip(fd.params.iter()).all(|(d, param)| d.ty == param.ty);
+                    if !all_match {
+                        continue;
+                    }
+                    // 合併所有實參的 node_types 與 arm_choice
+                    let mut nt = HashMap::new();
+                    nt.insert(e.id, fd.ret_ty);
+                    let mut ac = HashMap::new();
+                    for d in &combo {
+                        for (k, v) in &d.node_types {
+                            nt.insert(*k, *v);
+                        }
+                        for (k, v) in &d.arm_choice {
+                            ac.insert(*k, *v);
+                        }
+                    }
+                    out.push(Derivation { ty: fd.ret_ty, node_types: nt, arm_choice: ac });
                 }
             }
         }
@@ -342,4 +391,73 @@ fn merged_arms(parts: &[&HashMap<usize, usize>]) -> HashMap<usize, usize> {
         }
     }
     m
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::minirust::parse::Parser;
+
+    fn check(src: &str) -> Result<Vec<Derivation>, String> {
+        let p = Parser::parse_program(src).unwrap();
+        let mut exp = Expander::new(p.macros.clone(), p.next_id);
+        check_program(&p, &mut exp)
+    }
+
+    #[test]
+    fn test_multi_param_ok() {
+        let src = "fn add(a: i32, b: i32) -> i32 { a + b }\nfn main() { let x = add(1, 2); }";
+        assert!(check(src).is_ok());
+    }
+
+    #[test]
+    fn test_multi_param_wrong_arity_rejected() {
+        let src = "fn add(a: i32, b: i32) -> i32 { a + b }\nfn main() { let x = add(1); }";
+        assert!(check(src).is_err());
+    }
+
+    #[test]
+    fn test_multi_param_wrong_type_rejected() {
+        let src = "fn add(a: i32, b: i32) -> i32 { a + b }\nfn main() { let x = add(true, 2); }";
+        assert!(check(src).is_err());
+    }
+
+    #[test]
+    fn test_undefined_fn_rejected() {
+        let src = "fn main() { let x = foo(1); }";
+        assert!(check(src).is_err());
+    }
+
+    #[test]
+    fn test_new_operators() {
+        let src = "fn main() {
+            let a = 5; let b = 3;
+            let s = a - b;
+            let neg = -a;
+            let lt = a < b;
+            let le = a <= b;
+            let ge = a >= b;
+            let eq = a == b;
+            let ne = a != b;
+        }";
+        assert!(check(src).is_ok());
+    }
+
+    #[test]
+    fn test_sub_wrong_type_rejected() {
+        let src = "fn main() { let x = true - 1; }";
+        assert!(check(src).is_err());
+    }
+
+    #[test]
+    fn test_neg_wrong_type_rejected() {
+        let src = "fn main() { let x = -true; }";
+        assert!(check(src).is_err());
+    }
+
+    #[test]
+    fn test_eq_bool_ok() {
+        let src = "fn main() { let a = true; let b = false; let e = a == b; let ne = a != b; }";
+        assert!(check(src).is_ok());
+    }
 }

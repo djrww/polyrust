@@ -1,0 +1,16 @@
+# @intent: 多參數函式與算術/比較運算子
+fn add(a: i32, b: i32) -> i32 { a + b }
+fn sub(a: i32, b: i32) -> i32 { a - b }
+fn cmp(a: i32, b: i32) -> bool { a < b }
+
+fn main() {
+    let x = add(3, 4);
+    let y = sub(10, x);
+    let neg = -x;
+    let lt = x < 10;
+    let le = x <= 10;
+    let ge = x >= 7;
+    let eq = x == 7;
+    let ne = x != 7;
+    let and = lt && eq;
+}

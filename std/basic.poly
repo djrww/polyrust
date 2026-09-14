@@ -1,0 +1,5 @@
+# @intent: 基本宏函式庫（sqr/dbl/cube/quad）
+macro_rules! sqr { ($e:expr) => { $e * $e } }
+macro_rules! dbl { ($e:expr) => { $e + $e } }
+macro_rules! cube { ($e:expr) => { $e * $e * $e } }
+macro_rules! quad { ($e:expr) => { $e * $e * $e * $e } }

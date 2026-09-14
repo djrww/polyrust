@@ -3,7 +3,6 @@
 
 use crate::frac::Frac;
 use std::collections::BTreeMap;
-use std::collections::BTreeSet;
 
 /// 單項式：指數向量（缺項視為 0；長度不一致時隱式補零）。
 pub type Mono = Vec<u32>;
@@ -46,10 +45,6 @@ pub fn mono_lcm(a: &Mono, b: &Mono) -> Mono {
     a.iter().zip(b.iter()).map(|(x, y)| (*x).max(*y)).collect()
 }
 
-pub fn mono_gcd(a: &Mono, b: &Mono) -> Mono {
-    let (a, b) = harmonized(a, b);
-    a.iter().zip(b.iter()).map(|(x, y)| (*x).min(*y)).collect()
-}
 
 pub fn mono_is_one(m: &Mono) -> bool {
     m.iter().all(|&e| e == 0)
@@ -63,8 +58,10 @@ pub fn mono_deg(m: &Mono) -> u32 {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Order {
     /// 字典序 lex（消元用；定理 6 的三角化求解）
+    #[allow(dead_code)] // 僅單元測試構造
     Lex,
     /// 全次數優先 + 字典序（grlex）
+    #[allow(dead_code)] // 保留完整單項式序 API
     GrLex,
     /// 全次數優先 + 逆字典序（grevlex；Buchberger 實務首選）
     GrevLex,
@@ -213,21 +210,6 @@ impl Poly {
         Poly::from_terms(terms)
     }
 
-    pub fn neg(&self) -> Poly {
-        Poly {
-            terms: self.terms.iter().map(|(m, c)| (m.clone(), c.neg())).collect(),
-        }
-    }
-
-    pub fn scale(&self, k: &Frac) -> Poly {
-        if k.is_zero() {
-            Poly::zero()
-        } else {
-            Poly {
-                terms: self.terms.iter().map(|(m, c)| (m.clone(), k.mul(c))).collect(),
-            }
-        }
-    }
 
     pub fn mul(&self, o: &Poly) -> Poly {
         let mut terms = Vec::with_capacity(self.terms.len() * o.terms.len().max(1));
@@ -287,18 +269,6 @@ impl Poly {
         acc
     }
 
-    /// 出現的變量集合。
-    pub fn vars(&self) -> BTreeSet<usize> {
-        let mut s = BTreeSet::new();
-        for (m, _) in &self.terms {
-            for (i, &e) in m.iter().enumerate() {
-                if e > 0 {
-                    s.insert(i);
-                }
-            }
-        }
-        s
-    }
 
     /// 是否為某單一變量的線性式 c1·x + c0。回傳 (變量索引, c1, c0)。
     pub fn as_single_linear(&self) -> Option<(usize, Frac, Frac)> {

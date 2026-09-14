@@ -94,12 +94,14 @@ pub fn gen_constraints(p: &Program, exp: &mut Expander) -> Result<System, String
         let ba = analyze(&f.body, &empty_defs);
         emit_borrow_conflicts(&mut c, &ba, &Poly::constant(Frac::ONE), &f.body, &empty_defs);
         let mut scope = Scope::default();
-        scope.types.insert(f.param.clone(), f.param_ty);
-        scope.defs.insert(f.param.clone(), f.param_node);
-        // 參數節點：型別即聲明型別
-        let pts = type_bits(&mut c, f.param_node, "param");
-        let pf = var_poly(&c, pts[f.param_ty.index()]).sub(&Poly::constant(Frac::ONE));
-        emit(&mut c, pf, &Poly::constant(Frac::ONE));
+        for param in &f.params {
+            scope.types.insert(param.name.clone(), param.ty);
+            scope.defs.insert(param.name.clone(), param.node);
+            // 參數節點：型別即聲明型別
+            let pts = type_bits(&mut c, param.node, "param");
+            let pf = var_poly(&c, pts[param.ty.index()]).sub(&Poly::constant(Frac::ONE));
+            emit(&mut c, pf, &Poly::constant(Frac::ONE));
+        }
         walk(&f.body, &mut c, &mut scope, p, &Poly::constant(Frac::ONE))?;
     }
     // main 體
@@ -188,9 +190,12 @@ fn walk(e: &E, c: &mut Ctx<'_>, scope: &mut Scope, p: &Program, ctx: &Poly) -> R
             let booli = Type::Bool.index();
             let prod = var_poly(c, ats[i32i]).mul(&var_poly(c, bts[i32i]));
             let prod_b = var_poly(c, ats[booli]).mul(&var_poly(c, bts[booli]));
+            // Eq/Ne：兩操作數同型（皆 i32 或皆 bool）⇒ 結果 bool
+            let same = prod.add(&prod_b);
             match op {
-                BinOp::Add | BinOp::Mul => out[i32i] = prod,
-                BinOp::Lt => out[booli] = prod,
+                BinOp::Add | BinOp::Sub | BinOp::Mul => out[i32i] = prod,
+                BinOp::Lt | BinOp::Le | BinOp::Ge => out[booli] = prod,
+                BinOp::Eq | BinOp::Ne => out[booli] = same,
                 BinOp::And => out[booli] = prod_b,
             }
             for ti in 0..N_TYPES {
@@ -206,6 +211,19 @@ fn walk(e: &E, c: &mut Ctx<'_>, scope: &mut Scope, p: &Program, ctx: &Poly) -> R
                 out[ti] = Poly::zero();
             }
             out[Type::Bool.index()] = var_poly(c, ats[Type::Bool.index()]);
+            for ti in 0..N_TYPES {
+                let f = var_poly(c, _ts[ti]).sub(&out[ti]);
+                emit(c, f, ctx);
+            }
+        }
+        EKind::Neg(a) => {
+            walk(a, c, scope, p, ctx)?;
+            let ats = node_bits(c, a.id);
+            let mut out: [Poly; N_TYPES] = Default::default();
+            for ti in 0..N_TYPES {
+                out[ti] = Poly::zero();
+            }
+            out[Type::I32.index()] = var_poly(c, ats[Type::I32.index()]);
             for ti in 0..N_TYPES {
                 let f = var_poly(c, _ts[ti]).sub(&out[ti]);
                 emit(c, f, ctx);
@@ -306,20 +324,36 @@ fn walk(e: &E, c: &mut Ctx<'_>, scope: &mut Scope, p: &Program, ctx: &Poly) -> R
             }
             emit(c, var_poly(c, _ts[Type::Unit.index()]).sub(&Poly::constant(Frac::ONE)), ctx);
         }
-        EKind::Call(f, a) => {
-            walk(a, c, scope, p, ctx)?;
-            if let Some(fd) = p.fns.iter().find(|f_| f_.name == *f) {
-                let ats = node_bits(c, a.id);
-                emit(
-                    c,
-                    var_poly(c, ats[fd.param_ty.index()]).sub(&Poly::constant(Frac::ONE)),
-                    ctx,
-                );
-                emit(
-                    c,
-                    var_poly(c, _ts[fd.ret_ty.index()]).sub(&Poly::constant(Frac::ONE)),
-                    ctx,
-                );
+        EKind::Call(f, args) => {
+            for a in args {
+                walk(a, c, scope, p, ctx)?;
+            }
+            let fd = p.fns.iter().find(|f_| f_.name == *f);
+            match fd {
+                Some(fd) if fd.params.len() == args.len() => {
+                    // 每個實參型別必須等於對應形參型別
+                    for (a, param) in args.iter().zip(fd.params.iter()) {
+                        let ats = node_bits(c, a.id);
+                        emit(
+                            c,
+                            var_poly(c, ats[param.ty.index()]).sub(&Poly::constant(Frac::ONE)),
+                            ctx,
+                        );
+                    }
+                    // 結果型別 = 回傳型別
+                    emit(
+                        c,
+                        var_poly(c, _ts[fd.ret_ty.index()]).sub(&Poly::constant(Frac::ONE)),
+                        ctx,
+                    );
+                }
+                _ => {
+                    // 未定義函式或實參個數不符 ⇒ 呼叫不可定型 ⇒ 強制矛盾
+                    // （與 EKind::Var 未綁定變量的處理一致：令所有型別位元 = 0，破產 one-hot）
+                    for &t in _ts.iter() {
+                        emit(c, var_poly(c, t), ctx);
+                    }
+                }
             }
         }
         EKind::Invoke(name, toks) => {
@@ -434,11 +468,17 @@ fn kind_name(k: &EKind) -> &'static str {
         EKind::Seq(..) => "Seq",
         EKind::BinOp(op, _, _) => match op {
             BinOp::Add => "Add",
+            BinOp::Sub => "Sub",
             BinOp::Mul => "Mul",
             BinOp::Lt => "Lt",
+            BinOp::Le => "Le",
+            BinOp::Ge => "Ge",
+            BinOp::Eq => "Eq",
+            BinOp::Ne => "Ne",
             BinOp::And => "And",
         },
         EKind::Not(_) => "Not",
+        EKind::Neg(_) => "Neg",
         EKind::If(..) => "If",
         EKind::Ref(_) => "Ref",
         EKind::RefMut(_) => "RefMut",

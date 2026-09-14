@@ -12,11 +12,13 @@ pub struct BorrowInfo {
     pub var_def: usize,   // 被借用變量的綁定節點 id
     pub start: u32,
     pub end: u32,
+    #[allow(dead_code)] // 對應 Lean BorrowInfo.binder，暫未讀取
     pub binder: Option<String>, // let r = &mut x 的綁定名（暫時借用 = None）
 }
 
 #[derive(Clone, Debug, Default)]
 pub struct BorrowAnalysis {
+    #[allow(dead_code)] // 對應 Lean BorrowAnalysis.borrows，暫未讀取
     pub borrows: Vec<BorrowInfo>,
     /// 存活區間重疊的借用對（同 var_def）
     pub conflicts: Vec<(usize, usize)>,
@@ -121,7 +123,7 @@ fn walk(e: &E, env: &mut HashMap<String, usize>, w: &mut Walker) {
             walk(a, env, w);
             walk(b, env, w);
         }
-        EKind::Not(a) | EKind::Deref(a) => walk(a, env, w),
+        EKind::Not(a) | EKind::Neg(a) | EKind::Deref(a) => walk(a, env, w),
         EKind::If(c, a, b) => {
             walk(c, env, w);
             walk(a, env, w);
@@ -142,6 +144,10 @@ fn walk(e: &E, env: &mut HashMap<String, usize>, w: &mut Walker) {
             walk(lhs, env, w);
             walk(rhs, env, w);
         }
-        EKind::Call(_, a) => walk(a, env, w),
+        EKind::Call(_, args) => {
+            for a in args {
+                walk(a, env, w);
+            }
+        }
     }
 }

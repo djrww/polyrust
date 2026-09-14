@@ -15,8 +15,13 @@ pub enum Tok {
     Arrow,   // ->
     FatArrow, // =>
     Plus,
+    Minus,
     Star,
     Lt,
+    Le,     // <=
+    Ge,     // >=
+    EqEq,   // ==
+    Ne,     // !=
     AndAnd, // &&
     Amp,    // &
     Not,    // !
@@ -40,8 +45,13 @@ impl Tok {
             Tok::Arrow => "->".into(),
             Tok::FatArrow => "=>".into(),
             Tok::Plus => "+".into(),
+            Tok::Minus => "-".into(),
             Tok::Star => "*".into(),
             Tok::Lt => "<".into(),
+            Tok::Le => "<=".into(),
+            Tok::Ge => ">=".into(),
+            Tok::EqEq => "==".into(),
+            Tok::Ne => "!=".into(),
             Tok::AndAnd => "&&".into(),
             Tok::Amp => "&".into(),
             Tok::Not => "!".into(),
@@ -119,6 +129,26 @@ pub fn lex(src: &str) -> Result<Vec<Tok>, String> {
             i += 2;
             continue;
         }
+        if c == '=' && i + 1 < b.len() && b[i + 1] == '=' {
+            out.push(Tok::EqEq);
+            i += 2;
+            continue;
+        }
+        if c == '!' && i + 1 < b.len() && b[i + 1] == '=' {
+            out.push(Tok::Ne);
+            i += 2;
+            continue;
+        }
+        if c == '<' && i + 1 < b.len() && b[i + 1] == '=' {
+            out.push(Tok::Le);
+            i += 2;
+            continue;
+        }
+        if c == '>' && i + 1 < b.len() && b[i + 1] == '=' {
+            out.push(Tok::Ge);
+            i += 2;
+            continue;
+        }
         if c == '&' && i + 1 < b.len() && b[i + 1] == '&' {
             out.push(Tok::AndAnd);
             i += 2;
@@ -133,8 +163,13 @@ pub fn lex(src: &str) -> Result<Vec<Tok>, String> {
             ';' => Tok::Semi,
             ':' => Tok::Colon,
             '+' => Tok::Plus,
+            '-' => Tok::Minus,
             '*' => Tok::Star,
             '<' => Tok::Lt,
+            '>' => return Err(format!("孤立的 '>'（提示：比較請用 >=，見上下文：…{}…）", {
+                let ctx: String = b[i.saturating_sub(10)..(i + 12).min(b.len())].iter().collect();
+                ctx
+            })),
             '&' => Tok::Amp,
             '!' => Tok::Not,
             '=' => Tok::Assign,

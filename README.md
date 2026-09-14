@@ -17,8 +17,84 @@ cargo build --release
 ./target/release/polyrust obligations   # T1–T9 义务自证（12 程序 × 9 定理）
 ./target/release/polyrust gen A         # 打印指定 demo 生成码
 ./target/release/polyrust debug <file>  # σ_D 逐约束合法性检查
-cargo test --release                    # 17 个单元测试
+cargo test --release                    # 23 个单元测试
 ```
+
+### 可输入模式（Phase 0）：`.poly` DSL 验证型工具
+
+polyrust 已从「内建样本的验证器」升级为「可输入的验证型工具」。用 `.poly` 描述语言
+（Mini-Rust 子集源碼 + `# @intent` metadata）输入任意程序，验证其型别/借用、求解、
+并还原一份可编译的 Rust 代码：
+
+```bash
+./target/release/polyrust check examples/sqr.poly          # 完整管線：判定 + 生成碼
+./target/release/polyrust check examples/sqr.poly --json   # 結構化 JSON（供前端/LLM）
+./target/release/polyrust expand examples/sqr.poly         # 純宏展開（描述→展開碼）
+./target/release/polyrust gen examples/template.poly       # 描述→生成碼（@import + @set 模板）
+cat foo.poly | ./target/release/polyrust check - --json    # stdin 模式（LLM agent）
+./target/release/polyrust serve 8080                       # 啟動 Web UI（瀏覽器操作）
+```
+
+`.poly` 支援三層描述能力（Phase 2）：**`@import`** 內聯函式庫（內建 `std/`：`basic`/`math`/`bool`）、
+**`@set` + `{{key}}`** 模板實例化、**`gen`** 描述→生成碼。详见
+**[docs/POLY_DSL.md](docs/POLY_DSL.md)**。
+
+`.poly` 格式、子命令、JSON 契约详见 **[docs/POLY_DSL.md](docs/POLY_DSL.md)**。
+这是「LLM 描述逻辑 → polyrust 形式化保证正确」闭环的接口层。
+
+### Web UI（Phase 1）
+
+`polyrust serve [port]` 启动一个内嵌的极简 HTTP server（std-only，零依赖），
+提供网页界面：贴上 `.poly` 描述 → 撳「驗證 + 生成」即显示判定、统计与生成的 Rust 代码
+（含 rustc 编译结果），或撳「純展開」看宏展开。API 端点：
+
+| 端点 | 方法 | 说明 |
+|---|---|---|
+| `/` | GET | 网页界面（inline CSS/JS，无外部资源） |
+| `/health` | GET | 存活探针 |
+| `/api/check` | POST | body = `.poly` 文本，回 `check` JSON 契约 |
+| `/api/expand` | POST | body = `.poly` 文本，回 `expand` JSON 契约 |
+| `/api/v1/generate` | POST | body = `.poly` 文本，回 `generate` JSON 契约（描述→生成碼） |
+
+### 最优化 release 编译（含「排除执行期无需要的文件」）
+
+`Cargo.toml` 的 `[profile.release]` 采用执行期最优化设定：
+
+| 设定 | 值 | 作用 |
+|---|---|---|
+| `opt-level` | `3` | 最高一般优化 |
+| `lto` | `"fat"` | 全程式链接期优化（跨模组内联 / 去死码） |
+| `codegen-units` | `1` | 单一 codegen unit，给 LLVM 最大优化视野 |
+| `panic` | `"abort"` | 移除 landing pad，缩小体积、减少展开开销 |
+| `debug` | `false` | 不带除错符号 |
+| `strip` | `true` | 剥除符号表 |
+| `overflow-checks` | `false` | 关闭整数溢位检查 |
+
+再加上 build.rs 以 `--gc-sections` 剔除未使用区段，产出的二进位**不含除错符号、符号表与任何执行期用不到的区段**（约 3.5 MB，`ldd` 仅依赖 glibc）。
+
+### 内嵌 Lean 4 形式化库（.lean → .a → 编入二进位）
+
+`lean/Polyrust` 的 14 个定理模组会被编译成静态库并**静态嵌入**二进位档内：
+
+```bash
+bash scripts/build-embedded.sh   # 一键：lake build Polyrust:static → cargo build --release
+```
+
+机制（[`build.rs`](build.rs)）：
+
+1. 定位 `lean/.lake/build/lib/libpolyrust_x2dformal_Polyrust.a`；不存在时自动
+   `lake build Polyrust:static`（需要 elan，见 `scripts/setup-lean.sh`）。
+2. 以**静态链接**把 `.a` 与 Lean 执行期（`libleancpp`/`libLean`/`libStd`/`libInit`/
+   `libleanrt` + `libc++`/`libc++abi`/`libunwind`/`libgmp`/`libuv`/`libssl`/`libcrypto`）
+   一并编入二进位，并设 `cfg(has_lean_embed)`。
+3. Rust 侧（[`src/formal.rs`](src/formal.rs)）在启动时呼叫 Lean 执行期入口
+   `initialize_polyrust_x2dformal_Polyrust` 载入全部定理；头部会打印内嵌状态：
+   `〔Lean 4 形式化库（Polyrust.*，14 模组）已静态嵌入并载入 ✓〕`。
+4. 无 Lean 工具链（或 macOS/Windows 交叉编译）时**优雅降级**：跳过内嵌，
+   polyrust 仍正常编译运作，仅该状态列改为「未内嵌」。
+
+验证：`ldd target/release/polyrust` 不含 `lean`/`gmp`/`uv`/`ssl`/`crypto`/`libc++`，
+仅剩 glibc —— 即「.lean 编成 .a、最终编入二进位」且无执行期多余依赖。
 
 ## 管线
 

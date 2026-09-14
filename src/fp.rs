@@ -16,14 +16,11 @@ impl Fp {
     pub fn one() -> Fp {
         Fp(1)
     }
-    /// 相容舊 Frac::new(num, den)：把有理數 num/den 映入 𝔽_p（den ≢ 0 mod p）。
-    pub fn new(num: i128, den: i128) -> Fp {
-        Fp::from_frac(num, den)
-    }
     pub fn from_i64(x: i64) -> Fp {
         let m = (x as i128).rem_euclid(P as i128) as u64;
         Fp(m)
     }
+    #[allow(dead_code)] // 供單元測試使用
     pub fn from_frac(num: i128, den: i128) -> Fp {
         // 有理數 → 𝔽_p（den 與 p 互質；本專案 den | 小整數）
         let n = Fp::from_i64(num as i64);

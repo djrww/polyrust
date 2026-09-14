@@ -5,14 +5,20 @@
 
 mod cdcl;
 mod codegen;
+mod driver;
+mod dsl;
 mod fp;
+mod formal;
 mod frac;
 mod groebner;
+mod json;
+mod llm;
 mod minirust;
 mod obligations;
 mod pipeline;
 mod poly;
 mod qap;
+mod server;
 
 use pipeline::PipelineResult;
 
@@ -132,13 +138,63 @@ fn report(r: &PipelineResult, verbose_poly: bool) {
     println!("   ⇒ {}", if r.agrees { "一致 ✓（定理 1/2/6 的實例）" } else { "★不一致★（bug）" });
 }
 
-fn main() {
-    let args: Vec<String> = std::env::args().collect();
-    let mode = args.get(1).map(|s| s.as_str()).unwrap_or("all");
-
+fn print_banner() {
     println!("╔════════════════════════════════════════════════════════════════════╗");
     println!("║  polyrust — Rust 宏的代數形式化：CDCL × Buchberger × QAP          ║");
     println!("╚════════════════════════════════════════════════════════════════════╝");
+    println!("  〔{}〕", formal::startup_report());
+}
+
+fn main() {
+    let args: Vec<String> = std::env::args().collect();
+    let mode = args.get(1).map(|s| s.as_str()).unwrap_or("all");
+    let json = args.iter().any(|a| a == "--json" || a == "-j");
+
+    // 「可輸入」子命令：check / expand（含 --json 出口，供前端與 LLM 呼叫）
+    if mode == "check" {
+        if !json {
+            print_banner();
+        }
+        std::process::exit(driver::cmd_check(&args, json));
+    }
+    if mode == "expand" {
+        if !json {
+            print_banner();
+        }
+        std::process::exit(driver::cmd_expand(&args, json));
+    }
+    if mode == "serve" {
+        let port: u16 = args
+            .get(2)
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(8080);
+        if let Err(e) = server::serve(port) {
+            eprintln!("server 錯誤：{}", e);
+            std::process::exit(1);
+        }
+        return;
+    }
+    if mode == "nl" {
+        // 自然語言 → .poly（LLM 護欄）。文字來源：args[2] 或 `-`（stdin）。
+        if !json {
+            print_banner();
+        }
+        std::process::exit(driver::cmd_nl(&args, json));
+    }
+    if mode == "gen" {
+        // 檔案模式（.poly / 路徑 / stdin）：與 check/expand 一致，json 不印 banner。
+        let arg2 = args.get(2).map(|s| s.as_str()).unwrap_or("A");
+        let is_file = arg2.contains('/') || arg2.ends_with(".poly") || arg2 == "-";
+        if is_file {
+            if !json {
+                print_banner();
+            }
+            std::process::exit(driver::cmd_gen(&args, json));
+        }
+        // demo 簡寫 A/B/C/D：往下走（印 banner 後處理）
+    }
+
+    print_banner();
 
     if mode == "all" || mode == "demo" {
         let demos: Vec<(&str, &str, bool)> = vec![
@@ -234,9 +290,9 @@ fn main() {
     }
 
     if mode == "gen" {
-        let args2: Vec<String> = std::env::args().collect();
-        let which = args2.get(2).map(|s| s.as_str()).unwrap_or("A");
-        let (src, cg) = match which {
+        // 只處理 demo 簡寫 A/B/C/D（檔案模式已在上方提前處理）。
+        let arg2 = args.get(2).map(|s| s.as_str()).unwrap_or("A");
+        let (src, cg) = match arg2 {
             "A" => (DEMO_A, true),
             "D" => (DEMO_D, true),
             "B" => (DEMO_B, false),
