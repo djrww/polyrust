@@ -1035,7 +1035,13 @@ pub fn extract_poly_block(text: &str) -> Option<String> {
 #[derive(Clone, Debug)]
 pub struct Attempt {
     pub n: usize,
-    /// 該輪結果：syntax-error / unresolved / unsat / sat / provider-error
+    /// 該輪結果（漏斗各層，由淺至深）：
+    /// - `provider-error`：LLM 端失敗（未進入任何閘門）
+    /// - `structure-error`：閘門 0 拒絕（圍欄塊/`@intent` 結構）
+    /// - `syntax-error`：閘門 1 拒絕（`.poly` 元資料或 Mini-Rust 解析）
+    /// - `checker-reject`：Tier-0 快篩拒絕（獨立檢查器 ⇒ 完整管線必 UNSAT）
+    /// - `unresolved` / `unsat`：閘門 2（完整代數管線）錯誤 / 判定 UNSAT
+    /// - `sat`：通過全部閘門
     pub outcome: String,
     /// 回餵給 LLM 的修復訊息（若有）
     pub feedback: Option<String>,
@@ -1057,8 +1063,11 @@ pub struct GuardrailResult {
 
 /// 護欄主迴圈。`do_gen`：SAT 時是否順勢生成 Rust 代碼。
 ///
-/// 三道閘門：結構（圍欄塊 + @intent）→ 語法（dsl::resolve）→ 語義（完整管線）。
-/// 每道閘門失敗都把**精確錯誤**回餵給 LLM；任何閘門都過不了的輸出永遠不被接受。
+/// 三道閘門＋一層快篩（借鏡 `rlzl` 分層過濾哲學）：
+/// 結構（圍欄塊 + @intent）→ 語法（dsl::resolve + 解析）→
+/// **Tier-0 checker 快篩**（廉價直接推導；拒絕 ⇒ 完整管線必 UNSAT）→
+/// 語義（完整代數管線）。
+/// 每道失敗都把**精確錯誤**回餵給 LLM；任何閘門都過不了的輸出永遠不被接受。
 pub fn run_guardrail(
     provider: &dyn LlmProvider,
     nl: &str,
@@ -1102,7 +1111,7 @@ pub fn run_guardrail(
             let fb = "輸出出現了多個 ```poly 代碼塊。必須只輸出恰好一個代碼塊（多個候選會讓驗證結果不明確）。請選定一個版本重新輸出。".to_string();
             attempts.push(Attempt {
                 n,
-                outcome: "syntax-error".to_string(),
+                outcome: "structure-error".to_string(),
                 feedback: Some(fb.clone()),
             });
             history.push(Msg { role: "assistant".to_string(), content: resp });
@@ -1115,7 +1124,7 @@ pub fn run_guardrail(
                 let fb = "代碼塊過長（上限 64 KB）或為空。請輸出恰好一個 ```poly 圍欄塊。".to_string();
                 attempts.push(Attempt {
                     n,
-                    outcome: "syntax-error".to_string(),
+                    outcome: "structure-error".to_string(),
                     feedback: Some(fb.clone()),
                 });
                 history.push(Msg { role: "assistant".to_string(), content: resp });
@@ -1126,7 +1135,7 @@ pub fn run_guardrail(
                 let fb = "找不到 ```poly 圍欄代碼塊。你必須輸出恰好一個以 ```poly 開頭、``` 結束的代碼塊，塊內只能是 .poly 源碼，第一行為 # @intent: ...。".to_string();
                 attempts.push(Attempt {
                     n,
-                    outcome: "syntax-error".to_string(),
+                    outcome: "structure-error".to_string(),
                     feedback: Some(fb.clone()),
                 });
                 history.push(Msg { role: "assistant".to_string(), content: resp });
@@ -1138,7 +1147,7 @@ pub fn run_guardrail(
             let fb = "缺少 `# @intent:` 行。第一行必須是 `# @intent: <一句話概括使用者需求>`。".to_string();
             attempts.push(Attempt {
                 n,
-                outcome: "syntax-error".to_string(),
+                outcome: "structure-error".to_string(),
                 feedback: Some(fb.clone()),
             });
             history.push(Msg { role: "assistant".to_string(), content: resp });
@@ -1164,33 +1173,58 @@ pub fn run_guardrail(
                 continue;
             }
         };
-        if let Err(e) = crate::minirust::parse::Parser::parse_program(&poly.source) {
-            // 偵測子集外語法：回餵時直接指向「落地化規則」，加速收斂
-            let banned = [
-                "for ", "while ", "loop", "struct", "enum", "match ", "Vec", "String",
-                "println", "use ", "impl ", "trait ", "f32", "f64",
-            ];
-            let hit: Vec<&str> = banned.iter().copied().filter(|b| poly.source.contains(b)).collect();
-            let hint = if hit.is_empty() {
-                String::new()
-            } else {
-                format!(
-                    "\n注意：偵測到子集之外的語法（{}）。.poly 沒有循環/結構體/字串/陣列/浮點/模块——若原需求很大，請按【落地化規則】抽取計算核心重寫，並在 @intent 誠實標明簡化。",
-                    hit.join("、")
-                )
-            };
-            let fb = format!(
-                "語法錯誤（Mini-Rust 程式體），解析器回報：{}\n請修正後重新輸出完整代碼塊。{}",
-                e, hint
-            );
-            attempts.push(Attempt {
-                n,
-                outcome: "syntax-error".to_string(),
-                feedback: Some(fb.clone()),
-            });
-            history.push(Msg { role: "assistant".to_string(), content: resp });
-            history.push(Msg { role: "user".to_string(), content: fb });
-            continue;
+        let prog = match crate::minirust::parse::Parser::parse_program(&poly.source) {
+            Ok(p) => p,
+            Err(e) => {
+                // 偵測子集外語法：回餵時直接指向「落地化規則」，加速收斂
+                let banned = [
+                    "for ", "while ", "loop", "struct", "enum", "match ", "Vec", "String",
+                    "println", "use ", "impl ", "trait ", "f32", "f64",
+                ];
+                let hit: Vec<&str> = banned.iter().copied().filter(|b| poly.source.contains(b)).collect();
+                let hint = if hit.is_empty() {
+                    String::new()
+                } else {
+                    format!(
+                        "\n注意：偵測到子集之外的語法（{}）。.poly 沒有循環/結構體/字串/陣列/浮點/模块——若原需求很大，請按【落地化規則】抽取計算核心重寫，並在 @intent 誠實標明簡化。",
+                        hit.join("、")
+                    )
+                };
+                let fb = format!(
+                    "語法錯誤（Mini-Rust 程式體），解析器回報：{}\n請修正後重新輸出完整代碼塊。{}",
+                    e, hint
+                );
+                attempts.push(Attempt {
+                    n,
+                    outcome: "syntax-error".to_string(),
+                    feedback: Some(fb.clone()),
+                });
+                history.push(Msg { role: "assistant".to_string(), content: resp });
+                history.push(Msg { role: "user".to_string(), content: fb });
+                continue;
+            }
+        };
+
+        // ── Tier-0 快篩（借鏡 `rlzl` 的「廉價謂詞先行」哲學）──
+        // 獨立檢查器直接推導；拒絕 ⟺ 完整代數管線必判 UNSAT
+        // （窮舉一致性 oracle `polyrust exhaust` 與 T6 義務見證此等價）。
+        // 故直接回餵檢查器的精確型別錯誤，跳過昂貴的 CDCL×Buchberger×QAP。
+        {
+            let mut exp0 = crate::minirust::macros::Expander::new(prog.macros.clone(), prog.next_id);
+            if let Err(ce) = crate::minirust::checker::check_program(&prog, &mut exp0) {
+                let fb = format!(
+                    "Tier-0 檢查器拒絕（語義不可定型）：{}\n等價的完整代數管線對此程序必判 UNSAT。這是語義錯誤（例如型別錯配、重複可變借用）。請重新理解需求並重寫，而不是只做表面修改。",
+                    ce
+                );
+                attempts.push(Attempt {
+                    n,
+                    outcome: "checker-reject".to_string(),
+                    feedback: Some(fb.clone()),
+                });
+                history.push(Msg { role: "assistant".to_string(), content: resp });
+                history.push(Msg { role: "user".to_string(), content: fb });
+                continue;
+            }
         }
 
         // ── 閘門 2：語義（完整代數管線：CDCL × Buchberger × QAP）──
@@ -1249,7 +1283,12 @@ pub fn run_guardrail(
     let outcome = last.map(|a| a.outcome.clone()).unwrap_or_default();
     GuardrailResult {
         ok: false,
-        verdict: if outcome == "unsat" { "UNSAT" } else { "ERROR" }.to_string(),
+        verdict: if outcome == "unsat" || outcome == "checker-reject" {
+            "UNSAT"
+        } else {
+            "ERROR"
+        }
+        .to_string(),
         poly: None,
         checker_msg: String::new(),
         attempts,
@@ -1301,6 +1340,202 @@ pub fn guardrail_to_json(nl: &str, r: &GuardrailResult) -> J {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// §5b 漏斗量測（借鏡 `rlzl` 「測量一切、誠實記錄」文化）
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// 護欄漏斗聚合統計：多次 `nl` 護欄運行的 `attempt_log` 汇总。
+///
+/// 漏斗分層（由淺至深）：
+/// 到達（扣 provider 錯誤）→ 結構閘門 → 語法閘門 → Tier-0 checker → 語義閘門（SAT）。
+#[derive(Clone, Debug, Default)]
+pub struct FunnelStats {
+    pub runs: u64,
+    pub ok_runs: u64,
+    pub attempts_total: u64,
+    pub provider_error: u64,
+    pub structure_rejects: u64,
+    pub syntax_rejects: u64,
+    pub checker_rejects: u64,
+    pub unsat_rejects: u64,
+    pub unresolved: u64,
+    pub sat: u64,
+    /// 通過時所在輪次總和（÷ `sat` = 平均多少輪收斂）
+    pub sat_attempt_sum: u64,
+    /// (provider 名, 運行數, 成功數)
+    pub providers: Vec<(String, u64, u64)>,
+}
+
+impl FunnelStats {
+    fn bump_provider(&mut self, name: &str, ok: bool) {
+        if let Some(e) = self.providers.iter_mut().find(|(p, _, _)| p == name) {
+            e.1 += 1;
+            if ok {
+                e.2 += 1;
+            }
+        } else {
+            self.providers
+                .push((name.to_string(), 1, if ok { 1 } else { 0 }));
+        }
+    }
+
+    fn bump_outcome(&mut self, outcome: &str, n: u64) {
+        self.attempts_total += 1;
+        match outcome {
+            "provider-error" => self.provider_error += 1,
+            "structure-error" => self.structure_rejects += 1,
+            "syntax-error" => self.syntax_rejects += 1,
+            "checker-reject" => self.checker_rejects += 1,
+            "unsat" => self.unsat_rejects += 1,
+            "unresolved" => self.unresolved += 1,
+            "sat" => {
+                self.sat += 1;
+                self.sat_attempt_sum += n;
+            }
+            _ => {}
+        }
+    }
+
+    /// 漏斗各層的「到達/通過」數（由淺至深）。
+    pub fn funnel_rows(&self) -> Vec<(&'static str, u64)> {
+        let reached = self.attempts_total.saturating_sub(self.provider_error);
+        let pass_structure = reached.saturating_sub(self.structure_rejects);
+        let pass_syntax = pass_structure.saturating_sub(self.syntax_rejects);
+        let pass_tier0 = pass_syntax.saturating_sub(self.checker_rejects);
+        vec![
+            ("到達護欄（輪次，不含 provider 錯誤）", reached),
+            ("→ 通過閘門 0 結構（圍欄 + @intent）", pass_structure),
+            ("→ 通過閘門 1 語法（.poly + Mini-Rust 解析）", pass_syntax),
+            ("→ 通過 Tier-0 checker 快篩（廉價謂詞）", pass_tier0),
+            ("→ 通過閘門 2 語義（完整管線，SAT）", self.sat),
+        ]
+    }
+}
+
+/// 由護欄結果序列聚合漏斗統計。
+pub fn funnel_from_results(rs: &[GuardrailResult]) -> FunnelStats {
+    let mut s = FunnelStats::default();
+    for r in rs {
+        s.runs += 1;
+        if r.ok {
+            s.ok_runs += 1;
+        }
+        s.bump_provider(&r.provider, r.ok);
+        for a in &r.attempts {
+            s.bump_outcome(&a.outcome, a.n as u64);
+        }
+    }
+    s
+}
+
+/// 由 NDJSON 漏斗日誌（每行一個 `guardrail_to_json` 輸出）聚合統計。
+pub fn funnel_from_json_text(text: &str) -> Result<FunnelStats, String> {
+    let mut s = FunnelStats::default();
+    for (i, line) in text.lines().enumerate() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let v = parse_json(line)
+            .map_err(|e| format!("第 {} 行不是有效 JSON：{}", i + 1, e))?;
+        let ok = v.get("status").and_then(|x| x.as_str()) == Some("ok");
+        let provider = v
+            .get("provider")
+            .and_then(|x| x.as_str())
+            .unwrap_or("?");
+        s.runs += 1;
+        if ok {
+            s.ok_runs += 1;
+        }
+        s.bump_provider(provider, ok);
+        if let Some(Val::Arr(log)) = v.get("attempt_log") {
+            for a in log {
+                let outcome = a
+                    .get("outcome")
+                    .and_then(|x| x.as_str())
+                    .unwrap_or("?");
+                let n = a.get("n").and_then(|x| x.as_f64()).unwrap_or(0.0) as u64;
+                s.bump_outcome(outcome, n);
+            }
+        }
+    }
+    Ok(s)
+}
+
+/// 漏斗統計 → JSON（`funnel` 子命令契約）。
+pub fn funnel_to_json(s: &FunnelStats) -> J {
+    let providers: Vec<J> = s
+        .providers
+        .iter()
+        .map(|(p, runs, ok)| {
+            J::obj(vec![
+                ("provider", J::s(p)),
+                ("runs", J::Int(*runs as i64)),
+                ("ok", J::Int(*ok as i64)),
+            ])
+        })
+        .collect();
+    let rows: Vec<J> = s
+        .funnel_rows()
+        .into_iter()
+        .map(|(label, v)| J::obj(vec![("gate", J::s(label)), ("count", J::Int(v as i64))]))
+        .collect();
+    J::obj(vec![
+        ("api_version", J::s("0.1")),
+        ("mode", J::s("funnel")),
+        ("status", J::s("ok")),
+        ("runs", J::Int(s.runs as i64)),
+        ("ok_runs", J::Int(s.ok_runs as i64)),
+        ("attempts_total", J::Int(s.attempts_total as i64)),
+        (
+            "outcomes",
+            J::obj(vec![
+                ("provider-error", J::Int(s.provider_error as i64)),
+                ("structure-error", J::Int(s.structure_rejects as i64)),
+                ("syntax-error", J::Int(s.syntax_rejects as i64)),
+                ("checker-reject", J::Int(s.checker_rejects as i64)),
+                ("unsat", J::Int(s.unsat_rejects as i64)),
+                ("unresolved", J::Int(s.unresolved as i64)),
+                ("sat", J::Int(s.sat as i64)),
+            ]),
+        ),
+        ("funnel", J::Arr(rows)),
+        ("providers", J::Arr(providers)),
+        (
+            "avg_attempts_to_sat",
+            if s.sat > 0 {
+                J::Float(s.sat_attempt_sum as f64 / s.sat as f64)
+            } else {
+                J::Null
+            },
+        ),
+    ])
+}
+
+/// 把本次護欄運行的 JSON 行追加到漏斗日誌（NDJSON）。
+///
+/// 路徑優先序：顯式參數 > 環境變數 `POLYRUST_FUNNEL_LOG`；都沒有則不寫
+/// （預設零副作用）。
+pub fn funnel_log_append(explicit: Option<&str>, json_line: &str) -> Result<(), String> {
+    let path = match explicit
+        .map(|s| s.to_string())
+        .filter(|s| !s.is_empty())
+        .or_else(|| std::env::var("POLYRUST_FUNNEL_LOG").ok())
+        .filter(|s| !s.is_empty())
+    {
+        Some(p) => p,
+        None => return Ok(()),
+    };
+    use std::io::Write;
+    let mut f = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .map_err(|e| format!("無法開啟漏斗日誌 {}：{}", path, e))?;
+    writeln!(f, "{}", json_line).map_err(|e| format!("寫入漏斗日誌失敗：{}", e))?;
+    Ok(())
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // §6 測試（離線：MockProvider + 護欄邏輯 + JSON 讀取器）
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1349,8 +1584,8 @@ mod tests {
         let r = run_guardrail(&mock, "兩數相加", 5, false);
         assert!(r.ok, "最終應通過：{:?}", r);
         assert_eq!(r.attempts.len(), 3);
-        assert_eq!(r.attempts[0].outcome, "syntax-error");
-        assert_eq!(r.attempts[1].outcome, "syntax-error");
+        assert_eq!(r.attempts[0].outcome, "structure-error"); // 無圍欄＝結構閘門
+        assert_eq!(r.attempts[1].outcome, "syntax-error"); // `1 + ;`＝語法閘門
         assert_eq!(r.attempts[2].outcome, "sat");
         assert_eq!(r.verdict, "SAT");
         assert!(r.poly.unwrap().contains("1 + 2"));
@@ -1363,7 +1598,8 @@ mod tests {
         let mock = MockProvider::new("t", vec![bad.to_string(), good_poly()]);
         let r = run_guardrail(&mock, "x", 4, false);
         assert!(r.ok);
-        assert_eq!(r.attempts[0].outcome, "unsat");
+        // 型別錯配被 Tier-0 checker 快篩攔下（等價於完整管線 UNSAT）
+        assert_eq!(r.attempts[0].outcome, "checker-reject");
         assert!(r.attempts[0].feedback.as_ref().unwrap().contains("UNSAT"));
         assert_eq!(r.attempts.len(), 2);
     }
@@ -1385,7 +1621,7 @@ mod tests {
         let mock = MockProvider::new("t", vec![two.to_string(), good_poly()]);
         let r = run_guardrail(&mock, "x", 3, false);
         assert!(r.ok);
-        assert_eq!(r.attempts[0].outcome, "syntax-error");
+        assert_eq!(r.attempts[0].outcome, "structure-error");
         assert!(r.attempts[0].feedback.as_ref().unwrap().contains("多個"));
         assert_eq!(poly_fence_count(two), 2);
     }
@@ -1395,18 +1631,18 @@ mod tests {
     #[test]
     fn guardrail_adversarial_corpus() {
         let cases: Vec<(&str, &str)> = vec![
-            // 1. 拒答（無圍欄）
-            ("抱歉，作為 AI 我无法生成代码。", "syntax-error"),
-            // 2. 空圍欄塊
-            ("```poly\n\n```", "syntax-error"),
+            // 1. 拒答（無圍欄）→ 結構閘門
+            ("抱歉，作為 AI 我无法生成代码。", "structure-error"),
+            // 2. 空圍欄塊 → 結構閘門
+            ("```poly\n\n```", "structure-error"),
             // 3. 圍欄裡是散文不是代碼（缺 @intent → 結構拒絕）
-            ("```poly\n這段程式會計算平方。\n```", "syntax-error"),
-            // 4. 幻覺語法：for 循環（Mini-Rust 子集之外）
+            ("```poly\n這段程式會計算平方。\n```", "structure-error"),
+            // 4. 幻覺語法：for 循環（Mini-Rust 子集之外）→ 語法閘門
             ("```poly\n# @intent: t\nfn main() { for i in 0..3 { } }\n```", "syntax-error"),
-            // 5. 幻覺語法：struct
+            // 5. 幻覺語法：struct → 語法閘門
             ("```poly\n# @intent: t\nstruct Foo { x: i32 }\nfn main() { let a = 1; }\n```", "syntax-error"),
-            // 6. 借用衝突（可解析但語義不可定型 → UNSAT）
-            ("```poly\n# @intent: t\nmacro_rules! twice_mut { ($v:ident) => { let r1 = &mut $v; let r2 = &mut $v; *r1 + *r2 } }\nfn main() { let x = 0; let u = twice_mut!(x); }\n```", "unsat"),
+            // 6. 借用衝突（可解析；語義不可定型 → Tier-0 快篩拒絕）
+            ("```poly\n# @intent: t\nmacro_rules! twice_mut { ($v:ident) => { let r1 = &mut $v; let r2 = &mut $v; *r1 + *r2 } }\nfn main() { let x = 0; let u = twice_mut!(x); }\n```", "checker-reject"),
         ];
         for (i, (bad, expected)) in cases.iter().enumerate() {
             let mock = MockProvider::new("t", vec![bad.to_string(), good_poly()]);
@@ -1441,10 +1677,114 @@ mod tests {
         let mock = MockProvider::new("t", vec![no_intent.to_string(), good_poly()]);
         let r = run_guardrail(&mock, "x", 3, false);
         assert!(r.ok);
+        assert_eq!(r.attempts[0].outcome, "structure-error");
         assert!(r.attempts[0]
             .feedback
             .as_ref()
             .unwrap()
             .contains("@intent"));
+    }
+
+    // ── Tier-0 快篩：行為與等價性回歸 ──────────────────────────────────
+
+    #[test]
+    fn tier0_filter_rejects_type_mismatch() {
+        // 無宏的型別錯配：可解析 → Tier-0 checker 直接拒絕，不進完整管線
+        let bad = "```poly\n# @intent: 壞的\nfn main() { let a = 1 + true; }\n```";
+        let mock = MockProvider::new("t", vec![bad.to_string(), good_poly()]);
+        let r = run_guardrail(&mock, "x", 4, false);
+        assert!(r.ok, "{:?}", r);
+        assert_eq!(r.attempts[0].outcome, "checker-reject");
+        let fb = r.attempts[0].feedback.as_ref().unwrap();
+        assert!(fb.contains("UNSAT"), "回餵須說明等價判定：{}", fb);
+    }
+
+    #[test]
+    fn tier0_equivalence_corpus() {
+        // 等價回歸（rlzl 式雙實作比對）：
+        // 對每個可解析程序，獨立檢查器接受 ⟺ 完整代數管線判 SAT。
+        let srcs: &[(&str, bool)] = &[
+            ("fn main() { let a = 1 + 2; }", true),
+            ("fn main() { let a = 1 + true; }", false),
+            ("fn main() { let a = if true { 1 } else { 2 }; }", true),
+            ("fn sqr(x: i32) -> i32 { x * x }\nfn main() { let a = sqr(3); }", true),
+            (
+                "macro_rules! bad { ($e:expr) => { $e + true } }\nfn main() { let b = bad!(1); }",
+                false,
+            ),
+            (
+                "fn sqr(x: i32) -> i32 { x * x }\nmacro_rules! sqr { ($e:expr) => { $e * $e } }\nfn main() { let a = sqr(2) + sqr!(3); }",
+                true,
+            ),
+            (
+                "macro_rules! twice_mut { ($v:ident) => { let r1 = &mut $v; let r2 = &mut $v; *r1 + *r2 } }\nfn main() { let x = 0; let u = twice_mut!(x); }",
+                false,
+            ),
+        ];
+        for (i, (src, expect_sat)) in srcs.iter().enumerate() {
+            let p = crate::minirust::parse::Parser::parse_program(src)
+                .unwrap_or_else(|e| panic!("case {} 語料必須可解析：{}", i, e));
+            let mut e1 = crate::minirust::macros::Expander::new(p.macros.clone(), p.next_id);
+            let checker_ok = crate::minirust::checker::check_program(&p, &mut e1).is_ok();
+            let pr = pipeline::run_pipeline("tier0", src, false)
+                .unwrap_or_else(|e| panic!("case {} 管線不應報錯：{}", i, e));
+            assert_eq!(checker_ok, *expect_sat, "case {} checker 側", i);
+            assert_eq!(!pr.is_unsat, *expect_sat, "case {} 管線側", i);
+            assert_eq!(
+                checker_ok, !pr.is_unsat,
+                "case {} Tier-0 與完整管線必須等價",
+                i
+            );
+        }
+    }
+
+    // ── 漏斗量測 ────────────────────────────────────────────────────────
+
+    #[test]
+    fn funnel_stats_and_json_roundtrip() {
+        // run1：結構拒絕 → 修復通過；run2：首輪通過；run3：Tier-0 拒絕後放棄
+        let mock1 = MockProvider::new("t", vec!["沒有圍欄的回答".to_string(), good_poly()]);
+        let r1 = run_guardrail(&mock1, "a", 3, false);
+        let mock2 = MockProvider::new("t", vec![good_poly()]);
+        let r2 = run_guardrail(&mock2, "b", 3, false);
+        let mock3 = MockProvider::new(
+            "t",
+            vec!["```poly\n# @intent: 壞的\nfn main() { let a = 1 + true; }\n```".to_string()],
+        );
+        let r3 = run_guardrail(&mock3, "c", 1, false);
+        assert!(!r3.ok);
+        assert_eq!(r3.verdict, "UNSAT");
+
+        let s = funnel_from_results(&[r1.clone(), r2.clone(), r3.clone()]);
+        assert_eq!(s.runs, 3);
+        assert_eq!(s.ok_runs, 2);
+        assert_eq!(s.attempts_total, 4);
+        assert_eq!(s.structure_rejects, 1);
+        assert_eq!(s.checker_rejects, 1);
+        assert_eq!(s.sat, 2);
+        assert_eq!(s.sat_attempt_sum, 3); // run1 第 2 輪 + run2 第 1 輪
+        let rows = s.funnel_rows();
+        assert_eq!(rows[0].1, 4); // 到達
+        assert_eq!(rows[1].1, 3); // 過結構
+        assert_eq!(rows[2].1, 3); // 過語法
+        assert_eq!(rows[3].1, 2); // 過 Tier-0
+        assert_eq!(rows[4].1, 2); // SAT
+
+        // NDJSON 往返：寫成日誌行再讀回，聚合必須一致
+        let nd: String = [&r1, &r2, &r3]
+            .iter()
+            .map(|r| guardrail_to_json("x", r).to_string() + "\n")
+            .collect();
+        let s2 = funnel_from_json_text(&nd).unwrap();
+        assert_eq!(s2.runs, s.runs);
+        assert_eq!(s2.ok_runs, s.ok_runs);
+        assert_eq!(s2.attempts_total, s.attempts_total);
+        assert_eq!(s2.structure_rejects, s.structure_rejects);
+        assert_eq!(s2.checker_rejects, s.checker_rejects);
+        assert_eq!(s2.sat, s.sat);
+        assert_eq!(s2.sat_attempt_sum, s.sat_attempt_sum);
+        // funnel JSON 契約必須可產出（序列化為緊湊格式）
+        let j = funnel_to_json(&s2);
+        assert!(j.to_string().contains("\"mode\":\"funnel\""));
     }
 }

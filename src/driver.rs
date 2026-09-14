@@ -501,11 +501,38 @@ pub fn cmd_nl(args: &[String], json: bool) -> i32 {
     use crate::llm;
 
     // 自然語言來源：第一個非旗標位置參數，或 `-` 讀 stdin。
-    let positional: Vec<&String> = args
-        .iter()
-        .skip(2)
-        .filter(|a| !a.starts_with("--") && a.as_str() != "-j")
-        .collect();
+    // 帶值旗標（--provider X 等）的「值」不算位置參數，避免誤讀。
+    const VALUE_FLAGS: &[&str] = &[
+        "--provider",
+        "--model",
+        "--base-url",
+        "--api-key",
+        "--attempts",
+        "--temperature",
+        "--max-tokens",
+        "--funnel-log",
+    ];
+    let positional: Vec<&String> = {
+        let mut v: Vec<&String> = Vec::new();
+        let mut skip_next = false;
+        for a in args.iter().skip(2) {
+            if skip_next {
+                skip_next = false;
+                continue;
+            }
+            if a.starts_with("--") {
+                if VALUE_FLAGS.contains(&a.as_str()) {
+                    skip_next = true;
+                }
+                continue;
+            }
+            if a == "-j" {
+                continue;
+            }
+            v.push(a);
+        }
+        v
+    };
     let raw = positional.first().cloned().cloned().unwrap_or_else(|| "-".to_string());
     let nl = if raw == "-" {
         let mut buf = String::new();
@@ -533,6 +560,14 @@ pub fn cmd_nl(args: &[String], json: bool) -> i32 {
     }
 
     let cfg = parse_llm_config(args);
+
+    // 漏斗日誌路徑（選填）：`--funnel-log <path>`；無則看環境變數（append 時處理）
+    let funnel_path: Option<String> = args
+        .iter()
+        .position(|a| a == "--funnel-log")
+        .and_then(|i| args.get(i + 1))
+        .cloned();
+
     let provider = match llm::build_provider(&cfg) {
         Ok(p) => p,
         Err(e) => {
@@ -547,20 +582,28 @@ pub fn cmd_nl(args: &[String], json: bool) -> i32 {
 
     let result = llm::run_guardrail(provider.as_ref(), &nl, cfg.attempts, true);
 
+    // 漏斗量測：把本次運行的 JSON 契約行追加到日誌（有設定路徑才寫）
+    let log_line = llm::guardrail_to_json(&nl, &result).to_string();
+    if let Err(e) = llm::funnel_log_append(funnel_path.as_deref(), &log_line) {
+        eprintln!("漏斗日誌寫入失敗（不影響結果）：{}", e);
+    }
+
     if json {
-        println!("{}", llm::guardrail_to_json(&nl, &result));
+        println!("{}", log_line);
         return if result.ok { 0 } else { 1 };
     }
 
     // 人類可讀輸出
     println!("□ 需求：{}", nl);
     println!("□ Provider：{}", result.provider);
-    println!("□ 護欄（三道閘門：結構 → 語法 → 完整代數管線語義）：");
+    println!("□ 護欄（結構 → 語法 → Tier-0 checker 快篩 → 完整代數管線）：");
     for a in &result.attempts {
         let mark = match a.outcome.as_str() {
             "sat" => "✓ 通過",
-            "unsat" => "✗ 語義拒絕（UNSAT）",
-            _ => "✗ 結構/語法拒絕",
+            "unsat" => "✗ 語義拒絕（完整管線 UNSAT）",
+            "checker-reject" => "✗ Tier-0 checker 拒絕（等價 UNSAT，已省完整管線）",
+            "structure-error" => "✗ 結構拒絕（圍欄/@intent）",
+            _ => "✗ 語法拒絕",
         };
         println!("    第 {} 輪：{}", a.n, mark);
         if let Some(fb) = &a.feedback {
@@ -593,4 +636,189 @@ pub fn cmd_nl(args: &[String], json: bool) -> i32 {
         println!("□ 判定：{} — {}", result.verdict, result.final_reason);
         1
     }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// `exhaust`：一致性 oracle（窮舉細程序空間）
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// `polyrust exhaust [--size N] [--cap M] [--json]`。
+///
+/// 窮舉 ≤N 節點的全部小程序，逐一對照「獨立檢查器」與「代數管線判定」，
+/// 不一致即失敗（借鏡 `rlzl` 暴力法 oracle 哲學；詳見 `docs/THEOREMS.md`）。
+pub fn cmd_exhaust(args: &[String], json: bool) -> i32 {
+    let mut size = 5usize;
+    let mut cap = 200_000usize;
+    let mut i = 0;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--size" => {
+                if let Some(v) = args.get(i + 1) {
+                    size = v.parse().unwrap_or(5).clamp(1, 9);
+                    i += 1;
+                }
+            }
+            "--cap" => {
+                if let Some(v) = args.get(i + 1) {
+                    cap = v.parse().unwrap_or(200_000).clamp(1, 10_000_000);
+                    i += 1;
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+
+    let rep = crate::exhaust::run_oracle(size, cap);
+
+    if json {
+        let mismatches: Vec<crate::json::J> = rep
+            .mismatches
+            .iter()
+            .chain(rep.type_mismatches.iter())
+            .chain(rep.internal_errors.iter())
+            .map(|s| crate::json::J::s(s))
+            .collect();
+        println!(
+            "{}",
+            crate::json::J::obj(vec![
+                ("api_version", crate::json::J::s("0.1")),
+                ("mode", crate::json::J::s("exhaust")),
+                ("max_size", crate::json::J::Int(rep.max_size as i64)),
+                ("total", crate::json::J::Int(rep.total as i64)),
+                ("sat", crate::json::J::Int(rep.sat as i64)),
+                ("unsat", crate::json::J::Int(rep.unsat as i64)),
+                ("verdict_mismatches", crate::json::J::Int(rep.mismatches.len() as i64)),
+                ("type_mismatches", crate::json::J::Int(rep.type_mismatches.len() as i64)),
+                ("internal_errors", crate::json::J::Int(rep.internal_errors.len() as i64)),
+                ("details", crate::json::J::Arr(mismatches)),
+                ("capped", crate::json::J::Bool(rep.capped)),
+                ("pass", crate::json::J::Bool(rep.pass())),
+                ("elapsed_ms", crate::json::J::Int(rep.elapsed_ms as i64)),
+            ])
+        );
+        return if rep.pass() { 0 } else { 1 };
+    }
+
+    println!(
+        "□ 窮舉空間：≤{} 節點表達式（字面量/-/!/+/==/if/let；無宏無引用）{}",
+        rep.max_size,
+        if rep.capped { "（已觸上限截斷）" } else { "" }
+    );
+    println!("□ 程序總數：{}（SAT {} / UNSAT {}）", rep.total, rep.sat, rep.unsat);
+    println!(
+        "□ 判定一致性（管線 ⟺ 檢查器）：{}",
+        if rep.mismatches.is_empty() {
+            format!("{} 個不一致（全部一致 ✓）", 0)
+        } else {
+            format!("★ {} 個不一致 ★", rep.mismatches.len())
+        }
+    );
+    println!(
+        "□ 型別解碼一致性（SAT 逐節點）：{}",
+        if rep.type_mismatches.is_empty() {
+            "全部一致 ✓"
+        } else {
+            "★ 有不一致 ★"
+        }
+    );
+    println!(
+        "□ 解析失敗（生成器內部錯誤）：{}{}",
+        rep.internal_errors.len(),
+        if rep.internal_errors.is_empty() { " ✓" } else { " ★" }
+    );
+    for m in rep.mismatches.iter().chain(rep.type_mismatches.iter()).take(5) {
+        println!("──── 反例 ────\n{}", m);
+    }
+    println!("□ 耗時：{} ms", rep.elapsed_ms);
+    if rep.pass() {
+        println!("□ 結論：兩條路徑在有界空間上完全一致（命題 P 判定等價的窮舉見證）");
+        0
+    } else {
+        1
+    }
+}
+
+/// `polyrust funnel [日誌路徑] [--json]`：護欄漏斗量測（借鏡 `rlzl` 測量文化）。
+///
+/// 讀取 `nl` 運行累積的 NDJSON 漏斗日誌（路徑優先序：位置參數 >
+/// `POLYRUST_FUNNEL_LOG` > 預設 `polyrust-funnel.ndjson`），聚合
+/// 「結構 → 語法 → Tier-0 checker → 完整管線」各層的攔截與通過數。
+pub fn cmd_funnel(args: &[String], json: bool) -> i32 {
+    let path = args
+        .get(2)
+        .filter(|a| !a.starts_with("--"))
+        .cloned()
+        .or_else(|| std::env::var("POLYRUST_FUNNEL_LOG").ok())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "polyrust-funnel.ndjson".to_string());
+
+    let text = match std::fs::read_to_string(&path) {
+        Ok(t) => t,
+        Err(e) => {
+            let msg = format!(
+                "讀取漏斗日誌 {} 失敗：{}（先以 `polyrust nl ... --funnel-log {}` 或環境變數 POLYRUST_FUNNEL_LOG 累積運行記錄）",
+                path, e, path
+            );
+            if json {
+                println!("{}", error_json("funnel", None, "funnel", &msg));
+            } else {
+                eprintln!("錯誤：{}", msg);
+            }
+            return 1;
+        }
+    };
+
+    let stats = match crate::llm::funnel_from_json_text(&text) {
+        Ok(s) => s,
+        Err(e) => {
+            if json {
+                println!("{}", error_json("funnel", None, "funnel", &e));
+            } else {
+                eprintln!("錯誤：{}", e);
+            }
+            return 1;
+        }
+    };
+
+    if json {
+        println!("{}", crate::llm::funnel_to_json(&stats));
+        return 0;
+    }
+
+    println!("□ 漏斗日誌：{}", path);
+    if stats.runs == 0 {
+        println!("□ 日誌為空（尚無護欄運行記錄）");
+        return 0;
+    }
+    println!(
+        "□ 運行：{} 次（成功 {}，成功率 {:.1}%）| 總輪次：{}",
+        stats.runs,
+        stats.ok_runs,
+        100.0 * stats.ok_runs as f64 / stats.runs as f64,
+        stats.attempts_total
+    );
+    println!("□ 漏斗（每層到達 → 通過）：");
+    for (label, v) in stats.funnel_rows() {
+        println!("    {}：{}", label, v);
+    }
+    println!(
+        "□ 攔截分佈：結構 {} | 語法 {} | Tier-0 checker {} | 完整管線 UNSAT {} | 管線錯誤 {} | provider 錯誤 {}",
+        stats.structure_rejects,
+        stats.syntax_rejects,
+        stats.checker_rejects,
+        stats.unsat_rejects,
+        stats.unresolved,
+        stats.provider_error
+    );
+    if stats.sat > 0 {
+        println!(
+            "□ 平均收斂輪次（通過時）：{:.2}",
+            stats.sat_attempt_sum as f64 / stats.sat as f64
+        );
+    }
+    for (p, runs, ok) in &stats.providers {
+        println!("    provider {}：{} 次運行，{} 次成功", p, runs, ok);
+    }
+    0
 }

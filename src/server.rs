@@ -375,5 +375,8 @@ pub(crate) fn nl_text_json(body: &str) -> (crate::json::J, bool) {
     };
     let result = llm::run_guardrail(provider.as_ref(), &nl, cfg.attempts, true);
     let ok = result.ok;
-    (llm::guardrail_to_json(&nl, &result), ok)
+    let j = llm::guardrail_to_json(&nl, &result);
+    // 漏斗量測：有設定 POLYRUST_FUNNEL_LOG 時追加本次運行記錄（零副作用預設）
+    let _ = llm::funnel_log_append(None, &j.to_string());
+    (j, ok)
 }

@@ -7,6 +7,7 @@ mod cdcl;
 mod codegen;
 mod driver;
 mod dsl;
+mod exhaust;
 mod fp;
 mod formal;
 mod frac;
@@ -174,12 +175,26 @@ fn main() {
         }
         return;
     }
+    if mode == "exhaust" {
+        // 一致性 oracle：窮舉細程序空間，管線 ⟺ 檢查器。
+        if !json {
+            print_banner();
+        }
+        std::process::exit(driver::cmd_exhaust(&args, json));
+    }
     if mode == "nl" {
         // 自然語言 → .poly（LLM 護欄）。文字來源：args[2] 或 `-`（stdin）。
         if !json {
             print_banner();
         }
         std::process::exit(driver::cmd_nl(&args, json));
+    }
+    if mode == "funnel" {
+        // 護欄漏斗量測：聚合 `nl` 運行的 NDJSON 日誌。
+        if !json {
+            print_banner();
+        }
+        std::process::exit(driver::cmd_funnel(&args, json));
     }
     if mode == "gen" {
         // 檔案模式（.poly / 路徑 / stdin）：與 check/expand 一致，json 不印 banner。
