@@ -181,9 +181,11 @@ fn emit_expr(
             out.push(';');
         }
         EKind::AssignDeref(lhs, rhs) => {
+            // lhs 是引用表達式：真 Rust 需要解引用 `*lhs = rhs`
             out.push_str(&indent(depth));
+            out.push_str("*(");
             emit_expr(lhs, exp, d, cfg, out, depth, false);
-            out.push_str(" = ");
+            out.push_str(") = ");
             emit_expr(rhs, exp, d, cfg, out, depth, false);
             out.push(';');
         }

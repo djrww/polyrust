@@ -126,7 +126,9 @@ pub fn run_pipeline(name: &str, source: &str, do_codegen: bool) -> Result<Pipeli
     let mut rounds = 0usize;
     loop {
         rounds += 1;
-        assert!(rounds < 200, "CDCL(T) 迴圈不收斂");
+        if rounds >= 200 {
+            return Err("CDCL(T) 迴圈 200 輪未收斂（臂/借用組合超出演示規模）".to_string());
+        }
         stage!("S5 round start");
         let compact_clauses: Vec<Vec<cdcl::Lit>> = clauses_sys
             .iter()

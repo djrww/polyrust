@@ -33,6 +33,8 @@ pub fn serve(port: u16) -> std::io::Result<()> {
 }
 
 fn handle(mut stream: TcpStream) -> std::io::Result<()> {
+    // 讀取超時：慢速/閒置連線不能無限佔住執行緒
+    stream.set_read_timeout(Some(std::time::Duration::from_secs(60)))?;
     let req = read_request(&mut stream)?;
     let (method, path, body) = req;
 

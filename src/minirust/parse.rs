@@ -96,8 +96,17 @@ impl Parser {
                                     let pty = p.parse_ty()?;
                                     let pnode = p.fresh_pub_id();
                                     params.push(FnParam { name: pname, node: pnode, ty: pty });
-                                    if let Some(Tok::Comma) = p.peek() {
-                                        p.bump();
+                                    match p.peek() {
+                                        Some(Tok::Comma) => {
+                                            p.bump();
+                                        }
+                                        Some(Tok::RParen) => {}
+                                        other => {
+                                            return Err(format!(
+                                                "參數列表期望 ',' 或 ')'，得到 {:?}",
+                                                other
+                                            ))
+                                        }
                                     }
                                 }
                             }
@@ -501,8 +510,17 @@ impl Parser {
                                 }
                                 _ => {
                                     args.push(self.parse_expr()?);
-                                    if let Some(Tok::Comma) = self.peek() {
-                                        self.bump();
+                                    match self.peek() {
+                                        Some(Tok::Comma) => {
+                                            self.bump();
+                                        }
+                                        Some(Tok::RParen) => {}
+                                        other => {
+                                            return Err(format!(
+                                                "實參列表期望 ',' 或 ')'，得到 {:?}",
+                                                other
+                                            ))
+                                        }
                                     }
                                 }
                             }

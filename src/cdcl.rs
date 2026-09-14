@@ -326,8 +326,13 @@ impl Solver {
                         return false;
                     }
                     if let Some(ci) = ci {
-                        // 斷言 ¬UIP（回跳後必未賦值）
-                        if !(self.value_of(learnt[0]).is_none()) { eprintln!("BUG: learnt={:?} lvl={} levels={:?} values={:?}", learnt, lvl, learnt.iter().map(|l| self.level[lit_var(*l)]).collect::<Vec<_>>(), learnt.iter().map(|l| self.value_of(*l)).collect::<Vec<_>>()); }
+                        // 斷言 ¬UIP（回跳後必未賦值；不變量違背只在除錯建置報錯）
+                        debug_assert!(
+                            self.value_of(learnt[0]).is_none(),
+                            "學習子句首文字回跳後應未賦值：{:?} lvl={}",
+                            learnt,
+                            lvl
+                        );
                         self.enqueue(learnt[0], Some(ci));
                     }
                     // learnt 長度 1：add_clause_raw 已在 0 層入列

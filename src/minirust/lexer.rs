@@ -89,7 +89,10 @@ pub fn lex(src: &str) -> Result<Vec<Tok>, String> {
         if c.is_ascii_digit() {
             let mut n = 0i64;
             while i < b.len() && b[i].is_ascii_digit() {
-                n = n * 10 + (b[i] as u64 - '0' as u64) as i64;
+                n = n
+                    .checked_mul(10)
+                    .and_then(|x| x.checked_add((b[i] as u64 - '0' as u64) as i64))
+                    .ok_or_else(|| format!("整數字面量過大（位置 {}）", i))?;
                 i += 1;
             }
             out.push(Tok::Int(n));

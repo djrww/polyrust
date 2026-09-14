@@ -103,6 +103,14 @@ pub fn gen_constraints(p: &Program, exp: &mut Expander) -> Result<System, String
             emit(&mut c, pf, &Poly::constant(Frac::ONE));
         }
         walk(&f.body, &mut c, &mut scope, p, &Poly::constant(Frac::ONE))?;
+        // fn 體根節點型別 = 聲明回傳型別（與 checker 的 `d.ty == f.ret_ty` 對齊；
+        // 審計發現：缺此約束會令體型別不符的 fn 漏過代數側）
+        {
+            let bts = node_bits(&c, f.body.id);
+            let f_ret =
+                var_poly(&c, bts[f.ret_ty.index()]).sub(&Poly::constant(Frac::ONE));
+            emit(&mut c, f_ret, &Poly::constant(Frac::ONE));
+        }
     }
     // main 體
     let empty_defs: HashMap<String, usize> = HashMap::new();
@@ -306,21 +314,27 @@ fn walk(e: &E, c: &mut Ctx<'_>, scope: &mut Scope, p: &Program, ctx: &Poly) -> R
             emit(c, var_poly(c, _ts[Type::Unit.index()]).sub(&Poly::constant(Frac::ONE)), ctx);
         }
         EKind::AssignDeref(lhs, rhs) => {
+            // AST 約定：lhs 即引用表達式本身（parser 已剝去 `*`）。
+            // 約束：(a) lhs 必須是某個 &mut T；(b) rhs : T（指向型別一致）。
             walk(lhs, c, scope, p, ctx)?;
             walk(rhs, c, scope, p, ctx)?;
-            if let EKind::Deref(inner) = &lhs.kind {
-                let its = node_bits(c, inner.id);
-                let rts = node_bits(c, rhs.id);
-                // inner 必須是 &mut T 且 rhs : T：
-                // t_rhs,τ = t_inner,refmut(τ 的指向) ，並拒絕不可變引用
-                for (refidx, valty) in [
-                    (Type::RefMutI32.index(), Type::I32),
-                    (Type::RefMutBool.index(), Type::Bool),
-                ] {
-                    let f = var_poly(c, rts[valty.index()])
-                        .sub(&var_poly(c, its[refidx]));
-                    emit(c, f, ctx);
-                }
+            let lts = node_bits(c, lhs.id);
+            let rts = node_bits(c, rhs.id);
+            // (a) lhs ∈ {&mut i32, &mut bool}（one-hot 下即二選一）
+            emit(
+                c,
+                var_poly(c, lts[Type::RefMutI32.index()])
+                    .add(&var_poly(c, lts[Type::RefMutBool.index()]))
+                    .sub(&Poly::constant(Frac::ONE)),
+                ctx,
+            );
+            // (b) rhs 型別 = lhs 指向型別
+            for (refidx, valty) in [
+                (Type::RefMutI32.index(), Type::I32),
+                (Type::RefMutBool.index(), Type::Bool),
+            ] {
+                let f = var_poly(c, rts[valty.index()]).sub(&var_poly(c, lts[refidx]));
+                emit(c, f, ctx);
             }
             emit(c, var_poly(c, _ts[Type::Unit.index()]).sub(&Poly::constant(Frac::ONE)), ctx);
         }
@@ -357,21 +371,39 @@ fn walk(e: &E, c: &mut Ctx<'_>, scope: &mut Scope, p: &Program, ctx: &Poly) -> R
             }
         }
         EKind::Invoke(name, toks) => {
-            let mac = match c.exp.find_macro(name) {
-                Some(m) => m,
-                None => return Ok(()),
-            };
-            let arms = c.exp.matching_arms(mac, toks);
+            let mac = c.exp.find_macro(name);
+            let arms = mac.map(|m| c.exp.matching_arms(m, toks)).unwrap_or_default();
             if arms.is_empty() {
-                return Ok(()); // 無臂匹配 ⇒ 呼叫者無法賦值（one-hot 仍在，系統可能 SAT——
-                        // 由 arm one-hot 缺失導致；見 docs：管線在 CDCL 檢測臂互斥）
+                // 未定義宏或無臂匹配 ⇒ 調用不可定型 ⇒ 強制矛盾
+                // （與未綁定變量／未定義函式一致：令所有型別位元 = 0，破產 one-hot；
+                // checker 側同語義：無推導 ⇒ 拒絕）
+                for &t in _ts.iter() {
+                    emit(c, var_poly(c, t), ctx);
+                }
+                return Ok(());
             }
-            // 臂位元
+            let mac = mac.unwrap();
+            // 各臂先展開；轉錄後無法重解析的臂跳過（與 checker 側 `continue` 對稱）。
+            // 全部臂都展開失敗 ⇒ 等同無臂可用 ⇒ 強制矛盾。
+            let mut valid: Vec<(usize, E)> = Vec::new();
+            for (k, &arm) in arms.iter().enumerate() {
+                match c.exp.expand_arm(e.id, mac, arm, toks) {
+                    Ok(t) => valid.push((k, t)),
+                    Err(_) => continue,
+                }
+            }
+            if valid.is_empty() {
+                for &t in _ts.iter() {
+                    emit(c, var_poly(c, t), ctx);
+                }
+                return Ok(());
+            }
+            // 臂位元（僅對可展開臂）
             let avs: Vec<usize> = match c.sys.arm_vars.get(&e.id) {
                 Some(v) => v.clone(),
                 None => {
                     let mut v = vec![];
-                    for i in 0..arms.len() {
+                    for i in 0..valid.len() {
                         let var = c.sys.nvars;
                         c.sys.names.push(format!("a{}:{}", e.id, i));
                         v.push(var);
@@ -395,12 +427,11 @@ fn walk(e: &E, c: &mut Ctx<'_>, scope: &mut Scope, p: &Program, ctx: &Poly) -> R
                 }
             }
             // 各臂展開：tie 約束 + 遞迴（ctx' = ctx·a_i）
-            for (k, &arm) in arms.iter().enumerate() {
-                let tree = c.exp.expand_arm(e.id, mac, arm, toks)?;
+            for (k, &(_arm, ref tree)) in valid.iter().enumerate() {
                 let a_i = var_poly(c, avs[k]);
                 let new_ctx = ctx.mul(&a_i);
                 let tts = {
-                    walk(&tree, c, scope, p, &new_ctx)?;
+                    walk(tree, c, scope, p, &new_ctx)?;
                     node_bits(c, tree.id)
                 };
                 for ti in 0..N_TYPES {
@@ -411,8 +442,8 @@ fn walk(e: &E, c: &mut Ctx<'_>, scope: &mut Scope, p: &Program, ctx: &Poly) -> R
                     }
                 }
                 // arm 樹的借用衝突（乘該臂 ctx）
-                let ba = analyze(&tree, &scope.defs);
-                emit_borrow_conflicts(c, &ba, &new_ctx, &tree, &scope.defs);
+                let ba = analyze(tree, &scope.defs);
+                emit_borrow_conflicts(c, &ba, &new_ctx, tree, &scope.defs);
             }
         }
     }

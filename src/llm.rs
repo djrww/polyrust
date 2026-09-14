@@ -1412,6 +1412,7 @@ impl FunnelStats {
 }
 
 /// 由護欄結果序列聚合漏斗統計。
+#[allow(dead_code)] // 供單元測試與程式庫呼叫者使用（CLI 路徑走 NDJSON 聚合）
 pub fn funnel_from_results(rs: &[GuardrailResult]) -> FunnelStats {
     let mut s = FunnelStats::default();
     for r in rs {
@@ -1720,6 +1721,19 @@ mod tests {
                 "macro_rules! twice_mut { ($v:ident) => { let r1 = &mut $v; let r2 = &mut $v; *r1 + *r2 } }\nfn main() { let x = 0; let u = twice_mut!(x); }",
                 false,
             ),
+            // AssignDeref 家族（lhs = 引用表達式本身）
+            ("fn main() { let x = 0; let r = &mut x; *r = 1; }", true),
+            ("fn main() { let x = 0; let r = &mut x; *r = true; }", false),
+            ("fn main() { let x = 0; let r = &x; *r = 1; }", false),
+            ("fn main() { let x = 0; let a = &mut x; let b = &mut x; *a + *b }", false),
+            // 宏邊界：無匹配臂 / 未定義宏（審計修復：約束側強制矛盾）
+            (
+                "macro_rules! m { ($e:expr, $f:expr) => { $e + $f } }\nfn main() { let u = m!(1); }",
+                false,
+            ),
+            ("fn main() { let u = nosuch!(1); }", false),
+            // fn 調用邊界：實參個數不符
+            ("fn add(a: i32, b: i32) -> i32 { a + b }\nfn main() { let u = add(1); }", false),
         ];
         for (i, (src, expect_sat)) in srcs.iter().enumerate() {
             let p = crate::minirust::parse::Parser::parse_program(src)
@@ -1788,3 +1802,4 @@ mod tests {
         assert!(j.to_string().contains("\"mode\":\"funnel\""));
     }
 }
+

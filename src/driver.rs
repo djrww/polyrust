@@ -642,13 +642,17 @@ pub fn cmd_nl(args: &[String], json: bool) -> i32 {
 // `exhaust`：一致性 oracle（窮舉細程序空間）
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// `polyrust exhaust [--size N] [--cap M] [--json]`。
+/// `polyrust exhaust [--space expr|full] [--size N] [--cap M] [--json]`。
 ///
 /// 窮舉 ≤N 節點的全部小程序，逐一對照「獨立檢查器」與「代數管線判定」，
 /// 不一致即失敗（借鏡 `rlzl` 暴力法 oracle 哲學；詳見 `docs/THEOREMS.md`）。
+///
+/// - `--space expr`（預設）：表達式空間（字面量/運算/if/let/引用/賦值；無宏無 fn）。
+/// - `--space full`：全空間（宏 0..1 個 ×1..2 臂、fn 0..2 個、Call/Invoke 含邊界實參）。
 pub fn cmd_exhaust(args: &[String], json: bool) -> i32 {
     let mut size = 5usize;
     let mut cap = 200_000usize;
+    let mut space = "expr".to_string();
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
@@ -664,12 +668,21 @@ pub fn cmd_exhaust(args: &[String], json: bool) -> i32 {
                     i += 1;
                 }
             }
+            "--space" => {
+                if let Some(v) = args.get(i + 1) {
+                    space = v.clone();
+                    i += 1;
+                }
+            }
             _ => {}
         }
         i += 1;
     }
 
-    let rep = crate::exhaust::run_oracle(size, cap);
+    let rep = match space.as_str() {
+        "full" => crate::exhaust::run_oracle_full(size, cap),
+        _ => crate::exhaust::run_oracle(size, cap),
+    };
 
     if json {
         let mismatches: Vec<crate::json::J> = rep
@@ -684,6 +697,7 @@ pub fn cmd_exhaust(args: &[String], json: bool) -> i32 {
             crate::json::J::obj(vec![
                 ("api_version", crate::json::J::s("0.1")),
                 ("mode", crate::json::J::s("exhaust")),
+                ("space", crate::json::J::s(if space == "full" { "full" } else { "expr" })),
                 ("max_size", crate::json::J::Int(rep.max_size as i64)),
                 ("total", crate::json::J::Int(rep.total as i64)),
                 ("sat", crate::json::J::Int(rep.sat as i64)),
@@ -701,8 +715,14 @@ pub fn cmd_exhaust(args: &[String], json: bool) -> i32 {
     }
 
     println!(
-        "□ 窮舉空間：≤{} 節點表達式（字面量/-/!/+/==/if/let；無宏無引用）{}",
+        "□ 窮舉空間（{}）：≤{} 總節點{}{}",
+        if space == "full" {
+            "full：宏 0..1 ×1..2 臂 + fn 0..2 + Call/Invoke 邊界"
+        } else {
+            "expr：字面量/-/!/*/+/==/if/let/&/&mut/賦值；無宏無 fn"
+        },
         rep.max_size,
+        if space == "full" { "（宏×fn×main 全組合）" } else { " 表達式" },
         if rep.capped { "（已觸上限截斷）" } else { "" }
     );
     println!("□ 程序總數：{}（SAT {} / UNSAT {}）", rep.total, rep.sat, rep.unsat);

@@ -251,27 +251,25 @@ fn check_expr(e: &E, scope: &Scope, p: &Program, exp: &mut Expander) -> Vec<Deri
             }
         }
         EKind::AssignDeref(lhs, rhs) => {
-            // *lhs = rhs：lhs 須為 Deref(inner)，inner : &mut T，rhs : T
-            if let EKind::Deref(inner) = &lhs.kind {
-                for di in check_expr(inner, scope, p, exp) {
-                    let pointed = match di.ty {
-                        Type::RefMutI32 => Some(Type::I32),
-                        Type::RefMutBool => Some(Type::Bool),
-                        _ => None,
-                    };
-                    if let Some(t) = pointed {
-                        for dr in check_expr(rhs, scope, p, exp) {
-                            if dr.ty == t {
-                                out.push(Derivation {
-                                    ty: Type::Unit,
-                                    node_types: merged(
-                                        &[(e.id, Type::Unit)],
-                                        &[&di.node_types, &dr.node_types],
-                                        &[],
-                                    ),
-                                    arm_choice: merged_arms(&[&di.arm_choice, &dr.arm_choice]),
-                                });
-                            }
+            // AST 約定：lhs 即引用表達式本身（parser 已剝去 `*`），須為 &mut T；rhs : T
+            for di in check_expr(lhs, scope, p, exp) {
+                let pointed = match di.ty {
+                    Type::RefMutI32 => Some(Type::I32),
+                    Type::RefMutBool => Some(Type::Bool),
+                    _ => None,
+                };
+                if let Some(t) = pointed {
+                    for dr in check_expr(rhs, scope, p, exp) {
+                        if dr.ty == t {
+                            out.push(Derivation {
+                                ty: Type::Unit,
+                                node_types: merged(
+                                    &[(e.id, Type::Unit)],
+                                    &[&di.node_types, &dr.node_types],
+                                    &[],
+                                ),
+                                arm_choice: merged_arms(&[&di.arm_choice, &dr.arm_choice]),
+                            });
                         }
                     }
                 }
@@ -459,5 +457,52 @@ mod tests {
     fn test_eq_bool_ok() {
         let src = "fn main() { let a = true; let b = false; let e = a == b; let ne = a != b; }";
         assert!(check(src).is_ok());
+    }
+
+    // ── 賦值家族（AssignDeref 約定：lhs = 引用表達式本身）──
+
+    #[test]
+    fn test_assign_deref_ok() {
+        let src = "fn main() { let x = 0; let r = &mut x; *r = 1; }";
+        assert!(check(src).is_ok());
+    }
+
+    #[test]
+    fn test_assign_deref_wrong_value_type() {
+        let src = "fn main() { let x = 0; let r = &mut x; *r = true; }";
+        assert!(check(src).is_err());
+    }
+
+    #[test]
+    fn test_assign_deref_immutable_rejected() {
+        let src = "fn main() { let x = 0; let r = &x; *r = 1; }";
+        assert!(check(src).is_err());
+    }
+
+    #[test]
+    fn test_assign_var_ok_and_bad() {
+        assert!(check("fn main() { let x = 0; x = 5; }").is_ok());
+        assert!(check("fn main() { let x = 0; x = true; }").is_err());
+    }
+
+    #[test]
+    fn test_double_mut_borrow_rejected() {
+        let src = "fn main() { let x = 0; let a = &mut x; let b = &mut x; *a + *b }";
+        assert!(check(src).is_err());
+    }
+
+    // ── 解析嚴格性：參數/實參之間必須有逗號 ──
+
+    #[test]
+    fn test_missing_commas_rejected() {
+        assert!(Parser::parse_program("fn f(a: i32 b: i32) -> i32 { a }\nfn main() {}").is_err());
+        assert!(Parser::parse_program("fn f(a: i32, b: i32) -> i32 { a + b }\nfn main() { let u = f(1 2); }").is_err());
+        // 尾隨逗號仍合法
+        assert!(Parser::parse_program("fn f(a: i32,) -> i32 { a }\nfn main() { let u = f(1,); }").is_ok());
+    }
+
+    #[test]
+    fn test_int_literal_overflow_rejected() {
+        assert!(Parser::parse_program("fn main() { let a = 99999999999999999999999999; }").is_err());
     }
 }
