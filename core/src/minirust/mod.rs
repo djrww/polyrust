@@ -19,6 +19,7 @@ pub mod parse_expr;
 pub mod ty;
 pub mod universe;
 pub mod parse_v2;
+pub mod parse_full;
 // Phase3
 pub mod borrowck;
 pub mod contracts;
