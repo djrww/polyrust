@@ -48,7 +48,7 @@ pub fn startup_report() -> String {
         return "Lean 4 形式化庫未內嵌（無 Lean 工具鏈，純 Rust 建置）".to_string();
     }
     match init() {
-        Ok(()) => "Lean 4 形式化庫（Polyrust.*，14 模組）已靜態嵌入並載入 ✓".to_string(),
+        Ok(()) => "Lean 4 形式化庫（Polyrust.*，20 模組）已靜態嵌入並載入 ✓".to_string(),
         Err(e) => format!("Lean 內嵌載入失敗：{}", e),
     }
 }

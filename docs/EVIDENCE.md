@@ -273,3 +273,139 @@ i32 運算溢出語義不建模（Mini-Rust 簡化）；server 無連線數上�
    「到達 → 結構 → 語法 → Tier-0 → SAT」各層計數、攔截分佈、
    平均收斂輪次、逐 provider 成功率。離線測試保證聚合與日誌往返一致。
    真 API 跑批數據待累積（免費限流下逐條記錄）。
+
+## 10. @brute 對照常態化（2026-09-15 新增）
+
+仿 `rlzl` 的 `@brute` oracle 模式：把「暴力法 ⟺ 代數法」逐位元比對
+做成**每次 `cargo test` 都跑的駐場測試**（`src/brute.rs`、
+`polyrust brute [--size N] [--json]`）。暴力側不共用任何求解器代碼
+（直接 `Poly::eval_full` 逐多項式求值），獨立性成立。
+
+### 10a. 三層對照（--size 3 常駐；--size 4 約 60s）
+
+| 層 | 內容 | 結果 |
+|---|---|---|
+| 子句層 | 367 組（隨機 300＋結構化 exactly-one/鳩巢 7＋**純 3-SAT 硬樣本 60**，比例 3.0、變量 9..=12）：CDCL ⟺ `brute_force_sat` 全枚舉；SAT 模型逐條真滿足 | 零不一致 |
+| 學習子句蘊涵 | 每個 ≤12 變量 SAT 實例：暴力遍歷**全部** 2^nv 滿足賦值，逐條驗證 `learned_clauses()` 被蘊含 | **1,361 次驗證，零反例** |
+| 約束層 | 186 程序（182 在結構化暴力搜索規模內）：7^節點型別 × 2^布爾位直接枚舉 ⟺ Gröbner ⟺ `solve_boolean` ⟺ checker 四方一致；one-hot 解碼健全 | 零不一致 |
+| 見證逐位元 | 任何規模：`verify_witness_bitwise` 對求解器輸出逐多項式歸零；竄改任一位元必被抓（`brute_witness_bitwise_rejects_tamper`） | 通過 |
+
+### 10b. 本輪抓到並修復的真 bug：CDCL 雙監視文字「覆寫而非交換」
+
+常態化對照**立即產生回報**：純 3-SAT 硬樣本（寬恆 3，迫使真正的
+衝突驅動學習）下，CDCL 對可解實例誤報 UNSAT。除錯過程：
+
+1. 以 2^10 全賦值驗證每條學習子句 ⇒ 定位到一條不被原式蘊含的
+   學習子句 `[x2 ∨ x0]`（存在模型使兩者皆假）。
+2. 加 `debug_assert` 不變量 ⇒ 發現子句表中出現**重複文字**
+   `[19, 16, 19]`——子句內容被破壞。
+3. 根因：`propagate` 移動監視文字時寫成 `c2[0] = l`（**覆寫**），
+   被否證的文字直接丟失、`l` 又在原位 ≥2 留存，子句 (A∨B∨C) 變成
+   (B∨C)∪{重複}，語義變強；回溯後該「強化子句」仍生效 ⇒
+   不可靠剪枝 ⇒ SAT 誤報 UNSAT。MiniSat 原版是**交換**（被否證
+   文字換到 `l` 的原位，子句多重集不變）。
+
+修復：`src/cdcl.rs` `propagate` 改為交換（`c2[k] = falsified`），
+並新增三個永久 `debug_assert` 不變量（衝突子句全假／原因子句
+蘊含真＋其餘全假／學習子句尾文字回跳後全假）。回歸鎖定：
+`cdcl_watch_move_regression_3sat`（oracle 判定＋學習子句全賦值
+蘊涵驗證）。
+
+教訓（同 `rlzl`）：**混合窄寬度的易實例測不出學習路徑的缺陷**；
+常駐對照必須含「強迫觸發目標代碼路徑」的硬樣本。
+
+### 10c. 回歸基線
+
+- `cargo test --release`：**67/67 綠**（63 舊＋3 個 @brute 駐場＋1 回歸鎖定），~32s。
+- `cargo test`（debug，`debug_assert` 全開）：**67/67 綠**，~231s。
+- `polyrust brute --size 4`：1,286 程序、1,282 暴力搜索、254 見證
+  逐位元驗證、四方一致、零不一致。
+
+## 11. Lean 形式化更新與靜態嵌入落地（2026-09-15 新增）
+
+**溫故知新**：查閱 Lean 4.27–4.33 發布說明（4.33.0 = 2026-08-10）後，
+確認釘住的 `v4.33.1` 仍是最新穩定分支；新版重點（`grind`/`lia` 改進、
+`backward.isDefEq.respectTransparency.types` 預設開啟、do elaborator
+换代）對本庫無破壞（從零重建零警告）。
+
+### 11a. 新模組 `Polyrust.WatchMove`（134 行、8 條定理）
+
+把 §10b 抓到並修復的 CDCL 缺陷的**數學核心**機械化（接續 `ClauseAlgebra`
+的推理規則層，補上資料結構層）：
+
+| 定理 | 內容 | 公理依賴 |
+|---|---|---|
+| `clauseSat_iff_exists` | 子句滿足 ⟺ 存在真文字（成员刻畫） | 標準三公理 |
+| `clauseSat_congr_mem` | 成員集相同 ⇒ 滿足性相同 | 標準三公理 |
+| `watch_move0/1_preserves_sat` | **監視文字交換移動保持子句語義**（任意賦值）——`propagate` 的交換不變量 | 標準三公理 |
+| `watch_move_sound` | 移動前滿足 ⇒ 移動後滿足（工程不變量形式） | 標準三公理 |
+| `watch_move0_example_sound` | 具體實例對任意賦值成立 | 標準三公理 |
+| `clauseSat_all_false` | 全假子句不滿足（衝突偵測健全性） | 標準三公理 |
+| `watch_overwrite_unsound` | **覆寫版顯式反例**（σ：x₀ 真）——缺陷紀錄，零公理純計算 | **無** |
+
+證明用 Lean 4.33 核心 `grind`（零 Mathlib 依賴不變）。`Audit.lean` 手列
+清單新增 6 條（並移除一條既有重複項，現 90 條）。
+
+### 11b. 靜態嵌入在案債務清結
+
+安裝 elan 4.2.4 + `leanprover/lean4:v4.33.1` 後：
+
+- `lake build`：22 jobs、從零 ~9s、零警告、零棄用。
+- `lake build Polyrust:static`：42 jobs，產 `libpolyrust_x2dformal_Polyrust.a`（1.37 MB）。
+- `cargo build --release`：`build.rs` 成功連結（此前因無工具鏈而「略過」），
+  二進位 3.8 MB，`ldd` 僅含 glibc 系（libgcc_s/libm/libc）——Lean 執行時、
+  gmp、uv、ssl、libc++ 全部靜態嵌入。
+- 啟動自檢：`〔Lean 4 形式化庫（Polyrust.*，19 模組）已靜態嵌入並載入 ✓〕`。
+
+### 11d. 迭代不變量補完（「必然如初」的機械化）
+
+單步交換定理之上，`WatchMove`／`WatchMoves` 歸納關係＋
+`watchMoves_preserve_sat`：子句經**任意有限步**合法監視移動後，
+任何賦值下滿足性與原式相同——「不需要恢復原狀，因為語義每一步
+都未變」這個工程直覺現為機器檢查的定理（`watchMoves_sound` 為其
+工程不變量形式）。
+
+### 11c. 審計基線（更新後）
+
+- 385 條定理/引理、6,045 行、19 模組。
+- `AuditAll`：受檢宣告 **1736**、純構造 **961**、零 `sorry`、零自訂公理
+  ⇒ `AUDIT_RESULT=CLEAN`。
+- `scripts/lean-audit.sh` 全程通過。
+
+## 12. 布爾 Nullstellensatz 形式化與兩處過度聲稱的補完（2026-09-15 新增）
+
+針對「衍生引理到底證什麼、邊界在哪、錯了會怎樣」的審查，新增模組
+`Polyrust.BoolNullstellensatz`（332 行）並補完兩處**檔首過度聲稱**：
+
+### 12a. 補完的兩處過度聲稱（此前只有註解承諾、沒有證明）
+
+| 缺口 | 位置 | 補完 |
+|---|---|---|
+| `mod_p_one_in_ideal`（逆元縮放為 1）僅在檔首第 4 條被提及，**全庫無此定理** | `T6Certificate.lean` | 實現於 `BoolNullstellensatz.mod_p_one_in_ideal`；檔首改為如實指向 |
+| `allBits` 的 `Nodup` 被註解聲稱為「純組合事實」，**從未被證明**——而 `sum_delta`／`interpolation` 以它為前提 | `Squarefree.lean` | `allBits_nodup`（含 `setN_inj`、`nodup_flatMap_of` 等組合引理） |
+
+### 12b. 布爾 Nullstellensatz（說死版）
+
+* **證什麼**：`bool_nullstellensatz`——系統 `fs`（{0,1}ⁿ 上多項式函數層）
+  若每點都有某元素模 `p` **可逆**（顯式逆元見證 `p ∣ f(x)·iv − 1`），
+  則存在**多項式函數乘子**使 `Σ_f mult_f·f ≡ 1 (mod p)` 在整個立方上
+  逐點成立。構造顯式：拉格朗日基 `δ_a` 按見證歸屬分配（`sum_fiber`
+  纖維重排）＋布爾插值提升多項式性。反向 `bool_ns_no_root_of_certificate`
+  （前提 `p ∤ 1`）：常數 1 憑證 ⟹ 每點有模 `p` 非零元素。
+* **邊界**：①函數層（逐點同餘），非語法層 `Σ gᵢfᵢ + Σ hⱼ(xⱼ²−xⱼ) = 1`
+  恆等式（需多元除法；管線不需要）；②「可逆」帶顯式見證，不假設 `p`
+  素性——素數下「可逆 ⟺ 非零」的 Bézout 等價由 L0／Rust 側提供；
+  ③可靠方向需 `p ∤ 1`。
+* **錯了會怎樣**：若 `bool_nullstellensatz` 為假，「無公共零點 ⟹
+  1 ∈ 理想」的代數判據斷裂——Gröbner 側算出 1 與語義側無根不再互推，
+  T6「1 ∈ G ⟺ 不可定型」失去一般性論證骨幹（只剩樣本檢查）。
+* **與既有 `no_root_certificate` 的關係**：舊定理止於「組合 = 處處非零
+  函數 D」（ℤ 層無除法，這是不能到 1 的數學邊界，非偷懶）；
+  新定理在模 `p` 層用逆元見證跨過這一步。
+
+### 12c. 審計基線（更新後）
+
+* 408 條定理/引理、6,502 行、20 模組；`Audit.lean` 手列 98 條。
+* `AuditAll`：受檢宣告 **1787**、純構造 **970**、零 `sorry`、零自訂公理
+  ⇒ `AUDIT_RESULT=CLEAN`。新主定理僅依賴標準三公理
+  （`Classical.choice` 來自見證選取，屬可追蹤的標準公理）。

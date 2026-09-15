@@ -200,6 +200,89 @@ theorem allBits_complete : ∀ (n : Nat) (f : Nat → Bool), supportLe f n → f
       rw [allBits, List.mem_flatMap]
       exact ⟨setN f n false, hmem, by rw [key]; simp⟩
 
+/-- `setN` 在不同位值下產生不同函數。 -/
+theorem setN_false_ne_true (f : Nat → Bool) (n : Nat) :
+    setN f n false ≠ setN f n true := by
+  intro h
+  have := congrFun h n
+  rw [setN_self, setN_self] at this
+  exact Bool.noConfusion this
+
+/-- 支撐 ≤ n 的位串，第 n 位必為假。 -/
+theorem supportLe_nth_false {f : Nat → Bool} {n : Nat} (h : supportLe f n) : f n = false :=
+  h n (Nat.le_refl n)
+
+/-- 支撐 ≤ n 的兩個位串：設定第 n 位後相等 ⟹ 原本相等（`setN` 的單射性）。 -/
+theorem setN_inj {f g : Nat → Bool} {n : Nat} (hf : supportLe f n) (hg : supportLe g n)
+    {b₁ b₂ : Bool} (h : setN f n b₁ = setN g n b₂) : f = g := by
+  funext j
+  by_cases hjn : j = n
+  · subst hjn
+    rw [supportLe_nth_false hf, supportLe_nth_false hg]
+  · have := congrFun h j
+    rw [setN_ne hjn b₁, setN_ne hjn b₂] at this
+    exact this
+
+private theorem nodup_append {α : Type u} {l₁ l₂ : List α} (h₁ : l₁.Nodup) (h₂ : l₂.Nodup)
+    (hd : ∀ x, x ∈ l₁ → x ∈ l₂ → False) : (l₁ ++ l₂).Nodup := by
+  induction l₁ generalizing h₂ with
+  | nil => exact h₂
+  | cons a rest ih =>
+    obtain ⟨hanr, hndr⟩ := List.nodup_cons.mp h₁
+    simp only [List.cons_append]
+    rw [List.nodup_cons]
+    constructor
+    · intro h
+      rcases List.mem_append.mp h with h | h
+      · exact hanr h
+      · exact hd a (by simp) h
+    · exact ih hndr h₂ (fun x hx => hd x (by simp [hx]))
+
+private theorem nodup_flatMap_of {α β : Type _} (l : List α) (g : α → List β)
+    (hnd : l.Nodup)
+    (hself : ∀ a ∈ l, (g a).Nodup)
+    (hdisj : ∀ a b, a ∈ l → b ∈ l → a ≠ b → ∀ x, x ∈ g a → x ∈ g b → False) :
+    (l.flatMap g).Nodup := by
+  induction l with
+  | nil => simp
+  | cons a rest ih =>
+    obtain ⟨hanr, hndr⟩ := List.nodup_cons.mp hnd
+    rw [List.flatMap_cons]
+    apply nodup_append
+    · exact hself a (by simp)
+    · exact ih hndr (fun b hb => hself b (by simp [hb]))
+        (fun b c hb hc hbc x hxb hxc =>
+          hdisj b c (by simp [hb]) (by simp [hc]) hbc x hxb hxc)
+    · intro x hxa hxr
+      obtain ⟨b, hbr, hxb⟩ := List.mem_flatMap.mp hxr
+      exact hdisj a b (by simp) (by simp [hbr]) (fun hab => hanr (hab ▸ hbr)) x hxa hxb
+
+/-- **枚舉無重複**：`allBits n` 把每個支撐 ≤ n 的位串**恰列一次**。
+這是 `T6Certificate.sum_delta`／`interpolation` 所需 `pts.Nodup` 前提的來源。 -/
+theorem allBits_nodup (n : Nat) : (allBits n).Nodup := by
+  induction n with
+  | zero => simp [allBits]
+  | succ n ih =>
+    rw [allBits]
+    apply nodup_flatMap_of (allBits n) (fun f => [setN f n false, setN f n true]) ih
+    · intro f _
+      rw [List.nodup_cons]
+      constructor
+      · intro h
+        exact setN_false_ne_true f n (List.mem_singleton.mp h)
+      · simp
+    · intro f g hf hg hfg x hxf hxg
+      obtain ⟨bf, hbf⟩ : ∃ b, x = setN f n b := by
+        rcases List.mem_cons.mp hxf with h | h
+        · exact ⟨false, h⟩
+        · exact ⟨true, List.mem_singleton.mp h⟩
+      obtain ⟨bg, hbg⟩ : ∃ b, x = setN g n b := by
+        rcases List.mem_cons.mp hxg with h | h
+        · exact ⟨false, h⟩
+        · exact ⟨true, List.mem_singleton.mp h⟩
+      have heq : setN f n bf = setN g n bg := by rw [← hbf, ← hbg]
+      exact hfg (setN_inj (allBits_sound n f hf) (allBits_sound n g hg) heq)
+
 /-- **T4 計數定理**：n 維平方自由單項式可由長度恰為 2ⁿ 的列表完全枚舉
 （可靠性 + 完備性 = 恰好枚舉一遍，即雙射計數）。 -/
 theorem squarefree_count (n : Nat) :

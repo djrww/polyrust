@@ -39,6 +39,27 @@ open Polyrust
 #print axioms Polyrust.clausePoly_tautology
 #print axioms Polyrust.unsat_iff_no_polyZero
 
+#print axioms Polyrust.allBits_nodup
+
+/-! ## 布爾 Nullstellensatz（v0.1.4） -/
+
+#print axioms Polyrust.bool_nullstellensatz
+#print axioms Polyrust.bool_ns_no_root_of_certificate
+#print axioms Polyrust.mod_p_one_in_ideal
+#print axioms Polyrust.modp_sum_zero
+
+/-! ## CDCL 傳播資料結構層：監視文字移動（v0.1.4） -/
+
+#print axioms Polyrust.clauseSat_iff_exists
+#print axioms Polyrust.clauseSat_congr_mem
+#print axioms Polyrust.watch_move0_preserves_sat
+#print axioms Polyrust.watch_move1_preserves_sat
+#print axioms Polyrust.clauseSat_all_false
+#print axioms Polyrust.watch_overwrite_unsound
+#print axioms Polyrust.watchMove_preserves_sat
+#print axioms Polyrust.watchMoves_preserve_sat
+#print axioms Polyrust.watchMoves_sound
+
 /-! ## T4 Buchberger 終止性（含標準單項式計數） -/
 
 #print axioms Polyrust.standard_implies_squarefree
@@ -65,7 +86,6 @@ open Polyrust
 
 /-! ## T6 Gröbner 判定定理 -/
 
-#print axioms Polyrust.borrow_one_mem_no_root
 #print axioms Polyrust.inIdeal_no_root
 #print axioms Polyrust.interpolation
 #print axioms Polyrust.no_root_certificate

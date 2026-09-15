@@ -147,6 +147,12 @@ impl Solver {
                 let ci = list[i];
                 i += 1;
                 let c = self.clauses[ci].clone();
+                debug_assert!(
+                    c[0] == falsified || c[1] == falsified,
+                    "陳舊監視：子句 {:?} 在 watches[{}] 但首兩文字均非之",
+                    c,
+                    falsified
+                );
                 let other = if c[0] == falsified { c[1] } else { c[0] };
                 if self.value_of(other) == Some(true) {
                     keep.push(ci);
@@ -154,14 +160,18 @@ impl Solver {
                 }
                 // 尋找新監視文字
                 let mut moved = false;
-                for &l in c.iter().skip(2) {
-                    if l != other && self.value_of(l) != Some(false) {
+                for (k, &l) in c.iter().enumerate().skip(2) {
+                    if self.value_of(l) != Some(false) {
                         let mut c2 = c.clone();
+                        // 交換（非覆寫）：被否證的文字換到 l 的原位置，
+                        // 子句多重集不變——否則會丟失文字、子句變強，
+                        // 回溯後造成不可靠剪枝（SAT 誤報 UNSAT）。
                         if c2[0] == falsified {
                             c2[0] = l;
                         } else {
                             c2[1] = l;
                         }
+                        c2[k] = falsified;
                         self.clauses[ci] = c2;
                         self.watches[l as usize].push(ci);
                         moved = true;
@@ -216,10 +226,47 @@ impl Solver {
         let mut cur = Some(confl);
         loop {
             let clause = match cur.take() {
-                Some(ci) => self.clauses[ci].clone(),
+                Some(ci) => {
+                    if p.is_none() {
+                        debug_assert!(
+                            self.clauses[ci].iter().all(|&l| self.value_of(l) == Some(false)),
+                            "衝突子句非全假：{:?}",
+                            self.clauses[ci]
+                        );
+                    } else {
+                        let pv = p.unwrap();
+                        let implied = lit(pv, self.values[pv].unwrap());
+                        debug_assert!(
+                            self.clauses[ci]
+                                .iter()
+                                .all(|&l| l == implied || self.value_of(l) == Some(false)),
+                            "原因子句非（蘊含文字真＋其餘全假）：{:?} implied={}",
+                            self.clauses[ci],
+                            implied
+                        );
+                    }
+                    self.clauses[ci].clone()
+                }
                 None => {
                     let v = p.expect("原因鏈斷裂");
                     let ci = self.reason[v].expect("當前層變量無原因");
+                    let implied = lit(v, self.values[v].unwrap());
+                    debug_assert_eq!(
+                        self.value_of(implied),
+                        Some(true),
+                        "原因子句蘊含文字應為真：v={} ci={}",
+                        v,
+                        ci
+                    );
+                    debug_assert!(
+                        self.clauses[ci]
+                            .iter()
+                            .all(|&l| l == implied || self.value_of(l) == Some(false)),
+                        "原因子句除蘊含文字外應全假：{:?} implied={} v={}",
+                        self.clauses[ci],
+                        implied,
+                        v
+                    );
                     self.clauses[ci].clone()
                 }
             };
@@ -310,11 +357,24 @@ impl Solver {
         loop {
             match self.propagate() {
                 Some(confl) => {
+                    debug_assert!(
+                        self.clauses[confl].iter().all(|&l| self.value_of(l) == Some(false)),
+                        "衝突子句並非全假：{:?} 賦值={:?}",
+                        self.clauses[confl],
+                        self.values
+                    );
                     self.stats.conflicts += 1;
                     if self.current_level() == 0 {
                         return false;
                     }
                     let (learnt, lvl) = self.analyze(confl);
+                    debug_assert!(
+                        learnt.iter().skip(1).all(|&l| self.value_of(l) == Some(false)),
+                        "學習子句尾文字並非全假：{:?} 賦值={:?} 層級={:?}",
+                        learnt,
+                        self.values,
+                        self.level
+                    );
                     self.var_inc /= 0.95;
                     self.cancel_until(lvl);
                     if learnt.is_empty() {
@@ -401,6 +461,28 @@ pub fn satisfies(assign: &[bool], clauses: &[Vec<Lit>]) -> bool {
 
 #[cfg(test)]
 mod tests {
+    /// 回歸鎖定（v0.1.4）：純 3-SAT 曾揭露雙監視文字「覆寫而非交換」
+    /// 缺陷——移動監視時丟失被否證文字，子句變強，回溯後造成
+    /// 不可靠剪枝（SAT 誤報 UNSAT）。此測試以暴力 oracle 鎖定判定，
+    /// 並對每條學習子句做全賦值蘊涵驗證（健全性）。
+    #[test]
+    fn cdcl_watch_move_regression_3sat() {
+        let cls: Vec<Vec<Lit>> = vec![vec![12, 19, 4], vec![19, 1, 2], vec![2, 9, 13], vec![6, 13, 2], vec![7, 3, 9], vec![14, 18, 10], vec![9, 0, 10], vec![10, 14, 8], vec![2, 16, 19], vec![17, 12, 15], vec![9, 13, 16], vec![14, 6, 13], vec![11, 12, 14], vec![18, 4, 2], vec![12, 4, 0], vec![16, 18, 12], vec![0, 12, 17], vec![5, 10, 0], vec![14, 8, 12], vec![11, 8, 14], vec![18, 1, 11], vec![13, 5, 19], vec![17, 13, 4], vec![19, 7, 1], vec![4, 6, 12], vec![18, 13, 15], vec![0, 5, 2], vec![16, 14, 11], vec![8, 7, 13], vec![11, 4, 15]];
+        assert!(brute_force_sat(10, &cls).is_some(), "oracle 說 SAT");
+        let mut solver = Solver::new(10, cls.clone());
+        let res = solver.solve();
+        // 逐條驗證學習子句蘊涵：原式滿足 ⇒ 學習子句滿足
+        for (i, lc) in solver.learned_clauses().iter().enumerate() {
+            for mask in 0u64..(1u64 << 10) {
+                let a: Vec<bool> = (0..10).map(|b| (mask >> b) & 1 == 1).collect();
+                if satisfies(&a, &cls) && !satisfies(&a, std::slice::from_ref(lc)) {
+                    eprintln!("UNSOUND learned[{}] = {:?} 被賦值 {:?} 反駁", i, lc, a);
+                }
+            }
+        }
+        assert!(res, "CDCL 誤報 UNSAT");
+    }
+
     use super::*;
 
     #[test]

@@ -24,8 +24,9 @@ use crate::minirust::parse::Parser;
 
 /// 窮舉用的小表達式（枚举側，與 `minirust::ast` 解耦）。
 /// `Var(i)` 為 de Bruijn 索引：0 = 最內層綁定。
+/// `pub(crate)`：供 `brute.rs` 共用同一枚舉空間（@brute 對照常態化）。
 #[derive(Clone, Debug)]
-enum Sx {
+pub(crate) enum Sx {
     LitI(i64),
     LitB(bool),
     Unit,
@@ -214,7 +215,8 @@ fn gen_stmt(size: usize, bound: usize, ctx: Ctx2, out: &mut Vec<Sx>, cap: usize)
 }
 
 /// 枚舉「序列表達式」（可含頂層 let / 賦值語句）恰好 `size` 節點。
-fn gen_seq(size: usize, bound: usize, ctx: Ctx2, out: &mut Vec<Sx>, cap: usize) {
+/// `pub(crate)`：供 `brute.rs` 共用。
+pub(crate) fn gen_seq(size: usize, bound: usize, ctx: Ctx2, out: &mut Vec<Sx>, cap: usize) {
     if out.len() >= cap {
         return;
     }
@@ -249,8 +251,8 @@ fn gen_seq(size: usize, bound: usize, ctx: Ctx2, out: &mut Vec<Sx>, cap: usize) 
     }
 }
 
-/// 渲染成 Mini-Rust 源碼（全括號化，無優先級歧義）。
-fn render(e: &Sx, env: &mut Vec<String>, next_name: &mut usize) -> String {
+/// 渲染成 Mini-Rust 源碼（全括號化，無優先級歧義）。`pub(crate)`：供 `brute.rs` 共用。
+pub(crate) fn render(e: &Sx, env: &mut Vec<String>, next_name: &mut usize) -> String {
     match e {
         Sx::LitI(n) => n.to_string(),
         Sx::LitB(b) => if *b { "true".into() } else { "false".into() },

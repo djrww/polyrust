@@ -842,3 +842,88 @@ pub fn cmd_funnel(args: &[String], json: bool) -> i32 {
     }
     0
 }
+
+/// `polyrust brute [--size N] [--json]`：@brute 對照常態化（仿 `rlzl`）。
+///
+/// 暴力法 ⟺ 代數法逐位元比對，兩層：
+/// - 子句層：300 組隨機 + 結構化子句集，CDCL ⟺ 暴力枚舉；學習子句蘊涵驗證。
+/// - 約束層：≤N 節點表達式全空間 + 定置宏/函式樣本；
+///   結構化暴力枚舉 ⟺ Gröbner 判定 ⟺ solve_boolean ⟺ 檢查器；
+///   SAT 見證逐位元求值驗證 + one-hot 解碼健全性。
+pub fn cmd_brute(args: &[String], json: bool) -> i32 {
+    let mut size = 3usize;
+    let mut i = 0;
+    while i < args.len() {
+        if args[i] == "--size" {
+            if let Some(v) = args.get(i + 1) {
+                size = v.parse().unwrap_or(3).clamp(1, 6);
+            }
+            i += 1;
+        }
+        i += 1;
+    }
+
+    let t0 = std::time::Instant::now();
+    let clauses = crate::brute::cross_check_clauses(300, 0xC0FFEE);
+    let rep = crate::brute::run_brute_cross(size);
+    let elapsed = t0.elapsed().as_millis();
+    let pass = clauses.mismatches.is_empty() && rep.mismatches.is_empty();
+
+    if json {
+        let details: Vec<crate::json::J> = clauses
+            .mismatches
+            .iter()
+            .chain(rep.mismatches.iter())
+            .map(|s| crate::json::J::s(s))
+            .collect();
+        println!(
+            "{}",
+            crate::json::J::obj(vec![
+                ("api_version", crate::json::J::s("0.1")),
+                ("mode", crate::json::J::s("brute")),
+                ("clause_sets", crate::json::J::Int(clauses.sets as i64)),
+                ("clause_sat_sets", crate::json::J::Int(clauses.sat_sets as i64)),
+                ("learned_checked", crate::json::J::Int(clauses.learned_checked as i64)),
+                ("programs", crate::json::J::Int(rep.programs as i64)),
+                ("brute_searched", crate::json::J::Int(rep.brute_searched as i64)),
+                ("witnesses_checked", crate::json::J::Int(rep.witnesses_checked as i64)),
+                ("sat", crate::json::J::Int(rep.sat as i64)),
+                ("unsat", crate::json::J::Int(rep.unsat as i64)),
+                ("mismatches", crate::json::J::Arr(details)),
+                ("pass", crate::json::J::Bool(pass)),
+                ("elapsed_ms", crate::json::J::Int(elapsed as i64)),
+            ])
+        );
+        return if pass { 0 } else { 1 };
+    }
+
+    println!("□ 子句層對照：{} 組（隨機 300 + 結構化；SAT {} 組）", clauses.sets, clauses.sat_sets);
+    println!(
+        "    CDCL ⟺ 暴力：{}；學習子句蘊涵驗證：{} 次{}",
+        if clauses.mismatches.is_empty() { "全部一致 ✓" } else { "★ 有不一致 ★" },
+        clauses.learned_checked,
+        if clauses.mismatches.is_empty() { "" } else { "（含失敗）" }
+    );
+    println!(
+        "□ 約束層對照：{} 個程序（表達式 ≤{} 節點 + 定置宏/函式樣本）",
+        rep.programs, size
+    );
+    println!(
+        "    結構化暴力搜索：{} 個 | 見證逐位元驗證：{} 次 | SAT {} / UNSAT {}",
+        rep.brute_searched, rep.witnesses_checked, rep.sat, rep.unsat
+    );
+    println!(
+        "    暴力 ⟺ Gröbner ⟺ solve_boolean ⟺ 檢查器：{}",
+        if rep.mismatches.is_empty() { "四方全部一致 ✓" } else { "★ 有不一致 ★" }
+    );
+    for m in clauses.mismatches.iter().chain(rep.mismatches.iter()).take(5) {
+        println!("──── 反例 ────\n{}", m);
+    }
+    println!("□ 耗時：{} ms", elapsed);
+    if pass {
+        println!("□ 結論：暴力法與代數法逐位元一致（@brute 對照常態化通過）");
+        0
+    } else {
+        1
+    }
+}

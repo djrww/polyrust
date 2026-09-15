@@ -12,6 +12,8 @@
 | `Polyrust.Squarefree` | **T4** | `standard_implies_squarefree`（標準單項式平方自由——域多項式入基 ⇒ 首項理想含 xᵢ²）、`squarefree_count`（平方自由單項式恰 2ⁿ 個）⇒ 基擴充 ≤ 2ⁿ ⇒ Buchberger 必終止 |
 | `Polyrust.Embedding` | **L0** | `L0_mod_faithful`（\|n\| < p=2⁶¹−1 ⇒ 模零 ⟺ 整數零）+ `eval_abs_bound`（小係數多項式 0/1 點求值 ≤ 2²⁸）⇒ `L0_eval_faithful`：𝔽_p 判定 ⟺ ℤ 判定 |
 | `Polyrust.MicroInstance` | **T1/T2/T6/T7** | 三個微型系統（加法規則、上下文矛盾、宏 exists-arm 選臂）的 2^k 全枚舉：σ_D 是根（T1）、根解碼推導（T2）、UNSAT ⟺ 不可定型（T6）、選臂可解/錯臂矛盾（T7） |
+| `Polyrust.WatchMove` | **T3(b) 旁路（CDCL 傳播資料結構層，v0.1.4 新增）** | `watch_move0/1_preserves_sat`：監視文字**交換**移動保持子句語義；`clauseSat_all_false`：衝突偵測健全性；`watch_overwrite_unsound`：覆寫版反例（@brute 抓到之缺陷紀錄，零公理純計算） |
+| `Polyrust.BoolNullstellensatz` | **T6 補完：布爾 Nullstellensatz（v0.1.4 新增）** | `bool_nullstellensatz`：每點有模 `p` 可逆系統元素（顯式逆元見證）⟹ 多項式函數乘子組合成常數 1（模 `p`）；`bool_ns_no_root_of_certificate`（反向）；`mod_p_one_in_ideal`（逆元縮放，兌現 `T6Certificate` 檔首承諾） |
 
 ## 構建與驗證
 
@@ -23,8 +25,8 @@ lake build        # 無外部依賴；需要 Lean 4.33+
 
 ### 兩項審計的差別（重要）
 
-* `Audit.lean` 檢查的是**手列清單**（84 條）——若新增定理忘了加進清單，缺口不會被發現。
-* `AuditAll.lean` 直接掃描環境裡 `Polyrust.*` 的**每一條宣告**（1115 條），底層用 Lean 內建的
+* `Audit.lean` 檢查的是**手列清單**（98 條）——若新增定理忘了加進清單，缺口不會被發現。
+* `AuditAll.lean` 直接掃描環境裡 `Polyrust.*` 的**每一條宣告**（1787 條），底層用 Lean 內建的
   `Lean.collectAxioms`（即 `#print axioms` 背後的同一個函式），因此新增定理也會被自動覆蓋。
   末行輸出 `AUDIT_RESULT=CLEAN` / `DIRTY`，CI 以此作為硬閘門。
 
@@ -32,7 +34,7 @@ lake build        # 無外部依賴；需要 Lean 4.33+
 而 `Audit.lean` 完全沒發現（仍報 0 個 `sorryAx`）。
 
 ```bash
-lake env lean Audit.lean      # 逐定理 #print axioms（84 條手列清單）
+lake env lean Audit.lean      # 逐定理 #print axioms（98 條手列清單）
 lake env lean AuditAll.lean   # 全環境掃描（Polyrust.* 每一條宣告）
 bash scripts/lean-audit.sh    # 一次跑完：來源掃描 + 建置 + 兩項審計
 ```

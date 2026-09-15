@@ -8,6 +8,7 @@
 | `Polyrust.Tactics` | 工具 | `int_ring`：無 Mathlib 的整數多項式歸一化宏 |
 | `Polyrust.ClauseDuality` | T3(a) | 子句滿足 ⟺ 子句多項式歸零；域多項式 x²−x 刻畫 {0,1}ⁿ；CNF 對偶 |
 | `Polyrust.ClauseAlgebra` | T3(b) | 消解恆等式（逐點、無條件）；學習子句保留模型集/零集；UNSAT ⟺ 無零點多項式 |
+| `Polyrust.WatchMove` | T3(b) 旁路：CDCL 傳播資料結構層 | 監視文字**交換**移動保持子句語義（`watch_move0/1_preserves_sat`）；全假子句不滿足（衝突偵測健全性）；**覆寫版反例**（v0.1.4 @brute 抓到的缺陷紀錄） |
 | `Polyrust.UniPoly` | T8 | 求值環同態；構造性線性餘式定理；互異根 vanishing ⇒ ∏(X−tᵢ) 整除；QAP 對偶主定理 |
 | `Polyrust.Squarefree` | T4 | 標準單項式 ⇒ 平方自由（域多項式入基）；平方自由 ↔ 位串雙射；恰 2ⁿ 個 ⇒ Buchberger 終止 |
 | `Polyrust.Embedding` | L0 | 𝔽_p（p=2⁶¹−1）嵌入保真：小係數多項式 0/1 點求值模零 ⟺ 整數零 |
@@ -15,6 +16,7 @@
 | `Polyrust.SPoly` | T5 | S-多項式：單項式乘法的性質、S-多項式 ∈ 生成理想、Buchberger 判準（鏈分解、互質首項相消） |
 | `Polyrust.Canonical` | T7(a) | 既約/全簡化標準形；**若**簡化 Gröbner 基存在則唯一（CLO §2.7 Thm 5）；非空性模型 `pureNat` |
 | `Polyrust.T6Certificate` | T6 | 求值同態、無公共零點證書（乘子 + 組合=1）、布爾 Lagrange 插值；多項式乘子版本 |
+| `Polyrust.BoolNullstellensatz` | T6 補完：布爾 Nullstellensatz（v0.1.4 新增） | `bool_nullstellensatz`：每點有模 `p` 可逆系統元素（顯式逆元見證）⟹ **多項式函數乘子把系統組合成常數 1（模 `p`）**（拉格朗日基顯式構造）；`bool_ns_no_root_of_certificate`（可靠方向）；`mod_p_one_in_ideal`（逆元縮放，兌現 `T6Certificate` 檔首承諾）；`allBits_nodup` 補上 `sum_delta` 的 Nodup 前提 |
 | `Polyrust.T9EndToEnd` | T9 | 迷你語言型別檢查器；約束編碼的可靠性/完備性/判定等價（根 ⟺ 可定型）；代碼生成 round-trip |
 | `Polyrust.T9Generalized` | T9 泛化 | 型別宇宙泛化：把寫死的 2 型別抽象為任意可枚舉宇宙（`Lang`：`enumAll`/`nodup`/`complete`/`numTy`/`eqbTy`/`num_ne_eqb`），one-hot 用 `List.sum`；T1/T2/T6/T9 全部參數化，新增型別零新證明 |
 | `Polyrust.ProductReduction` | T9 泛化 (b) | 積型歸約：複合型別（`pair`/積型）檢查與可定型性歸約為逐欄位檢查；pair one-hot = 分量 one-hot 之乘積（`pairBitSum_eq_mul`） |
@@ -29,6 +31,7 @@ import Polyrust.Monomial
 import Polyrust.Tactics
 import Polyrust.ClauseDuality
 import Polyrust.ClauseAlgebra
+import Polyrust.WatchMove
 import Polyrust.UniPoly
 import Polyrust.Squarefree
 import Polyrust.Embedding
@@ -36,6 +39,7 @@ import Polyrust.MicroInstance
 import Polyrust.SPoly
 import Polyrust.Canonical
 import Polyrust.T6Certificate
+import Polyrust.BoolNullstellensatz
 import Polyrust.T9EndToEnd
 import Polyrust.T9Generalized
 import Polyrust.ProductReduction

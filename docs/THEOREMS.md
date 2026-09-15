@@ -181,9 +181,9 @@ cargo build --release
 ## 13. Lean 4 形式化（機械證明骨架）
 
 docs 之外，倉庫的 [`lean/`](../lean) 目錄提供上述證明骨幹的 **Lean 4 機械化**
-（無 Mathlib 依賴，自包含；`lake build` 從零約 5 秒，Lean 4.33.1 固定於
-`lean-toolchain`）：**377 條定理/引理（另含實例化 `example`）、5,864 行、
-零 `sorry`、零自訂公理**（`AuditAll`：受檢宣告 1722、純構造 960；
+（無 Mathlib 依賴，自包含；`lake build` 從零約 10 秒，Lean 4.33.1 固定於
+`lean-toolchain`）：**408 條定理/引理（另含實例化 `example`）、6,502 行、
+零 `sorry`、零自訂公理**（`AuditAll`：受檢宣告 1787、純構造 970；
 `bash scripts/lean-audit.sh` 逐定理 `#print axioms` 可複驗）。
 
 完整對照（每個模組證了什麼、邊界在哪、錯了會怎樣）見
@@ -195,6 +195,7 @@ docs 之外，倉庫的 [`lean/`](../lean) 目錄提供上述證明骨幹的 **L
 | `Polyrust.Tactics` | 工具 | `int_ring`：無 Mathlib 的整數多項式歸一化宏 |
 | `Polyrust.ClauseDuality` | T3(a) | `clause_duality`：σ ⊨ C ⟺ P_C(σ)=0；`field_poly_bit`；`cnf_duality` |
 | `Polyrust.ClauseAlgebra` | T3(b) | `resolution_identity`（逐點、無條件）；`learned_preserves_models`/`learned_preserves_polyZero`；`unsat_iff_no_polyZero` |
+| `Polyrust.WatchMove` | T3(b) 旁路：CDCL 傳播資料結構層 | `watch_move0/1_preserves_sat`（監視文字**交換**移動保持子句語義）；`watchMoves_preserve_sat`（**任意步數**迭代後語義必然如初）；`clauseSat_all_false`（衝突偵測健全性）；`watch_overwrite_unsound`（覆寫版反例——v0.1.4 @brute 抓到之缺陷的數學紀錄，零公理純計算） |
 | `Polyrust.UniPoly` | T8 | `eval_add/mul/sub`（環同態）；`div_linear`；`vanishing_prod_dvd`；`qap_duality` |
 | `Polyrust.Squarefree` | T4 | `standard_implies_squarefree`；`toBits/ofBits` 雙射；`squarefree_count`；`buchberger_extension_bound`（≤ 2ⁿ）；`no_infinite_sublist_chain` |
 | `Polyrust.Embedding` | L0 | `L0_mod_faithful`；`eval_abs_bound`；`L0_eval_faithful` |
@@ -202,6 +203,7 @@ docs 之外，倉庫的 [`lean/`](../lean) 目錄提供上述證明骨幹的 **L
 | `Polyrust.SPoly` | T5 | `sPoly_mem_genIdeal`；`genIdeal_insert_sPoly`；`coprime_criterion`；`sPoly_chain_decomposition`+`chain_criterion`；`sPoly_self` |
 | `Polyrust.Canonical` | T7(a) | `reduced_unique`（簡化基**若存在則唯一**）；`reduced_zero_of_mem`；`lead_determines_element`；`pureNat` 非空性模型 |
 | `Polyrust.T6Certificate` | T6 | `inIdeal_no_root`/`one_mem_no_root`（1 ∈ 理想 ⟹ 無 0/1 根）；`interpolation`；`no_root_certificate`/`no_root_poly_certificate` |
+| `Polyrust.BoolNullstellensatz` | T6 補完：布爾 Nullstellensatz | `bool_nullstellensatz`：每點有模 `p` 可逆系統元素（顯式逆元見證）⟹ 多項式函數乘子組合成常數 1（模 `p`）；`bool_ns_no_root_of_certificate`（可靠方向，前提 `p ∤ 1`）；`mod_p_one_in_ideal`（逆元縮放）；`allBits_nodup`（`Squarefree`，補 `sum_delta` 前提） |
 | `Polyrust.T9EndToEnd` | T9 | `genC_sound`（T1）；`genC_complete`（T2）；`typable_iff_root`/`untypable_iff_no_root`（T6 判定等價）；`parse_gen`（round-trip）；`arm_gating*`（T7(b) 閘控） |
 | `Polyrust.T9Generalized` | T9 泛化 (a) | 型別宇宙參數化（`Lang`：`enumAll`/`nodup`/`complete`/`numTy`/`eqbTy`/`num_ne_eqb`）；`genC_soundG`（T1）、`genC_completeG`（T2）、`typable_iff_rootG`（T6/T9）對任意可枚舉宇宙成立（詳見 §14） |
 | `Polyrust.ProductReduction` | T9 泛化 (b) | 積型（引用 × 基本）：`typable_pair_iff`（AND）；`pairBitSum_eq_mul`（one-hot 乘積） |

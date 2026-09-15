@@ -3,6 +3,7 @@
 //!
 //! 執行：cargo run --release [-- demo|obligations|all]
 
+mod brute;
 mod cdcl;
 mod codegen;
 mod driver;
@@ -181,6 +182,13 @@ fn main() {
             print_banner();
         }
         std::process::exit(driver::cmd_exhaust(&args, json));
+    }
+    if mode == "brute" {
+        // @brute 對照常態化：暴力法 ⟺ 代數法逐位元比對（子句層 + 約束層）。
+        if !json {
+            print_banner();
+        }
+        std::process::exit(driver::cmd_brute(&args, json));
     }
     if mode == "nl" {
         // 自然語言 → .poly（LLM 護欄）。文字來源：args[2] 或 `-`（stdin）。
