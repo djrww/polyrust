@@ -2,6 +2,22 @@
 
 **CDCL × Buchberger × QAP**：把 Rust（Mini-Rust 子集）的语法规则、类型检查与借用检查转换为布尔多项式方程组，用三方联合求解，并从代数见证合成可编译的 Rust 代码。
 
+## 仓库结构（Cargo workspace）
+
+```
+core/            polyrust-core —— 形式化管线核心【零第三方依赖，只用 std】
+                 · lib（供前端依赖）+ 二进制 `polyrust`（CLI，向后兼容）
+                 · Lean 4 形式化库静态嵌入（有工具链时自动，无则优雅降级）
+frontends/
+  http/          polyrust-http —— axum/tokio HTTP API 前端（/health、/api/nl、/api/funnel）
+  llm/           polyrust-nl  —— ureq（纯 Rust TLS）传输的 LLM 护栏前端
+lean/            Lean 4 形式化（零依赖；20 模块、408 定理，见 docs/LEAN.md）
+docs/            THEOREMS / LEAN / EVIDENCE / LLM / POLY_DSL / FORMAL_LEMMAS
+scripts/         审计与批测脚本
+```
+
+**核心承诺**：`core` 永远零第三方依赖；一切第三方依赖只出现在 `frontends/*`。
+
 ## 命题 P
 
 > Rust 宏程序的类型检查与借用检查可完整编码为布尔多项式方程组上的代数问题；该编码可靠且完备，可由 CDCL 布尔求解、Buchberger 演算法（Gröbner 基）判定与二次算术程序（QAP）见证三方联合求解，并能从代数见证合成可再解析、可被 rustc 编译、语义保持的 Rust 代码。
@@ -17,7 +33,7 @@ cargo build --release
 ./target/release/polyrust obligations   # T1–T9 义务自证（12 程序 × 9 定理）
 ./target/release/polyrust gen A         # 打印指定 demo 生成码
 ./target/release/polyrust debug <file>  # σ_D 逐约束合法性检查
-cargo test --release                    # 23 个单元测试
+cargo test --release                    # 67 个核心单元测试
 ```
 
 ### 可输入模式（Phase 0）：`.poly` DSL 验证型工具
@@ -41,6 +57,16 @@ cat foo.poly | ./target/release/polyrust check - --json    # stdin 模式（LLM 
 
 `.poly` 格式、子命令、JSON 契约详见 **[docs/POLY_DSL.md](docs/POLY_DSL.md)**。
 这是「LLM 描述逻辑 → polyrust 形式化保证正确」闭环的接口层。
+
+### 前端（有第三方依赖；可选用）
+
+```bash
+./target/release/polyrust-http 8090      # axum HTTP API：/health、/api/nl、/api/funnel
+./target/release/polyrust-nl "把 1 加 2" --base-url https://openrouter.ai/api/v1 \
+    --model <slug>                       # ureq 原生 TLS 传输跑 LLM 护栏（无需系统 curl）
+```
+
+两者与核心自带 `serve`（std-only）平行存在：要生态整合/正式路由用前端，要零依赖部署用核心。
 
 ### Web UI（Phase 1）
 

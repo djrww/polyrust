@@ -1,22 +1,33 @@
-//! polyrust 的建置腳本：把 Lean 4 形式化（`lean/Polyrust`）編譯成靜態庫 `.a`，
-//! 並在連結階段「編譯嵌入」到 polyrust 二進位檔內。
-//!
-//! 流程：
-//!   1. 找 `lean/.lake/build/lib/libpolyrust_x2dformal_Polyrust.a`（由 lake 產出）。
-//!   2. 找不到時，若系統有 `lake`（elan），就自動跑 `lake build Polyrust:static`。
-//!   3. 找到 `.a` 且定位到 Lean 工具鏈後，把 `.a` 與 Lean 執行期靜態庫
-//!      （libleancpp / libLean / libStd / libInit / libleanrt + libc++/libc++abi/
-//!      libunwind/libgmp/libuv/libssl/libcrypto）一起以「靜態」方式連結進二進位檔，
-//!      並設定 `cfg(has_lean_embed)`，讓 Rust 側可呼叫 Lean 初始化入口。
-//!   4. 兩者皆缺時（例如無 Lean 的純 Rust CI / 交叉編譯平台），優雅跳過：
-//!      仍可編譯 polyrust，只是不內嵌形式化庫（`cfg(has_lean_embed)` 未設定）。
-//!
-//! 說明：最終二進位只依賴 glibc（`ldd` 不含 lean/gmp/uv/ssl/crypto/libc++），
-//! 其餘全部靜態嵌入，符合「排除執行期無需要的檔案、最優化執行期」的目標。
+// 共用建置邏輯（由各 crate 的 `build.rs` 以 `include!` 引入；非獨立編譯單元）。
+//
+// 職責：定位倉庫根的 `lean/`、確保靜態庫 `.a` 存在（缺則 `lake build`），
+// 並輸出把 Lean 形式化庫靜態嵌入的連結參數。
+//
+// 背景：`cargo:rustc-link-arg` 只對「發出它的 crate 自己的目標」生效，
+// 不會傳播到下游依賴者。因此凡是要連結 `polyrust_core`（其 `formal`
+// 模組引用 Lean 執行期符號）的**二進位** crate，其 `build.rs` 都要
+// include 本檔並呼叫 `emit_lean_links()`——單一事實來源，避免邏輯漂移。
+//
+// 回傳 `true` 表示本次有嵌入（`.a` 與工具鏈皆就位）；`false` 表示降級
+// （無 Lean 環境，仍可編譯，`cfg(has_lean_embed)` 由 core 自行決定不設定）。
 
 use std::env;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+
+/// 從当前 crate 的 manifest 目錄向上找 `lean/lakefile.toml`（倉庫根）。
+fn find_lean_dir() -> Option<PathBuf> {
+    let mut d = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+    for _ in 0..4 {
+        if d.join("lean/lakefile.toml").exists() {
+            return Some(d.join("lean"));
+        }
+        if !d.pop() {
+            break;
+        }
+    }
+    None
+}
 
 /// Lean 工具鏈根目錄（含 `lib/lean/*.a` 與 `lib/*.a`）。
 fn find_toolchain_prefix() -> Option<PathBuf> {
@@ -58,21 +69,12 @@ fn find_toolchain_prefix() -> Option<PathBuf> {
     None
 }
 
-/// polyrust-formal 靜態庫路徑。
-fn static_lib_path(manifest: &Path) -> PathBuf {
-    manifest.join("lean/.lake/build/lib/libpolyrust_x2dformal_Polyrust.a")
-}
-
 /// 嘗試用 lake 建出靜態庫（需要 elan/lake 在 PATH 上）。
-fn try_lake_build(manifest: &Path) -> bool {
-    let lean_dir = manifest.join("lean");
-    if !lean_dir.join("lakefile.toml").exists() {
-        return false;
-    }
+fn try_lake_build(lean_dir: &Path) -> bool {
     println!("cargo:warning=未找到 Lean 靜態庫，嘗試 `lake build Polyrust:static` …");
     let status = Command::new("lake")
         .args(["build", "Polyrust:static", "Polyrust:shared"])
-        .current_dir(&lean_dir)
+        .current_dir(lean_dir)
         .status();
     match status {
         Ok(s) if s.success() => true,
@@ -87,43 +89,39 @@ fn try_lake_build(manifest: &Path) -> bool {
     }
 }
 
-fn main() {
-    // 告知 cargo 我們自訂的 cfg 名稱，消除 `unexpected cfg` 警告。
-    println!("cargo::rustc-check-cfg=cfg(has_lean_embed)");
-
-    let manifest = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+/// 輸出 Lean 靜態嵌入的連結參數。詳見檔首說明。
+fn emit_lean_links() -> bool {
+    let Some(lean_dir) = find_lean_dir() else {
+        return false;
+    };
 
     // 讓 lakefile / Lean 原始碼 / 靜態庫變動時觸發重編。
-    println!("cargo:rerun-if-changed=lean/lakefile.toml");
-    println!("cargo:rerun-if-changed=lean/lean-toolchain");
-    println!("cargo:rerun-if-changed=lean/Polyrust");
-    println!("cargo:rerun-if-changed=lean/Polyrust.lean");
-    println!("cargo:rerun-if-changed=lean/.lake/build/lib");
+    println!("cargo:rerun-if-changed={}", lean_dir.join("lakefile.toml").display());
+    println!("cargo:rerun-if-changed={}", lean_dir.join("lean-toolchain").display());
+    println!("cargo:rerun-if-changed={}", lean_dir.join("Polyrust").display());
+    println!("cargo:rerun-if-changed={}", lean_dir.join("Polyrust.lean").display());
+    println!("cargo:rerun-if-changed={}", lean_dir.join(".lake/build/lib").display());
 
-    let lib = static_lib_path(&manifest);
-    let lib_exists = lib.is_file();
-
-    if !lib_exists && !try_lake_build(&manifest) {
-        println!("cargo:warning=未內嵌 Lean 形式化庫（.a 不存在且無法建置）；polyrust 仍可運作");
-        return;
+    let lib = lean_dir.join(".lake/build/lib/libpolyrust_x2dformal_Polyrust.a");
+    if !lib.is_file() && !try_lake_build(&lean_dir) {
+        println!("cargo:warning=未內嵌 Lean 形式化庫（.a 不存在且無法建置）；仍可編譯運作");
+        return false;
     }
-
     if !lib.is_file() {
         println!("cargo:warning=Lean 靜態庫仍不存在，略過內嵌");
-        return;
+        return false;
     }
-
     let Some(tc) = find_toolchain_prefix() else {
         println!("cargo:warning=找到 .a 但無法定位 Lean 工具鏈，略過內嵌");
-        return;
+        return false;
     };
 
     let lib_lean = tc.join("lib/lean");
     let lib_root = tc.join("lib");
 
     // ── 搜尋路徑（順序無關） ──────────────────────────────────────────
-    println!("cargo:rustc-link-search=native={}", lib_lean.display()); // libleancpp/libLean/libStd/libInit/libleanrt
-    println!("cargo:rustc-link-search=native={}", lib_root.display()); // libc++/libc++abi/libunwind/libgmp/libuv/libssl/libcrypto
+    println!("cargo:rustc-link-search=native={}", lib_lean.display());
+    println!("cargo:rustc-link-search=native={}", lib_root.display());
 
     // ── 連結參數（順序重要，全部用 link-arg 保證順序） ─────────────────
     // 1) 形式化庫（以絕對路徑指定 .a，避免 lake 同時產出的 .so 被優先挑中）
@@ -154,6 +152,5 @@ fn main() {
     // 4) 去未使用區段，縮小體積（與最優化執行期目標一致）
     println!("cargo:rustc-link-arg=-Wl,--gc-sections");
 
-    // 啟用 Rust 側的內嵌入口。
-    println!("cargo:rustc-cfg=has_lean_embed");
+    true
 }

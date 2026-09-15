@@ -1,7 +1,7 @@
 #!/bin/sh
 # 完整建置管線：Lean 4 形式化 → 靜態庫 .a → 嵌入 polyrust 二進位檔
 #
-#   1. lake build Polyrust:static        # 把 lean/Polyrust 14 個模組編成 .a
+#   1. lake build Polyrust:static        # 把 lean/Polyrust 20 個模組編成 .a
 #   2. cargo build --release             # build.rs 偵測到 .a 後靜態連結嵌入
 #
 # 產物：target/release/polyrust（.a 已「編譯嵌入」，ldd 僅依賴 glibc）。

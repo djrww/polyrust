@@ -1,0 +1,14 @@
+[package]
+name = "polyrust-llm"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+description = "polyrust 的 LLM 前端：ureq 原生 TLS 傳輸的 Provider（不需系統 curl）"
+
+[[bin]]
+name = "polyrust-nl"
+path = "src/main.rs"
+
+[dependencies]
+polyrust-core = { path = "../../core" }
+ureq = "2"

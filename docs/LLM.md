@@ -77,13 +77,22 @@ HTTP 傳輸零依賴：`http://` 走裸 TCP（含 chunked 解碼），`https://`
 - 系統提示（`guardrail_system_prompt`）把 LLM 限定在「自然語言 → .poly」
   單一職責：完整語法表、七種型別限制、典型拒絕原因、正反範例。
 
-## 3. 三個入口（同一契約）
+## 3. 入口（同一契約）
+
+核心（`polyrust-core`，零依賴）：
 
 | 入口 | 用法 |
 |---|---|
 | CLI | `polyrust nl "<需求>" [旗標] [--json]` |
-| HTTP | `POST /api/nl`，body = JSON `{"description","provider"?,"model"?,"base_url"?,"api_key"?,"attempts"?}` 或純文字 |
-| 程式庫 | `llm::run_guardrail(provider, nl, attempts, do_gen)` → `GuardrailResult` |
+| HTTP（std-only） | `polyrust serve [port]` → `POST /api/nl`，body = JSON `{"description","provider"?,"model"?,"base_url"?,"api_key"?,"attempts"?}` 或純文字 |
+| 程式庫 | `polyrust_core::llm::run_guardrail(provider, nl, attempts, do_gen)` → `GuardrailResult` |
+
+前端（`frontends/*`，有第三方依賴；護欄邏輯仍全部來自核心）：
+
+| 入口 | 依賴 | 用法 |
+|---|---|---|
+| `polyrust-http`（axum/tokio） | axum、tokio、serde | `polyrust-http [port]` → `GET /health`、`POST /api/nl`（同契約）、`GET /api/funnel?path=` |
+| `polyrust-nl`（ureq） | ureq（純 Rust TLS，免系統 curl） | `polyrust-nl "<需求>" --base-url <v1> --model <slug> [--json] [--funnel-log p]` |
 
 ### JSON 契約（`--json` / `/api/nl`）
 

@@ -3,24 +3,12 @@
 //!
 //! 執行：cargo run --release [-- demo|obligations|all]
 
-mod brute;
-mod cdcl;
-mod codegen;
-mod driver;
-mod dsl;
-mod exhaust;
-mod fp;
-mod formal;
-mod frac;
-mod groebner;
-mod json;
-mod llm;
-mod minirust;
-mod obligations;
-mod pipeline;
-mod poly;
-mod qap;
-mod server;
+//! polyrust 二進位：向後相容的 CLI 入口。
+//! 所有邏輯都在 `polyrust_core` 函式庫；本檔只做命令列分派與展示。
+
+use polyrust_core::{
+    cdcl, driver, formal, frac, groebner, minirust, obligations, pipeline, poly, server,
+};
 
 use pipeline::PipelineResult;
 

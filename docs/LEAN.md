@@ -33,6 +33,7 @@ bash ../scripts/lean-audit.sh   # 可信度審計：sorry 掃描 + #print axioms
 
 規模：**408 條定理/引理，6,502 行**（不含註解行另有數百行說明）。
 `AuditAll.lean` 全庫審計：受檢宣告 1787、純構造 970、零 `sorry`、零自訂公理。
+**970 條純構造宣告的逐條功用清冊見 [`docs/FORMAL_LEMMAS.md`](FORMAL_LEMMAS.md)**（由 `Enumerate.lean` 環境掃描自動生成，判據與審計同源）。
 
 ---
 
@@ -211,7 +212,7 @@ borrow_clash_no_root  : 上述集合無公共 0/1 零點
 
 | Lean 定理 | Rust 側對應的實測 | 位置 |
 |---|---|---|
-| `typable_iff_root`、`untypable_iff_no_root` | 12 個樣本「管線 SAT/UNSAT ⟺ 檢查器接受/拒絕」 | `src/bin` / `cargo test` |
+| `typable_iff_root`、`untypable_iff_no_root` | 12 個樣本「管線 SAT/UNSAT ⟺ 檢查器接受/拒絕」 | `core/src` / `cargo test` |
 | `buchberger_extension_bound` | 樣本擴充次數 0–645 ≤ 2ⁿ | `groebner` 統計 |
 | `coprime_criterion`/`chain_criterion` | 消除率 95%（712,549 → 37,823 對） | `groebner` 統計 |
 | `reduced_unique` | 反序生成元 + FIFO 與原基逐元素相同 | T7(a) 義務 |
