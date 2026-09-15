@@ -16,6 +16,7 @@ pub mod cdcl;
 pub mod codegen;
 pub mod driver;
 pub mod dsl;
+pub mod engine;
 pub mod exhaust;
 pub mod formal;
 pub mod fp;

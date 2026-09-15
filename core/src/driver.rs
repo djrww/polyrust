@@ -144,7 +144,9 @@ fn pipeline_v2_to_json(name: &str, poly: &PolySource, p: &crate::pipeline_v2::Pi
         ("intent", J::opt_str(poly.intent.as_deref())),
         ("metadata", J::Obj(metadata)),
         ("status", J::s("ok")),
+        ("engine", J::s(&p.engine)),
         ("verdict", J::s(verdict_v2(p))),
+        ("kernel_unsat", J::opt_bool(p.kernel_unsat)),
         ("features_used", J::Arr(p.features_used.iter().map(|s| J::s(s)).collect())),
         ("type_universe_size", J::Int(p.type_universe_size as i64)),
         ("stats", J::obj(vec![
@@ -218,7 +220,7 @@ pub fn cmd_check_v2(args: &[String], json: bool) -> i32 {
             if let Some(i) = &poly.intent {
                 println!("意圖：{}", i);
             }
-            println!("來源：{}  判定：{}  特性：{}", name, verdict_v2(&p), p.features_used.join(", "));
+            println!("來源：{}  判定：{}  engine：{}  特性：{}", name, verdict_v2(&p), p.engine, p.features_used.join(", "));
             println!(
                 "  編碼：變量 {} | 多項式 {} | 子句 {} | 積 {} | 和 {} | match {} | fuel {} | async {} | lifetime {} | unsafe {} | stdlib {} | trait_impl {}",
                 p.n_vars, p.n_polys, p.n_clauses, p.n_products, p.n_sums, p.n_matches, p.n_loop_fuel, p.n_async, p.n_lifetime, p.n_unsafe, p.n_stdlib, p.n_trait_impl

@@ -49,6 +49,11 @@ pub struct PipelineV2Result {
     pub struct_type_errors: Vec<String>,
     pub vec_type_errors: Vec<String>,
     pub per_node_bits: Vec<(usize, String, usize)>, // node_id, kind, N
+    /// M1: which engine signed `is_unsat`. Default surface-errors.
+    pub engine: String,
+    /// Some if Kernel actually ran.
+    pub kernel_unsat: Option<bool>,
+    pub kernel_error: Option<String>,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -665,8 +670,28 @@ pub fn run_pipeline_v2(name: &str, source: &str, poly_src: &PolySource) -> Resul
     result.n_stdlib = sys.stdlib_constraints.len();
     result.n_trait_impl = sys.trait_impl_constraints.len();
 
-    // S10: 判定
+    // S10: 表面判定（錯誤列表）。M1：若來源是 Kernel 子集，改由代數核覆寫。
     result.is_unsat = !result.errors.is_empty() || result.lifetime_has_cycle;
+    result.engine = crate::engine::Engine::SurfaceErrors.as_str().to_string();
+    match crate::engine::try_kernel(name, source) {
+        Ok(Some(k)) => {
+            result.engine = crate::engine::Engine::Kernel.as_str().to_string();
+            result.kernel_unsat = Some(k.is_unsat);
+            result.is_unsat = k.is_unsat;
+            result.warnings.push(
+                "M1: verdict overridden by kernel CDCL×Buchberger".to_string(),
+            );
+        }
+        Ok(None) => {
+            result.warnings.push(
+                "M1: source is not Mini-Rust v1; verdict remains surface-errors".to_string(),
+            );
+        }
+        Err(e) => {
+            result.kernel_error = Some(e.clone());
+            result.warnings.push(format!("M1: kernel parse ok but pipeline failed: {}", e));
+        }
+    }
 
     // S11: QAP 集成 — Phase3 補
     // Phase3 簡化：由於 product 約束 t_struct - Π t_field 在 one-hot 下會導致 witness 難構造，
@@ -754,6 +779,7 @@ mod tests {
         let res = run_pipeline_v2("test", src, &poly_src).unwrap();
         println!("{:?}", res);
         assert!(!res.is_unsat);
+        assert_eq!(res.engine, "surface-errors");
         assert!(res.features_used.contains(&"struct".to_string()));
         assert!(res.qap_verified.is_some());
     }

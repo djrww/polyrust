@@ -14,7 +14,8 @@ resolver = "2"
 members = ["core", "frontends/http", "frontends/llm", "frontends/full"]
 
 [workspace.package]
-version = "0.2.0"
+# M0: match branch v0.1.6. Do not label the tree 0.2.0 until Kernel+Surface share one verdict.
+version = "0.1.6"
 edition = "2021"
 repository = "https://github.com/djrww/polyrust"
 license = "MIT OR Apache-2.0"
