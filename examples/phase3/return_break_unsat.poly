@@ -1,0 +1,9 @@
+# @intent: return_break UNSAT — return 類型錯誤 + break 在 loop 外
+struct Point { x: i32, y: i32 }
+fn foo() -> i32 {
+  return true;
+}
+fn main() {
+  break;
+  let p = Point { x: true, y: 0 };
+}

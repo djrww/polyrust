@@ -1,0 +1,22 @@
+# @intent: Vec<T> 泛型容器內建庫 — Phase3 擴展
+# @pure true
+
+# Vec<T> 不透明容器，僅接口，實際編碼為 *mut T + len + cap
+# 多項式：t_Vec - t_ptr * t_len * t_cap =0
+
+# 構造
+fn Vec_new<T>() -> Vec<T> { 0 }
+fn Vec_with_capacity<T>(cap: i32) -> Vec<T> { 0 }
+
+# 操作：push 要求 T 一致
+fn Vec_push<T>(self: &mut Vec<T>, v: T) -> () { () }
+fn Vec_pop<T>(self: &mut Vec<T>) -> Option<T> { 0 }
+fn Vec_get<T>(self: &Vec<T>, i: i32) -> Option<T> { 0 }
+fn Vec_len<T>(self: &Vec<T>) -> i32 { 0 }
+fn Vec_is_empty<T>(self: &Vec<T>) -> bool { false }
+fn Vec_clear<T>(self: &mut Vec<T>) -> () { () }
+
+# IntoIterator 支持 for 降維
+fn Vec_into_iter<T>(self: Vec<T>) -> VecIter<T> { 0 }
+struct VecIter<T> { ptr: *mut T, len: i32, cap: i32, pos: i32 }
+fn VecIter_next<T>(self: &mut VecIter<T>) -> Option<T> { 0 }

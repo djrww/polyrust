@@ -1,0 +1,11 @@
+# @intent: 「反應式渲染 GUI 開發平台」的最小計算核心模型（簡化：狀態更新後重新計算派生渲染值，無 GUI 與 I/O）
+fn update_state(state: i32, delta: i32) -> i32 { state + delta }
+fn render(state: i32, visible: bool) -> i32 {
+    if visible { state } else { 0 }
+}
+fn main() {
+    let initial = 10;
+    let updated = update_state(initial, 3);
+    let frame = render(updated, true);
+    frame
+}

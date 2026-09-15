@@ -1,0 +1,7 @@
+# @intent: loop SAT
+# @fuel: 5
+# @invariant: x >= 0
+fn main() {
+  let mut x = 0;
+  while x < 10 { x = x + 1; }
+}

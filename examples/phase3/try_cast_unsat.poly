@@ -1,0 +1,8 @@
+# @intent: try_cast UNSAT — Try 在非 Result 上 + Cast 非法
+struct Point { x: i32, y: i32 }
+fn main() {
+  let x = 5;
+  let y = x?;
+  let z = true as *mut i32;
+  let p = Point { x: true, y: 0 };
+}

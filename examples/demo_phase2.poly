@@ -1,0 +1,63 @@
+# @intent: "demo phase2 lowering + constraints_v2"
+# @mode: full
+# @type-universe: auto
+
+# 測試 Phase2 降維與約束生成
+
+pub struct Point { x: i32, y: i32 }
+pub struct User { id: i32, name: String, pt: Point }
+
+pub enum Option<T> { Some(T), None }
+pub enum Result<T,E> { Ok(T), Err(E) }
+
+mod utils {
+  pub struct Helper { val: i32 }
+  pub fn make_helper(v: i32) -> Helper { Helper { val: v } }
+}
+
+trait Display { fn fmt(self) -> String; }
+impl Display for Point {
+  fn fmt(self) -> String { String::from("Point") }
+}
+
+impl Point {
+  fn new(x: i32, y: i32) -> Point { Point { x: x, y: y } }
+  fn norm(self) -> i32 { self.x * self.x + self.y * self.y }
+}
+
+async fn fetch() -> i32 { 42 }
+
+fn main() {
+  # struct product
+  let p = Point { x: 3, y: 4 };
+  let n = p.norm();
+
+  # enum sum + match decision tree
+  let opt = Option::Some(5);
+  let val = match opt {
+    Some(v) => v,
+    None => 0,
+  };
+
+  # Vec + HashMap + Option + Result
+  let mut v: Vec<Point> = Vec::new();
+  v.push(p);
+  let mut m: HashMap<String, Point> = HashMap::new();
+  m.insert(String::from("p"), p);
+
+  # for -> loop + into_iter
+  let mut sum = 0;
+  for x in v {
+    sum = sum + x.x;
+  }
+
+  # mod flatten
+  let h = utils::Helper { val: 10 };
+  let h2 = utils::make_helper(20);
+
+  # async state machine
+  let fut = fetch();
+  let awaited = fut.await;
+
+  let _ = val + sum + h.val + awaited;
+}

@@ -1,0 +1,3 @@
+# @intent: I/O UNKNOWN — pure 函數含 I/O
+# @pure: true
+fn main() { println("pure violation?"); }

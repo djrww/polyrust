@@ -1,0 +1,6 @@
+# @intent: lifetime UNKNOWN — 複雜 outlives
+# @lifetime 'a: 'b
+# @lifetime 'b: 'c
+# @lifetime 'c: 'd
+fn longest<'a, 'b, 'c>(x: &'a str, y: &'b str, z: &'c str) -> &'a str where 'a: 'b, 'b: 'c { x }
+fn main() {}

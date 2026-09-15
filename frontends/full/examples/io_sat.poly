@@ -1,0 +1,2 @@
+# @intent: I/O SAT
+fn main() { println("hello"); }

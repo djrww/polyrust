@@ -1,0 +1,7 @@
+# @intent: 基本數學函式庫
+fn square(x: i32) -> i32 { x * x }
+fn twice(x: i32) -> i32 { x + x }
+fn cube(x: i32) -> i32 { x * x * x }
+fn add(a: i32, b: i32) -> i32 { a + b }
+fn sub(a: i32, b: i32) -> i32 { a - b }
+fn min(a: i32, b: i32) -> i32 { if a < b { a } else { b } }

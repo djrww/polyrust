@@ -1,0 +1,7 @@
+# @intent: try UNSAT — ? 在非 Result 上 + Vec 類型錯誤
+fn main() {
+  let x = 5;
+  let y = x?;
+  let mut v: Vec<i32> = Vec::new();
+  v.push("hello");
+}

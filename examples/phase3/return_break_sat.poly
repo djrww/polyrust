@@ -1,0 +1,35 @@
+# @intent: return_break SAT — return, break label+expr, continue
+# FullExpr::Return, Break { label, expr }, Continue 已在 parse_expr.rs 實現
+fn foo(x: i32) -> i32 {
+  if x > 0 {
+    return x;
+  }
+  return 0;
+}
+
+fn main() {
+  let mut i = 0;
+  loop {
+    if i >= 5 {
+      break;
+    }
+    if i == 2 {
+      continue;
+    }
+    i = i + 1;
+  }
+
+  let val = 'outer: loop {
+    loop {
+      break 'outer 42;
+    }
+  };
+
+  let mut j = 0;
+  'inner: loop {
+    j = j + 1;
+    if j == 3 {
+      break 'inner;
+    }
+  }
+}

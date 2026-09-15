@@ -1,0 +1,9 @@
+# @intent: return UNSAT — return 類型不匹配
+struct Point { x: i32, y: i32 }
+fn foo() -> i32 {
+  return true;
+}
+fn main() {
+  let x = foo();
+  let p = Point { x: true, y: 0 };
+}

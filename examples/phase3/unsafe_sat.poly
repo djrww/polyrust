@@ -1,0 +1,3 @@
+# @intent: unsafe SAT
+# @unsafe-allowed
+fn main() { unsafe { let p: *mut i32 = 0 as *mut i32; } }

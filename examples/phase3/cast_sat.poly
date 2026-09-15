@@ -1,0 +1,11 @@
+# @intent: cast SAT — x as i32, *mut, *const
+fn main() {
+  let x = 5 as i64;
+  let y = x as i32;
+  let p = &y as *const i32;
+  let pm = &mut y as *mut i32;
+  let q = p as *mut i32;
+  let r = q as *const i32;
+  let b = true as i32;
+  let c = 65 as char;
+}

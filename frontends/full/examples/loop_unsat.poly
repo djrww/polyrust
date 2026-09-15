@@ -1,0 +1,7 @@
+# @intent: loop UNSAT — invariant 違反
+# @fuel: 3
+# @invariant: x < 5
+fn main() {
+  let mut x = 0;
+  while x < 10 { x = x + 10; }
+}

@@ -1,0 +1,6 @@
+# @intent: loop UNKNOWN — fuel 不足
+# @fuel: 1
+fn main() {
+  let mut x = 0;
+  while x < 100 { x = x + 1; }
+}

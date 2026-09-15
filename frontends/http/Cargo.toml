@@ -1,0 +1,27 @@
+[package]
+name = "polyrust-http"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+description = "polyrust 的 axum/tokio HTTP API 前端（第三方依賴：axum、tokio、serde）"
+
+[[bin]]
+name = "polyrust-http"
+path = "src/main.rs"
+
+[features]
+default = ["json"]
+json = ["axum/json", "axum/query", "axum/form", "dep:serde_json"]
+# 輕量：保留 json（否則無法編譯），僅移除額外中間件，編譯更快，適合開發期
+light = ["json"]
+
+[dependencies]
+polyrust-core = { path = "../../core" }
+axum = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true, optional = true }
+
+[dev-dependencies]
+tokio = { workspace = true }

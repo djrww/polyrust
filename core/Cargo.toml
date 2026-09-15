@@ -1,0 +1,24 @@
+# polyrust-core：形式化管線核心。
+#
+# 硬承諾：【零第三方依賴】——[dependencies] 永遠為空（只用 std）。
+# 一切需要第三方依賴的能力（axum HTTP、ureq TLS、serde、clap…）
+# 一律放在上一層 workspace 的 frontends/* crate，把本核心當 lib 依賴。
+[package]
+name = "polyrust-core"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+description = "Mini-Rust 宏的代數形式化管線核心：CDCL + Buchberger + QAP（零第三方依賴）"
+build = "build.rs"
+
+# 同時產出函式庫（供 frontends/* 依賴）與二進位（polyrust，向後相容）。
+[lib]
+name = "polyrust_core"
+path = "src/lib.rs"
+
+[[bin]]
+name = "polyrust"
+path = "src/main.rs"
+
+[dependencies]
+# 刻意留空——這是本核心不變的承諾。

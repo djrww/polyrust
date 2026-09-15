@@ -1,0 +1,213 @@
+warning: unused variable: `name`
+   --> src/obligations.rs:545:10
+    |
+545 |     for (name, r) in &results {
+    |          ^^^^ help: if this is intentional, prefix it with an underscore: `_name`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable `sat_model` is assigned to, but never used
+   --> src/pipeline.rs:126:9
+    |
+126 |     let mut sat_model: Option<Vec<bool>> = None;
+    |         ^^^^^^^^^^^^^
+    |
+    = note: consider using `_sat_model` instead
+
+warning: value assigned to `t0` is never read
+   --> src/pipeline.rs:70:13
+    |
+ 70 |             t0 = std::time::Instant::now();
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+241 |         stage!("S8 qap");
+    |         ---------------- in this macro invocation
+    |
+    = help: maybe it is overwritten before being read?
+    = note: `#[warn(unused_assignments)]` (part of `#[warn(unused)]`) on by default
+    = note: this warning originates in the macro `stage` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: value assigned to `sat_model` is never read
+   --> src/pipeline.rs:181:9
+    |
+181 |         sat_model = Some(model);
+    |         ^^^^^^^^^
+    |
+    = help: maybe it is overwritten before being read?
+
+warning: method `all_clauses` is never used
+   --> src/cdcl.rs:365:12
+    |
+ 49 | impl Solver {
+    | ----------- method in this implementation
+...
+365 |     pub fn all_clauses(&self) -> &[Vec<Lit>] {
+    |            ^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `annotate_rules` is never read
+  --> src/codegen.rs:14:9
+   |
+10 | pub struct CodeGenConfig {
+   |            ------------- field in this struct
+...
+14 |     pub annotate_rules: bool,
+   |         ^^^^^^^^^^^^^^
+   |
+   = note: `CodeGenConfig` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: associated function `new` is never used
+  --> src/fp.rs:20:12
+   |
+ 9 | impl Fp {
+   | ------- associated function in this implementation
+...
+20 |     pub fn new(num: i128, den: i128) -> Fp {
+   |            ^^^
+
+warning: field `binder` is never read
+  --> src/minirust/analysis.rs:15:9
+   |
+10 | pub struct BorrowInfo {
+   |            ---------- field in this struct
+...
+15 |     pub binder: Option<String>, // let r = &mut x 的綁定名（暫時借用 = None）
+   |         ^^^^^^
+   |
+   = note: `BorrowInfo` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: field `borrows` is never read
+  --> src/minirust/analysis.rs:20:9
+   |
+19 | pub struct BorrowAnalysis {
+   |            -------------- field in this struct
+20 |     pub borrows: Vec<BorrowInfo>,
+   |         ^^^^^^^
+   |
+   = note: `BorrowAnalysis` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: method `rule_name` is never used
+  --> src/minirust/ast.rs:67:12
+   |
+58 | impl BinOp {
+   | ---------- method in this implementation
+...
+67 |     pub fn rule_name(&self) -> &'static str {
+   |            ^^^^^^^^^
+
+warning: methods `peek2` and `next_id_after` are never used
+   --> src/minirust/parse.rs:32:8
+    |
+ 12 | impl Parser {
+    | ----------- methods in this implementation
+...
+ 32 |     fn peek2(&self) -> Option<&Tok> {
+    |        ^^^^^
+...
+500 |     pub fn next_id_after(&self) -> usize {
+    |            ^^^^^^^^^^^^^
+
+warning: field `name` is never read
+  --> src/pipeline.rs:20:9
+   |
+19 | pub struct PipelineResult {
+   |            -------------- field in this struct
+20 |     pub name: String,
+   |         ^^^^
+   |
+   = note: `PipelineResult` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: function `show_polys` is never used
+   --> src/pipeline.rs:302:8
+    |
+302 | pub fn show_polys(polys: &[Poly], names: &[String], limit: usize) -> String {
+    |        ^^^^^^^^^^
+
+warning: function `basis_summary` is never used
+   --> src/pipeline.rs:314:8
+    |
+314 | pub fn basis_summary(basis: &[Poly], names: &[String], limit: usize) -> String {
+    |        ^^^^^^^^^^^^^
+
+warning: function `used_var_count` is never used
+   --> src/pipeline.rs:329:8
+    |
+329 | pub fn used_var_count(polys: &[Poly]) -> usize {
+    |        ^^^^^^^^^^^^^^
+
+warning: function `mono_gcd` is never used
+  --> src/poly.rs:49:8
+   |
+49 | pub fn mono_gcd(a: &Mono, b: &Mono) -> Mono {
+   |        ^^^^^^^^
+
+warning: variant `GrLex` is never constructed
+  --> src/poly.rs:68:5
+   |
+64 | pub enum Order {
+   |          ----- variant in this enum
+...
+68 |     GrLex,
+   |     ^^^^^
+   |
+   = note: `Order` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: methods `neg`, `scale`, and `vars` are never used
+   --> src/poly.rs:216:12
+    |
+114 | impl Poly {
+    | --------- methods in this implementation
+...
+216 |     pub fn neg(&self) -> Poly {
+    |            ^^^
+...
+222 |     pub fn scale(&self, k: &Frac) -> Poly {
+    |            ^^^^^
+...
+291 |     pub fn vars(&self) -> BTreeSet<usize> {
+    |            ^^^^
+
+warning: fields `n_constraints` and `domain` are never read
+   --> src/qap.rs:171:9
+    |
+169 | pub struct Qap {
+    |            --- fields in this struct
+170 |     pub n_wires: usize,
+171 |     pub n_constraints: usize,
+    |         ^^^^^^^^^^^^^
+...
+177 |     pub domain: Vec<Fp>, // t_i = 1..=m
+    |         ^^^^^^
+
+warning: function `prime` is never used
+   --> src/qap.rs:268:8
+    |
+268 | pub fn prime() -> u64 {
+    |        ^^^^^
+
+warning: `polyrust` (bin "polyrust" test) generated 20 warnings (run `cargo fix --bin "polyrust" -p polyrust --tests` to apply 1 suggestion)
+    Finished `release` profile [optimized] target(s) in 0.01s
+     Running unittests src/main.rs (target/release/deps/polyrust-0cfbf054ba77318b)
+
+running 17 tests
+test cdcl::tests::test_matches_brute_force ... ok
+test cdcl::tests::test_sat_basic ... ok
+test cdcl::tests::test_pigeonhole_unsat ... ok
+test cdcl::tests::test_unsat ... ok
+test fp::tests::test_field ... ok
+test fp::tests::test_frac_map ... ok
+test groebner::tests::test_criteria_preserve_basis ... ok
+test groebner::tests::test_inconsistent_boolean ... ok
+test groebner::tests::test_simple_gb ... ok
+test groebner::tests::test_solve_boolean ... ok
+test poly::tests::test_div_rem ... ok
+test poly::tests::test_order_grevlex ... ok
+test poly::tests::test_spoly_coprime ... ok
+test qap::tests::test_lagrange ... ok
+test qap::tests::test_qap_sqr ... ok
+test qap::tests::test_unipoly_divmod ... ok
+test groebner::tests::test_diagnose_gb_mismatch ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

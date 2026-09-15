@@ -1,0 +1,15 @@
+# @intent: break SAT — break label+expr, continue
+fn main() {
+  let mut i = 0;
+  loop {
+    if i >= 5 { break; }
+    i = i + 1;
+  }
+  let val = 'outer: loop {
+    let mut j = 0;
+    loop {
+      if j == 3 { break 'outer j; }
+      j = j + 1;
+    }
+  };
+}

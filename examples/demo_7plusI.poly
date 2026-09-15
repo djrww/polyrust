@@ -1,0 +1,72 @@
+# @intent: "demo 7+i type universe"
+# @mode: full
+# @type-universe: auto
+
+# 測試 7+i 型別宇宙擴展
+
+# 基底 7 仍可用
+fn base_demo(x: i32, b: bool) -> i32 {
+  if b { x } else { 0 }
+}
+
+# 擴展：struct
+pub struct Point { x: i32, y: i32 }
+
+# 擴展：enum + generic
+pub enum Option<T> { Some(T), None }
+
+# 擴展：Vec, String, HashMap, Option, Result, RawPtr, Future, Ref with lifetime
+
+fn vec_demo() -> i32 {
+  let mut v: Vec<i32> = Vec::new();
+  v.push(1);
+  v.push(2);
+  let sum = 0;
+  for x in v {
+    sum = sum + x;
+  }
+  sum
+}
+
+fn string_demo() -> String {
+  let s: String = String::new();
+  s
+}
+
+fn hashmap_demo() -> i32 {
+  let mut m: HashMap<String, i32> = HashMap::new();
+  0
+}
+
+fn option_demo(x: Option<i32>) -> i32 {
+  match x {
+    Some(v) => v,
+    None => 0,
+  }
+}
+
+fn raw_ptr_demo() -> i32 {
+  let mut x = 5;
+  let p: *mut i32 = &mut x as *mut i32;
+  unsafe { *p }
+}
+
+fn lifetime_demo<'a>(x: &'a i32, y: &'a i32) -> &'a i32 {
+  if *x > *y { x } else { y }
+}
+
+async fn async_demo() -> i32 { 42 }
+
+fn main() {
+  let b = base_demo(3, true);
+  let p = Point { x: 1, y: 2 };
+  let v = vec_demo();
+  let s = string_demo();
+  let h = hashmap_demo();
+  let o = option_demo(Option::Some(5));
+  let r = raw_ptr_demo();
+  let a = 10;
+  let b2 = 20;
+  let l = lifetime_demo(&a, &b2);
+  let _ = b + p.x + v + o + r + *l;
+}

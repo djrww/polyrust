@@ -1,0 +1,22 @@
+# @intent: try_cast SAT — Try ?, Cast as, Range Expr
+# FullExpr::Try, Cast, Range 已在 parse_expr.rs 實現，支持 *mut/*const
+fn may_fail() -> Result<i32, String> {
+  Ok(42)
+}
+
+fn main() {
+  let r = may_fail();
+  let v = r?;
+  let x = 5 as i64;
+  let y = v as i32;
+  let p = &v as *const i32;
+  let pm = &mut v as *mut i32;
+  let q = p as *mut i32;
+  let range = 0..10;
+  let range2 = 0..=10;
+  let range3 = ..10;
+  let range4 = 0..;
+  let range5 = ..=10;
+  let arr = [1,2,3,4,5];
+  let slice = &arr[0..2];
+}

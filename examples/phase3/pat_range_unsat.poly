@@ -1,0 +1,10 @@
+# @intent: pat_range UNSAT — Range 模式非窮舉 + 類型錯誤
+struct Point { x: i32, y: i32 }
+fn main() {
+  let x = 100;
+  let y = match x {
+    0..10 => 1,
+    0..=5 => 2,
+  };
+  let p = Point { x: true, y: 0 };
+}

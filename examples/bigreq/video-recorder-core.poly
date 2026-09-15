@@ -1,0 +1,21 @@
+# @intent: 「可錄製短影音」的最小計算核心模型（簡化：用布林狀態機模擬錄製的開始/停止與逐幀計數，無真實 I/O、無影像編碼）
+
+fn start_recording() -> bool {
+    true
+}
+
+fn increment_frame(frames: i32) -> i32 {
+    frames + 1
+}
+
+fn stop_recording(is_rec: bool, frames: i32) -> i32 {
+    if is_rec { frames } else { 0 }
+}
+
+fn main() {
+    let is_rec = start_recording();
+    let f1 = increment_frame(0);
+    let f2 = increment_frame(f1);
+    let f3 = increment_frame(f2);
+    stop_recording(is_rec, f3)
+}
