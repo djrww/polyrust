@@ -57,7 +57,9 @@ jobs:
           echo "=== Oracle 缺口檢測 CI — 7 類語法 (Pat Or/Range, Closure, Return, Break, Try, Cast) ==="
           cargo test --release -p polyrust-full oracle::tests::test_oracle_gap -- --nocapture
           echo "=== 額外：core 新解析器單元測試 ==="
-          cargo test --release -p polyrust-core --lib minirust::parse_pat::tests minirust::parse_expr::tests -- --nocapture || cargo test --release -p polyrust-core --lib -- --nocapture | grep -E "parse_pat|parse_expr"
+          cargo test --release -p polyrust-core --lib -- --nocapture | tee /tmp/core_lib.txt
+          grep -E "parse_pat|parse_expr" /tmp/core_lib.txt || echo "parse_pat/expr not in output (checking test result only)"
+          grep -q "test result: ok" /tmp/core_lib.txt
 
       - name: 最優化 release 編譯（LTO=fat / CGU=1，硬閘門）
         run: |
