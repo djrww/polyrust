@@ -1,0 +1,1 @@
+實現一個帶 LSP 的 Enterprise IDE，支持文件樹 FileTree 和文本緩衝 TextBuffer，帶光標移動和診斷

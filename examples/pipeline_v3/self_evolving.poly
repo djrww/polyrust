@@ -1,0 +1,21 @@
+# @intent: 自进化 Poly 深化演示 (想不到效果 - 递归深化 + 自验证元循环)
+# @set init = 5
+# @deepening: iteration=0 depth=0
+# @commercial-risk: auto-evaluated iter0
+# @lean-proof: Polyrust.IncrementalIteration.f4f5_iter_converges
+# @qap: onchain-export-enabled
+
+# 基础函数，V3 管线会每次迭代自动深化
+fn sqr(x: i32) -> i32 { x * x }
+fn add(a: i32, b: i32) -> i32 { a + b }
+
+fn main() {
+    let a = {{init}};
+    let b = sqr(a);
+    let c = add(b, 10);
+    # V3 会在此基础上深化:
+    # - 迭代1: 增加 borrow 检查深化 deepened_borrow_1
+    # - 迭代2: 增加 unsafe 审计深化 deepened_check_2
+    # - 迭代3: 增加 async 状态机深化
+    # 形成自进化链，展示 N=7+i 动态扩展
+}
