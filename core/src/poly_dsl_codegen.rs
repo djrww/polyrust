@@ -400,7 +400,7 @@ pub use ide::*;
         let mut main_content = String::new();
         main_content.push_str(&format!("// enterprise_ide 真實實現 nvars={} npolys={} coverage={:.1}% ({} /80)\n", tr.nvars, tr.npolys, tr.coverage.rust_semantic_coverage, tr.coverage.used_funcs));
         main_content.push_str(r##"use std::collections::HashMap;
-use enterprise_ide::{FileTree, EnterpriseIDE, RustAnalyzer, FileType, TextBuffer, Language, Position, Terminal, open_file};
+use enterprise_ide::{FileTree, EnterpriseIDE, RustAnalyzer, FileType, TextBuffer, Language, Position, Terminal, open_file, VERSION};
 use enterprise_ide::debug::start_debug;
 use enterprise_ide::git::git;
 fn main() {
@@ -453,7 +453,7 @@ pub use hooks::*;
         main.push_str(&format!("// reactive 真實 nvars={} npolys={} coverage={:.1}% ({} /80)\n", tr.nvars, tr.npolys, tr.coverage.rust_semantic_coverage, tr.coverage.used_funcs));
         main.push_str(r##"use reactive_ui_platform::{create_element, diff, patch, render};
 fn main() {
-"#);
+"##);
         main.push_str(&format!("    println!(\"reactive_ui_platform nvars={{}} npolys={{}} coverage={{:.1}}% ({{}} /80)\", {}, {}, {:.1}, {});\n", tr.nvars, tr.npolys, tr.coverage.rust_semantic_coverage, tr.coverage.used_funcs));
         main.push_str(r##"    let mut root = create_element("div".to_string());
     let child = create_element("span".to_string());
@@ -642,20 +642,49 @@ pub use types::*;
     pub fn check_compile(&self, code: &str) -> CompileMetrics {
         let start = std::time::Instant::now();
         let tmp_dir = std::env::temp_dir();
-        let file_path = tmp_dir.join(format!("polyrust_check_{}.rs", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis()));
-        let mut success = true;
+        let file_path = tmp_dir.join(format!("polyrust_check_{}_{}_{}.rs", std::process::id(), format!("{:?}", std::thread::current().id()).replace(|c: char| !c.is_alphanumeric(), "_"), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        let mut success = false;
         let mut err: Option<String> = None;
-        let is_mod_file = code.contains("super::") || code.contains("crate::") || code.contains("pub mod") || code.contains("fn main") || (code.contains("use ") && code.contains("::"));
+        // 真實編譯：無 heuristic，全部走 rustc + 超時保護
         if let Ok(()) = std::fs::write(&file_path, code) {
-            if is_mod_file {
-                success = code.contains("struct") || code.contains("enum") || code.contains("fn") || code.contains("pub") || code.contains("mod");
-            } else if let Ok(out) = std::process::Command::new("rustc").arg(&file_path).arg("-o").arg(tmp_dir.join("polyrust_check_out")).arg("--crate-type").arg("lib").arg("--allow").arg("warnings").output() {
-                if !out.status.success() { success = false; err = Some(String::from_utf8_lossy(&out.stderr).to_string()); }
-            } else {
-                success = code.contains("struct") || code.contains("enum") || code.contains("fn") || code.contains("pub");
+            // 判斷是否為 binary（含 fn main）或 lib
+            let is_bin = code.contains("fn main");
+            let out_path = tmp_dir.join("polyrust_check_out");
+            // 使用超時保護的編譯
+            let mut cmd = std::process::Command::new("rustc");
+            cmd.arg(&file_path).arg("-o").arg(&out_path).arg("--edition=2021").arg("--allow").arg("warnings");
+            if !is_bin {
+                cmd.arg("--crate-type").arg("lib");
+            }
+            // 超時 10s，避免卡死
+            let output = {
+                use std::sync::mpsc;
+                let (tx, rx) = mpsc::channel();
+                let mut cmd_clone = cmd;
+                std::thread::spawn(move || {
+                    let out = cmd_clone.output();
+                    let _ = tx.send(out);
+                });
+                match rx.recv_timeout(std::time::Duration::from_secs(10)) {
+                    Ok(r) => r.ok(),
+                    Err(_) => {
+                        err = Some("rustc timeout after 10s — killed to avoid hang".to_string());
+                        None
+                    }
+                }
+            };
+            if let Some(out) = output {
+                if out.status.success() {
+                    success = true;
+                } else {
+                    err = Some(String::from_utf8_lossy(&out.stderr).to_string());
+                }
+            } else if err.is_none() {
+                err = Some("rustc spawn failed".to_string());
             }
             let _ = std::fs::remove_file(&file_path);
-            let _ = std::fs::remove_file(tmp_dir.join("polyrust_check_out"));
+            let _ = std::fs::remove_file(&out_path);
+            let _ = std::fs::remove_file(tmp_dir.join("polyrust_check_out.o"));
         }
         CompileMetrics {
             compile_success: success,
@@ -678,19 +707,67 @@ pub use types::*;
 
     pub fn check_compile_multi(&self, multi: &MultiFileProject, tr: &TransformResult) -> CompileMetrics {
         let start = std::time::Instant::now();
-        let mut success_files = 0;
+        // 真實多文件編譯：創建臨時 cargo 項目，cargo check --offline 帶超時
+        let mut success = false;
         let mut first_error: Option<String> = None;
+        let mut rate = 0.0;
+        let tmp_base = std::env::temp_dir().join(format!("polyrust_multi_{}_{}_{}", std::process::id(), format!("{:?}", std::thread::current().id()).replace(|c: char| !c.is_alphanumeric(), "_"), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        let _ = std::fs::create_dir_all(&tmp_base);
+        let _ = std::fs::create_dir_all(tmp_base.join("src"));
+        // 寫 Cargo.toml（修正：移除 [workspace]，確保合法）
+        let cargo_toml_content = format!("[package]\nname = \"{}\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[dependencies]\n", multi.project_name.replace("-", "_"));
+        let _ = std::fs::write(tmp_base.join("Cargo.toml"), cargo_toml_content);
+        // 寫所有文件
         for f in &multi.files {
-            let check = self.check_compile(&f.content);
-            if check.compile_success { success_files += 1; } else if first_error.is_none() { first_error = check.compile_error; }
+            let file_path = tmp_base.join(&f.path);
+            if let Some(parent) = file_path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            let _ = std::fs::write(&file_path, &f.content);
         }
-        let total = multi.files.len().max(1);
-        let rate = success_files as f64 / total as f64;
-        // 功能測試：檢查是否包含真實實現而非 filler
+        // cargo check --offline 超時 15s
+        {
+            use std::sync::mpsc;
+            let (tx, rx) = mpsc::channel();
+            let tmp_clone = tmp_base.clone();
+            std::thread::spawn(move || {
+                let out = std::process::Command::new("cargo")
+                    .arg("check")
+                    .arg("--offline")
+                    .arg("--manifest-path")
+                    .arg(tmp_clone.join("Cargo.toml"))
+                    .output();
+                let _ = tx.send(out);
+            });
+            match rx.recv_timeout(std::time::Duration::from_secs(15)) {
+                Ok(Ok(out)) => {
+                    if out.status.success() {
+                        success = true;
+                        rate = 1.0;
+                    } else {
+                        let stderr = String::from_utf8_lossy(&out.stderr).to_string();
+                        first_error = Some(stderr.chars().take(1000).collect());
+                        rate = 0.0;
+                    }
+                }
+                Ok(Err(e)) => {
+                    first_error = Some(format!("cargo check spawn failed: {}", e));
+                    rate = 0.0;
+                }
+                Err(_) => {
+                    first_error = Some("cargo check timeout after 15s — killed to avoid hang".to_string());
+                    rate = 0.0;
+                }
+            }
+        }
+        // 清理臨時目錄
+        let _ = std::fs::remove_dir_all(&tmp_base);
+        // 功能測試：檢查是否包含真實實現而非 filler，且編譯成功
         let has_real_impl = multi.files.iter().any(|f| f.content.contains("impl") && f.content.contains("fn") && !f.content.contains("语义填充") && !f.content.contains("// ".repeat(10).as_str()));
-        let functional_passed = if has_real_impl && rate >= 0.8 { 5 } else if rate >= 0.5 { 3 } else { 0 };
+        let functional_passed = if has_real_impl && success { 5 } else if has_real_impl && rate >= 0.5 { 3 } else if success { 3 } else { 0 };
+
         CompileMetrics {
-            compile_success: success_files == total,
+            compile_success: success,
             compile_rate: rate,
             compile_error: first_error,
             run_success: None,
