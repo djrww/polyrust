@@ -140,7 +140,7 @@ theorem sevenFile_native_complete (f : SevenFile) : (sevenFile_fourLayer f).nati
   cases f <;> rfl
 
 theorem sevenFile_fully_complete (f : SevenFile) : (sevenFile_fourLayer f).isFullyComplete = true := by
-  cases f <;> rfl
+  cases f <;> simp [sevenFile_fourLayer, FourLayerComplete.isFullyComplete]
 
 theorem sevenFile_functional_passes (f : SevenFile) : f.functionalTestPasses = true := by
   cases f <;> rfl
@@ -159,9 +159,9 @@ theorem rust_poly_rust_preserves_all (f : SevenFile) (h : f.isRustToPoly = true)
   RustPolyRust_preserves f := by
   intro _
   cases f with
-  | demoD => exact ⟨"poly_demoD", "rust_demoD_roundtrip", by simp, by simp⟩
-  | demoA => exact ⟨"poly_demoA", "rust_demoA_roundtrip", by simp, by simp⟩
-  | web3_audit => exact ⟨"poly_web3", "rust_web3_roundtrip", by simp, by simp⟩
+  | demoD => exact ⟨"poly_demoD", "rust_demoD_roundtrip", by decide, by decide⟩
+  | demoA => exact ⟨"poly_demoA", "rust_demoA_roundtrip", by decide, by decide⟩
+  | web3_audit => exact ⟨"poly_web3", "rust_web3_roundtrip", by decide, by decide⟩
   | appstore => simp [SevenFile.isRustToPoly] at h
   | db_kv => simp [SevenFile.isRustToPoly] at h
   | gui_reactive => simp [SevenFile.isRustToPoly] at h
@@ -175,10 +175,10 @@ theorem poly_rust_poly_preserves_all (f : SevenFile) (h : f.isPolyToRust = true)
   | demoD => simp [SevenFile.isPolyToRust] at h
   | demoA => simp [SevenFile.isPolyToRust] at h
   | web3_audit => simp [SevenFile.isPolyToRust] at h
-  | appstore => exact ⟨"rust_appstore", "poly_appstore_roundtrip", by simp, by simp⟩
-  | db_kv => exact ⟨"rust_dbkv", "poly_dbkv_roundtrip", by simp, by simp⟩
-  | gui_reactive => exact ⟨"rust_gui", "poly_gui_roundtrip", by simp, by simp⟩
-  | video_recorder => exact ⟨"rust_video", "poly_video_roundtrip", by simp, by simp⟩
+  | appstore => exact ⟨"rust_appstore", "poly_appstore_roundtrip", by decide, by decide⟩
+  | db_kv => exact ⟨"rust_dbkv", "poly_dbkv_roundtrip", by decide, by decide⟩
+  | gui_reactive => exact ⟨"rust_gui", "poly_gui_roundtrip", by decide, by decide⟩
+  | video_recorder => exact ⟨"rust_video", "poly_video_roundtrip", by decide, by decide⟩
 
 /-- 7文件全部通過 -/
 theorem seven_files_all_pass : ∀ (f : SevenFile),
@@ -212,7 +212,7 @@ def sevenFile_commercial (f : SevenFile) : CommercialPipelineComplete :=
 
 theorem sevenFile_commercial_complete (f : SevenFile) :
   (sevenFile_commercial f).isComplete = true := by
-  cases f <;> rfl
+  cases f <;> simp [sevenFile_commercial, CommercialPipelineComplete.isComplete]
 
 /-- 雙向一致性：Poly<->Rust 語義雙向 -/
 theorem bidirectional_consistency (f : SevenFile) :
