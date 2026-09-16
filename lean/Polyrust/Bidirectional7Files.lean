@@ -82,23 +82,23 @@ def PolyRustPoly_preserves (f : SevenFile) : Prop :=
 
 /-- 四層：Syntax, AST, MIR, Native -/
 structure FourLayerComplete where
-  syntax : Bool
-  ast : Bool
-  mir : Bool
-  native : Bool
+  syntaxOk : Bool
+  astOk : Bool
+  mirOk : Bool
+  nativeOk : Bool
   deriving Repr
 
 def FourLayerComplete.isFullyComplete (fl : FourLayerComplete) : Bool :=
-  fl.syntax && fl.ast && fl.mir && fl.native
+  fl.syntaxOk && fl.astOk && fl.mirOk && fl.nativeOk
 
 def sevenFile_fourLayer : SevenFile -> FourLayerComplete
-  | .demoD => { syntax := true, ast := true, mir := true, native := true }
-  | .demoA => { syntax := true, ast := true, mir := true, native := true }
-  | .web3_audit => { syntax := true, ast := true, mir := true, native := true }
-  | .appstore => { syntax := true, ast := true, mir := true, native := true }
-  | .db_kv => { syntax := true, ast := true, mir := true, native := true }
-  | .gui_reactive => { syntax := true, ast := true, mir := true, native := true }
-  | .video_recorder => { syntax := true, ast := true, mir := true, native := true }
+  | .demoD => { syntaxOk := true, astOk := true, mirOk := true, nativeOk := true }
+  | .demoA => { syntaxOk := true, astOk := true, mirOk := true, nativeOk := true }
+  | .web3_audit => { syntaxOk := true, astOk := true, mirOk := true, nativeOk := true }
+  | .appstore => { syntaxOk := true, astOk := true, mirOk := true, nativeOk := true }
+  | .db_kv => { syntaxOk := true, astOk := true, mirOk := true, nativeOk := true }
+  | .gui_reactive => { syntaxOk := true, astOk := true, mirOk := true, nativeOk := true }
+  | .video_recorder => { syntaxOk := true, astOk := true, mirOk := true, nativeOk := true }
 
 /-! ## 三、功能測試通過性 -/
 
@@ -130,17 +130,17 @@ def sevenFile_qap : SevenFile -> QapCert
 
 /-! ## 五、定理：7文件雙向完備 -/
 
-theorem sevenFile_ast_complete (f : SevenFile) : (sevenFile_fourLayer f).ast = true := by
+theorem sevenFile_ast_complete (f : SevenFile) : (sevenFile_fourLayer f).astOk = true := by
   cases f <;> rfl
 
-theorem sevenFile_mir_complete (f : SevenFile) : (sevenFile_fourLayer f).mir = true := by
+theorem sevenFile_mir_complete (f : SevenFile) : (sevenFile_fourLayer f).mirOk = true := by
   cases f <;> rfl
 
-theorem sevenFile_native_complete (f : SevenFile) : (sevenFile_fourLayer f).native = true := by
+theorem sevenFile_native_complete (f : SevenFile) : (sevenFile_fourLayer f).nativeOk = true := by
   cases f <;> rfl
 
 theorem sevenFile_fully_complete (f : SevenFile) : (sevenFile_fourLayer f).isFullyComplete = true := by
-  cases f <;> simp [sevenFile_fourLayer, FourLayerComplete.isFullyComplete]
+  cases f <;> simp [sevenFile_fourLayer, FourLayerComplete.isFullyComplete, FourLayerComplete.syntaxOk, FourLayerComplete.astOk, FourLayerComplete.mirOk, FourLayerComplete.nativeOk]
 
 theorem sevenFile_functional_passes (f : SevenFile) : f.functionalTestPasses = true := by
   cases f <;> rfl
