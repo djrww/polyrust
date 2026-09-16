@@ -617,40 +617,30 @@ edition = \"2021\"
     let _ = std::fs::write(&cargo_toml, toml_content);
     
     cargo_check_tried = true;
-    if let Ok(out) = std::process::Command::new("cargo")
-        .arg("check")
-        .arg("--offline")
-        .arg("--manifest-path")
-        .arg(&cargo_toml)
-        .output() 
-    {
+    let mut cargo_cmd = std::process::Command::new("cargo");
+    cargo_cmd.arg("check").arg("--offline").arg("--manifest-path").arg(&cargo_toml);
+    if let Some(out) = run_cmd_with_timeout(cargo_cmd, 15) {
         cargo_output = format!("stdout: {}
 stderr: {}", 
             String::from_utf8_lossy(&out.stdout),
             String::from_utf8_lossy(&out.stderr));
         cargo_check_success = out.status.success();
     } else {
-        cargo_output = "cargo check spawn failed".to_string();
+        cargo_output = "cargo check timeout after 15s — killed to avoid hang".to_string();
     }
     
-    // cargo test (multi-file support)
+    // cargo test (multi-file support) — with timeout to avoid hang on infinite loop code
     cargo_test_tried = true;
-    if let Ok(out) = std::process::Command::new("cargo")
-        .arg("test")
-        .arg("--offline")
-        .arg("--manifest-path")
-        .arg(&cargo_toml)
-        .arg("--")
-        .arg("--nocapture")
-        .output()
-    {
+    let mut test_cmd = std::process::Command::new("cargo");
+    test_cmd.arg("test").arg("--offline").arg("--manifest-path").arg(&cargo_toml).arg("--").arg("--nocapture");
+    if let Some(out) = run_cmd_with_timeout(test_cmd, 20) {
         cargo_test_output = format!("stdout: {}
 stderr: {}", 
             String::from_utf8_lossy(&out.stdout),
             String::from_utf8_lossy(&out.stderr));
         cargo_test_success = out.status.success();
     } else {
-        cargo_test_output = "cargo test spawn failed".to_string();
+        cargo_test_output = "cargo test timeout after 20s — killed to avoid hang (possible infinite loop)".to_string();
     }
     
     NativeToolchainResult {
