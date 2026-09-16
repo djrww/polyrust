@@ -52,3 +52,11 @@ pub fn startup_report() -> String {
         Err(e) => format!("Lean 內嵌載入失敗：{}", e),
     }
 }
+
+/// 實際使用：formal.rs 文件清單 — 優化 with_capacity
+pub fn formal_file_list() -> Vec<(&'static str, &'static str, &'static str)> {
+    vec![
+        ("formal.rs", "formal.rs 正式運作 — 優化 with_capacity", "core/src/formal.rs"),
+    ]
+}
+

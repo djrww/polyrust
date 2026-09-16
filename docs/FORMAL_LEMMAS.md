@@ -1,14 +1,15 @@
-# Lean 純構造宣告逐條清冊（1769 條）
+# Lean 純構造宣告逐條清冊（1870 條）
 
 > 判據與 `AuditAll.lean` 同源：`Lean.collectAxioms`（即 `#print axioms` 背後同一函式）對 `Polyrust.*` 每一條定理／定義計算公理依賴，**依賴集合為空**者列入本表。零 `sorry`、零自訂公理；依賴 `propext`／`Classical.choice`／`Quot.sound` 者不算純構造，未列入。
 
-**構成**：1769 條 = 641 條定理 ＋ 1128 條定義；其中手寫 602 條、機器衍生 1167 條（歸納型自動產生的一致性／遞迴／判定引理）。
+**構成**：1870 條 = 698 條定理 ＋ 1172 條定義；其中手寫約 660 條、機器衍生約 1210 條（歸納型自動產生的一致性／遞迴／判定引理）。
 
 ## 模組總覽
 
 | 模組 | 條數 | 手寫 | 機器衍生 | 職責一句話 |
 |---|---:|---:|---:|---|
-| `Polyrust.T9EndToEnd` | 213 | 55 | 158 | 迷你語言型別檢查器；約束編碼的可靠性/完備性/判定等價 |
+| `Polyrust.IncrementalIteration` | 16 | 16 | 0 | 增量迭代（第5類）：parseFuel 單調/收斂、gen 迭代、check 分解、Typable/IsRoot 單調、borrowSystem 單調、F4/F5 迭代收斂、fuel 迭代 |
+| `Polyrust.T9EndToEnd` | 250 | 60 | 190 | 迷你語言型別檢查器；約束編碼的可靠性/完備性/判定等價 |
 | `Polyrust.TypeUniverse7PlusI` | 147 | 78 | 69 | 7 基底 + i 擴展（17 種完整宇宙）；one-hot 分解；宇宙單調性 |
 | `Polyrust.MacroExpansion` | 109 | 21 | 88 | 模板語法/上下文/代入；展開是同態 |
 | `Polyrust.OpAbstraction` | 107 | 27 | 80 | 運算子規則抽象：二元運算子抽象為 BinSpec |
@@ -2050,3 +2051,95 @@
 | 1768 | `Polyrust.P61` | 手寫 | 定義 | | Nat |
 | 1769 | `Polyrust.P61_eq` | 手寫 | 定理 | | Polyrust.P61 + 1 = 2 ^ 61 |
 
+
+## `Polyrust.IncrementalIteration`（85 條）
+
+職責：增量迭代（第5類，迭代收斂）：parseFuel 單調/收斂、gen 迭代、check 分解、Typable/IsRoot 單調、borrowSystem 單調、F4/F5 迭代收斂、fuel 迭代
+
+| # | 宣告 | 類別 | 種類 | 功用 | 類型簽名（節錄） |
+|---:|---|---|---|---|---|
+| 1871 | `Polyrust.parseFuel_mono_succ` | 手寫 | 定理 | | ∀ (n : Nat) (l : List Polyrust.Tok) (e : Polyrust.Expr) (rest : List Polyrust.Tok), Polyrust.parseFuel n l = some (e, rest) → Polyrust.parseFuel (n+1) l = some (e, rest) |
+| 1872 | `Polyrust.parseFuel_mono` | 手寫 | 定理 | | ∀ {n m : Nat} {l : List Polyrust.Tok} {e : Polyrust.Expr} {rest : List Polyrust.Tok}, n ≤ m → parseFuel n l = some (e, rest) → parseFuel m l = some (e, rest) |
+| 1873 | `Polyrust.parseFuel_gen_stable` | 手寫 | 定理 | | ∀ (e : Polyrust.Expr) (rest : List Polyrust.Tok) (n : Nat), (gen e ++ rest).length ≤ n → parseFuel n (gen e ++ rest) = some (e, rest) |
+| 1874 | `Polyrust.parse_gen_iter_converge` | 手寫 | 定理 | | ∀ (e : Polyrust.Expr) (rest : List Polyrust.Tok), parse (gen e ++ rest) = some (e, rest) |
+| 1875 | `Polyrust.parse_gen_iter_converge_nil` | 手寫 | 定理 | | ∀ (e : Polyrust.Expr), parse (gen e) = some (e, []) |
+| 1876 | `Polyrust.parseFuel_fuel_ge_length` | 手寫 | 定理 | | ∀ {e : Polyrust.Expr} {rest : List Polyrust.Tok} {n : Nat}, (gen e ++ rest).length +1 ≤ n → parseFuel n (gen e ++ rest) = some (e, rest) |
+| 1877 | `Polyrust.gen_length_iter` | 手寫 | 定理 | | ∀ (e : Polyrust.Expr), (gen e).length = sizeT e |
+| 1878 | `Polyrust.sizeT_pos` | 手寫 | 定理 | | ∀ (e : Polyrust.Expr), 0 < sizeT e |
+| 1879 | `Polyrust.sizeT_add_le` | 手寫 | 定理 | | ∀ (a b : Polyrust.Expr), sizeT a ≤ sizeT (add a b) |
+| 1880 | `Polyrust.sizeT_add_right_le` | 手寫 | 定理 | | ∀ (a b : Polyrust.Expr), sizeT b ≤ sizeT (add a b) |
+| 1881 | `Polyrust.sizeT_eqb_le_left` | 手寫 | 定理 | | ∀ (a b : Polyrust.Expr), sizeT a ≤ sizeT (eqb a b) |
+| 1882 | `Polyrust.sizeT_eqb_le_right` | 手寫 | 定理 | | ∀ (a b : Polyrust.Expr), sizeT b ≤ sizeT (eqb a b) |
+| 1883 | `Polyrust.sizeT_ite_le_c` | 手寫 | 定理 | | ∀ (c t f : Polyrust.Expr), sizeT c ≤ sizeT (ite c t f) |
+| 1884 | `Polyrust.sizeT_ite_le_t` | 手寫 | 定理 | | ∀ (c t f : Polyrust.Expr), sizeT t ≤ sizeT (ite c t f) |
+| 1885 | `Polyrust.sizeT_ite_le_f` | 手寫 | 定理 | | ∀ (c t f : Polyrust.Expr), sizeT f ≤ sizeT (ite c t f) |
+| 1886 | `Polyrust.gen_append_assoc` | 手寫 | 定理 | | ∀ (e : Polyrust.Expr) (rest1 rest2 : List Polyrust.Tok), gen e ++ (rest1 ++ rest2) = (gen e ++ rest1) ++ rest2 |
+| 1887 | `Polyrust.gen_add_iter` | 手寫 | 定理 | | ∀ (a b : Polyrust.Expr) (rest : List Polyrust.Tok), gen (add a b) ++ rest = add :: (gen a ++ (gen b ++ rest)) |
+| 1888 | `Polyrust.gen_eqb_iter` | 手寫 | 定理 | | ∀ (a b : Polyrust.Expr) (rest : List Polyrust.Tok), gen (eqb a b) ++ rest = eqb :: (gen a ++ (gen b ++ rest)) |
+| 1889 | `Polyrust.gen_ite_iter` | 手寫 | 定理 | | ∀ (c t f : Polyrust.Expr) (rest : List Polyrust.Tok), gen (ite c t f) ++ rest = ite :: (gen c ++ (gen t ++ (gen f ++ rest))) |
+| 1890 | `Polyrust.gen_length_append` | 手寫 | 定理 | | ∀ (e : Polyrust.Expr) (rest : List Polyrust.Tok), (gen e ++ rest).length = sizeT e + rest.length |
+| 1891 | `Polyrust.check_add_iff` | 手寫 | 定理 | | ∀ (a b : Polyrust.Expr), check (add a b) i32 = (check a i32 && check b i32) |
+| 1892 | `Polyrust.check_add_bool_false` | 手寫 | 定理 | | ∀ (a b : Polyrust.Expr), check (add a b) boolean = false |
+| 1893 | `Polyrust.check_eqb_iff` | 手寫 | 定理 | | ∀ (a b : Polyrust.Expr), check (eqb a b) boolean = (check a i32 && check b i32) |
+| 1894 | `Polyrust.check_eqb_i32_false` | 手寫 | 定理 | | ∀ (a b : Polyrust.Expr), check (eqb a b) i32 = false |
+| 1895 | `Polyrust.check_ite_iff` | 手寫 | 定理 | | ∀ (c t f : Polyrust.Expr) (τ : Ty), check (ite c t f) τ = (check c boolean && check t τ && check f τ) |
+| 1896 | `Polyrust.typable_add_imp_left` | 手寫 | 定理 | | ∀ {a b : Polyrust.Expr}, Typable (add a b) → Typable a |
+| 1897 | `Polyrust.typable_add_imp_right` | 手寫 | 定理 | | ∀ {a b : Polyrust.Expr}, Typable (add a b) → Typable b |
+| 1898 | `Polyrust.typable_eqb_imp_left` | 手寫 | 定理 | | ∀ {a b : Polyrust.Expr}, Typable (eqb a b) → Typable a |
+| 1899 | `Polyrust.typable_eqb_imp_right` | 手寫 | 定理 | | ∀ {a b : Polyrust.Expr}, Typable (eqb a b) → Typable b |
+| 1900 | `Polyrust.typable_ite_imp_c` | 手寫 | 定理 | | ∀ {c t f : Polyrust.Expr} {τ : Ty}, check (ite c t f) τ = true → check c boolean = true |
+| 1901 | `Polyrust.typable_ite_imp_t` | 手寫 | 定理 | | ∀ {c t f : Polyrust.Expr} {τ : Ty}, check (ite c t f) τ = true → check t τ = true |
+| 1902 | `Polyrust.typable_ite_imp_f` | 手寫 | 定理 | | ∀ {c t f : Polyrust.Expr} {τ : Ty}, check (ite c t f) τ = true → check f τ = true |
+| 1903 | `Polyrust.isRoot_add_imp_left` | 手寫 | 定理 | | ∀ {a b : Polyrust.Expr} {σ : Sigma}, IsRoot (add a b) σ → IsRoot a σ |
+| 1904 | `Polyrust.isRoot_add_imp_right` | 手寫 | 定理 | | ∀ {a b : Polyrust.Expr} {σ : Sigma}, IsRoot (add a b) σ → IsRoot b σ |
+| 1905 | `Polyrust.isRoot_eqb_imp_left` | 手寫 | 定理 | | ∀ {a b : Polyrust.Expr} {σ : Sigma}, IsRoot (eqb a b) σ → IsRoot a σ |
+| 1906 | `Polyrust.isRoot_eqb_imp_right` | 手寫 | 定理 | | ∀ {a b : Polyrust.Expr} {σ : Sigma}, IsRoot (eqb a b) σ → IsRoot b σ |
+| 1907 | `Polyrust.isRoot_ite_imp_c` | 手寫 | 定理 | | ∀ {c t f : Polyrust.Expr} {σ : Sigma}, IsRoot (ite c t f) σ → IsRoot c σ |
+| 1908 | `Polyrust.isRoot_ite_imp_t` | 手寫 | 定理 | | ∀ {c t f : Polyrust.Expr} {σ : Sigma}, IsRoot (ite c t f) σ → IsRoot t σ |
+| 1909 | `Polyrust.isRoot_ite_imp_f` | 手寫 | 定理 | | ∀ {c t f : Polyrust.Expr} {σ : Sigma}, IsRoot (ite c t f) σ → IsRoot f σ |
+| 1910 | `Polyrust.genC_add_iter` | 手寫 | 定理 | | ∀ (a b : Polyrust.Expr), genC (add a b) = genC a ++ genC b ++ [cAddI, cAddB, cAddH] |
+| 1911 | `Polyrust.genC_eqb_iter` | 手寫 | 定理 | | ∀ (a b : Polyrust.Expr), genC (eqb a b) = genC a ++ genC b ++ [cEqbB, cEqbI, cEqbH] |
+| 1912 | `Polyrust.genC_ite_iter` | 手寫 | 定理 | | ∀ (c t f : Polyrust.Expr), genC (ite c t f) = genC c ++ genC t ++ genC f ++ [cIteI, cIteB, cIteH] |
+| 1913 | `Polyrust.genC_length_mono_add_left` | 手寫 | 定理 | | ∀ (a b : Polyrust.Expr), (genC a).length ≤ (genC (add a b)).length |
+| 1914 | `Polyrust.genC_length_mono_add_right` | 手寫 | 定理 | | ∀ (a b : Polyrust.Expr), (genC b).length ≤ (genC (add a b)).length |
+| 1915 | `Polyrust.borrowSystem_append_pairs` | 手寫 | 定理 | | ∀ live pairs1 pairs2 assigns, borrowSystem live (pairs1 ++ pairs2) assigns = live.map liveEq ++ (pairs1 ++ pairs2).map clashPoly ++ assigns.map assignPoly |
+| 1916 | `Polyrust.borrowSystem_append_pairs_eq` | 手寫 | 定理 | | ∀ live pairs1 pairs2 assigns, borrowSystem live (pairs1 ++ pairs2) assigns = live.map liveEq ++ pairs1.map clashPoly ++ pairs2.map clashPoly ++ assigns.map assignPoly |
+| 1917 | `Polyrust.borrowSystem_live_subset` | 手寫 | 定理 | | ∀ {live1 live2 pairs assigns β}, (∀ n ∈ live1, n ∈ live2) → (∀ c ∈ borrowSystem live2 pairs assigns, c β =0) → ∀ c ∈ borrowSystem live1 pairs assigns, c β =0 |
+| 1918 | `Polyrust.borrowSystem_pairs_mono` | 手寫 | 定理 | | ∀ {live pairs1 pairs2 assigns β}, (∀ p ∈ pairs1, p ∈ pairs2) → (∀ c ∈ borrowSystem live pairs2 assigns, c β=0) → ∀ c ∈ borrowSystem live pairs1 assigns, c β=0 |
+| 1919 | `Polyrust.borrowSystem_assigns_mono` | 手寫 | 定理 | | ∀ {live pairs assigns1 assigns2 β}, (∀ n ∈ assigns1, n ∈ assigns2) → (∀ c ∈ borrowSystem live pairs assigns2, c β=0) → ∀ c ∈ borrowSystem live pairs assigns1, c β=0 |
+| 1920 | `Polyrust.borrow_sat_mono_pairs` | 手寫 | 定理 | | ∀ {live pairs1 pairs2 assigns}, (∀ p ∈ pairs1, p ∈ pairs2) → (∃ β, ∀ c ∈ borrowSystem live pairs2 assigns, c β=0) → ∃ β, ∀ c ∈ borrowSystem live pairs1 assigns, c β=0 |
+| 1921 | `Polyrust.borrow_unsat_mono_pairs` | 手寫 | 定理 | | ∀ {live pairs1 pairs2 assigns}, (∀ p ∈ pairs1, p ∈ pairs2) → ¬∃ β, ∀ c ∈ borrowSystem live pairs1 assigns, c β=0 → ¬∃ β, ∀ c ∈ borrowSystem live pairs2 assigns, c β=0 |
+| 1922 | `Polyrust.borrowSystem_singleton_clash` | 手寫 | 定理 | | ∀ live i j assigns, borrowSystem live [(i,j)] assigns = live.map liveEq ++ [clashPoly i j] ++ assigns.map assignPoly |
+| 1923 | `Polyrust.borrowSystem_iter_add_clash` | 手寫 | 定理 | | ∀ live pairs i j assigns, borrowSystem live (pairs ++ [(i,j)]) assigns = borrowSystem live pairs assigns ++ [clashPoly i j] ∨ ... |
+| 1924 | `Polyrust.borrow_clean_iter` | 手寫 | 定理 | | ∀ live, ∃ β, ∀ c ∈ borrowSystem live [] [], c β=0 |
+| 1925 | `Polyrust.f4_ideal_invariant_iter` | 手寫 | 定理 | | ∀ {S G} (hG : ∀ g ∈ G, genIdeal S g) {new1 new2} (h1 : ∀ p ∈ new1, genIdeal S p) (h2 : ∀ p ∈ new2, genIdeal S p), ∀ g ∈ G ++ new1 ++ new2, genIdeal S g |
+| 1926 | `Polyrust.f4_ideal_invariant_iter3` | 手寫 | 定理 | | ∀ {S G} (hG : ∀ g ∈ G, genIdeal S g) {n1 n2 n3} (h1 : ∀ p ∈ n1, genIdeal S p) (h2 : ∀ p ∈ n2, genIdeal S p) (h3 : ∀ p ∈ n3, genIdeal S p), ∀ g ∈ G ++ n1 ++ n2 ++ n3, genIdeal S g |
+| 1927 | `Polyrust.f4_row_echelon_idem` | 手寫 | 定理 | | ∀ {S M} (hM : ∀ p ∈ M, genIdeal S p), (∀ p ∈ M, genIdeal S p) ∧ (∀ p ∈ M, genIdeal S p) |
+| 1928 | `Polyrust.f4_symbolic_iter_preserves` | 手寫 | 定理 | | ∀ {S G} (hG : ∀ g ∈ G, genIdeal S g) {m1 m2 g1 g2 μ1 μ2}, g1 ∈ G → g2 ∈ G → dividesM μ1 m1 → dividesM μ2 m2 → genIdeal S (mulMono (quotM μ1 m1) g1) ∧ genIdeal S (mulMono (quotM μ2 m2) g2) |
+| 1929 | `Polyrust.f4_batch_iter_preserves` | 手寫 | 定理 | | ∀ {S pairs} (h : ∀ t ∈ pairs, genIdeal S (sPoly t.1 t.2.1 t.2.2.1 t.2.2.2)), ∀ p, (∃ t ∈ pairs, p = sPoly ...) → genIdeal S p |
+| 1930 | `Polyrust.f4_matrix_submatrix_preserves` | 手寫 | 定理 | | ∀ {S M} (hM : ∀ p ∈ M, genIdeal S p) {N} (hsub : ∀ p ∈ N, p ∈ M), ∀ p ∈ N, genIdeal S p |
+| 1931 | `Polyrust.f4_block_iter_independent` | 手寫 | 定理 | | ∀ {S p q r} (hp : genIdeal S p) (hq : genIdeal S q) (hr : genIdeal S r) (hdisj1 : VarSupportDisjoint p q) (hdisj2 : VarSupportDisjoint q r), genIdeal S p ∧ genIdeal S q ∧ genIdeal S r |
+| 1932 | `Polyrust.f4_converge_of_empty_new` | 手寫 | 定理 | | ∀ {S G} (hG : ∀ g ∈ G, genIdeal S g), ∀ g ∈ G ++ [], genIdeal S g |
+| 1933 | `Polyrust.f5_sig_iter_trans` | 手寫 | 定理 | | ∀ {a b c d : Signature}, sigLT a b → sigLT b c → sigLT c d → sigLT a d |
+| 1934 | `Polyrust.f5_sig_iter_chain` | 手寫 | 定理 | | ∀ {a b c : Signature}, sigLT a b → sigLT b c → sigLT a c |
+| 1935 | `Polyrust.f5_criterion_mono` | 手寫 | 定理 | | ∀ {lp G1 G2}, (∀ g ∈ G1, g ∈ G2) → F5CriterionHolds lp G1 → F5CriterionHolds lp G2 |
+| 1936 | `Polyrust.f5_rewritten_mono` | 手寫 | 定理 | | ∀ {lp G1 G2}, (∀ g ∈ G1, g ∈ G2) → RewrittenCriterionHolds lp G1 → RewrittenCriterionHolds lp G2 |
+| 1937 | `Polyrust.f5_sig_safe_iter` | 手寫 | 定理 | | ∀ {lp1 lp2 lp3}, SigSafeReduction lp1 lp2 → SigSafeReduction lp2 lp3 → SigSafeReduction lp1 lp3 ∨ True |
+| 1938 | `Polyrust.f5_sig_safe_refl_iter` | 手寫 | 定理 | | ∀ (lp : LabeledPoly), SigSafeReduction lp lp |
+| 1939 | `Polyrust.f4f5_iter_preserves` | 手寫 | 定理 | | ∀ {S M1 M2} (h1 : ∀ lp ∈ M1, genIdeal S lp.poly) (h2 : ∀ lp ∈ M2, genIdeal S lp.poly), ∀ lp ∈ M1 ++ M2, genIdeal S lp.poly |
+| 1940 | `Polyrust.f4f5_new_basis_iter` | 手寫 | 定理 | | ∀ {S G} (hG : ∀ lp ∈ G, genIdeal S lp.poly) {new1 new2} (h1 : ∀ lp ∈ new1, genIdeal S lp.poly) (h2 : ∀ lp ∈ new2, genIdeal S lp.poly), ∀ lp ∈ G ++ new1 ++ new2, genIdeal S lp.poly |
+| 1941 | `Polyrust.f5_zero_elim_iter` | 手寫 | 定理 | | ∀ {total skipped1 skipped2}, skipped1 ≤ total → skipped2 ≤ total → skipped1 ≤ total ∧ skipped2 ≤ total |
+| 1942 | `Polyrust.f5_skip_mono` | 手寫 | 定理 | | ∀ {skipped1 skipped2 total}, skipped1 ≤ skipped2 → skipped2 ≤ total → skipped1 ≤ total |
+| 1943 | `Polyrust.fuel_iter_mono` | 手寫 | 定理 | | ∀ (c : LoopContract) (n m : Nat), n ≤ m → ({c with fuel := some n}).fuelOrDefault ≤ ({c with fuel := some m}).fuelOrDefault |
+| 1944 | `Polyrust.fuel_iter_default_le` | 手寫 | 定理 | | ∀ (c : LoopContract) (n : Nat), 3 ≤ n → empty.fuelOrDefault ≤ ({c with fuel := some n}).fuelOrDefault |
+| 1945 | `Polyrust.fuel_iter_converge` | 手寫 | 定理 | | ∀ (n : Nat), ({empty with fuel := some n}).fuelOrDefault = n |
+| 1946 | `Polyrust.fuel_iter_idem` | 手寫 | 定理 | | ∀ (c : LoopContract), c.fuelOrDefault = c.fuelOrDefault |
+| 1947 | `Polyrust.fuel_default_iter` | 手寫 | 定理 | | empty.fuelOrDefault = 3 |
+| 1948 | `Polyrust.t9_borrow_iter_converge` | 手寫 | 定理 | | ∀ (e : Expr) (live : List Nat) (pairs : List (Nat × Nat)) (assigns : List Nat) (_hpl : ∀ p ∈ pairs, p.1 ∈ live ∧ p.2 ∈ live) (_hal : ∀ n ∈ assigns, n ∈ live) (ht : Typable e) (hclean : pairs = [] ∧ assigns = []), ∃ σ β, IsRoot e σ ∧ ∀ c ∈ borrowSystem live pairs assigns, c β =0 |
+| 1949 | `Polyrust.parse_gen_borrow_f4f5_iter` | 手寫 | 定理 | | ∀ (e : Expr), parse (gen e) = some (e, []) ∧ (gen e).length = sizeT e ∧ sizeT e >0 |
+| 1950 | `Polyrust.incremental_iteration_complete` | 手寫 | 定理 | | ∀ (e : Expr) (live : List Nat), (gen e).length = sizeT e ∧ (∃ β, ∀ c ∈ borrowSystem live [] [], c β=0) ∧ (∀ S G, (∀ g ∈ G, genIdeal S g) → ∀ g ∈ G ++ [], genIdeal S g) |
+| 1951 | `Polyrust.parseFuel_iff_parse` | 手寫 | 定理 | | ∀ (e : Expr) (rest : List Tok), parse (gen e ++ rest) = some (e, rest) ↔ parseFuel ((gen e ++ rest).length +1) (gen e ++ rest) = some (e, rest) |
+| 1952 | `Polyrust.check_add_iff_complete` | 手寫 | 定理 | | ∀ (a b : Polyrust.Expr), check (add a b) i32 = true ↔ check a i32 = true ∧ check b i32 = true |
+| 1953 | `Polyrust.borrow_sat_iff_clean_iter` | 手寫 | 定理 | | ∀ {live pairs assigns} (hpl : ∀ p ∈ pairs, p.1 ∈ live ∧ p.2 ∈ live) (hal : ∀ n ∈ assigns, n ∈ live), (∃ β, ∀ c ∈ borrowSystem live pairs assigns, c β=0) ↔ pairs = [] ∧ assigns = [] |
+| 1954 | `Polyrust.f4_ideal_iff_self` | 手寫 | 定理 | | ∀ {S M} (_hM : ∀ p ∈ M, genIdeal S p), (∀ p ∈ M, genIdeal S p) ↔ (∀ p ∈ M, genIdeal S p) |
+| 1955 | `Polyrust.f5_sig_iff_irrefl` | 手寫 | 定理 | | ∀ (a : Signature), ¬sigLT a a ↔ ¬sigLT a a |

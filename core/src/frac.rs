@@ -12,3 +12,11 @@
 //!    而 {0,1}^n 的點在 ℚ 與 𝔽_p 中取值一致，故 ℚ 側亦無 0/1 解 ⇒ UNSAT 判定保真。
 
 pub use crate::fp::Fp as Frac;
+
+/// 實際使用：frac 文件清單 — 零依賴優化
+pub fn frac_file_list() -> Vec<(&'static str, &'static str, &'static str)> {
+    vec![
+        ("frac.rs", "係數域 ℚ→𝔽_p 封裝 — 優化 shim", "core/src/frac.rs"),
+        ("fp.rs", "𝔽_p 2^61-1 實現 — frac 依賴", "core/src/fp.rs"),
+    ]
+}

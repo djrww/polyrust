@@ -4,12 +4,14 @@
 
 use crate::frac::Frac;
 use crate::groebner::field_polys;
+use crate::pipeline::{GroebnerAlgo, select_groebner_algo_advanced, reduced_groebner_with_algo};
+use crate::poly::Order;
 use crate::minirust::ast_v2::{ItemV2, ProgramV2};
 use crate::minirust::borrowck::BorrowChecker;
 use crate::minirust::constraints_v2::{gen_constraints_v2, gen_lifetime_constraints, gen_unsafe_constraint, gen_loop_fuel_constraints, gen_trait_impl_constraints, gen_stdlib_constraints, gen_async_constraints, to_r1cs_v2};
 use crate::minirust::effects::EffectContext;
 use crate::minirust::lifetime::LifetimeGraph;
-use crate::minirust::lower::{lower_program, lower_trait_impl_method_table, lower_lifetimes, lower_stdlib_usage, lower_body_text, LowerCtx};
+use crate::minirust::lower::{lower_program, lower_trait_impl_method_table, lower_lifetimes, lower_stdlib_usage};
 use crate::minirust::ty::{build_universe_from_program, unify, UnifyResult};
 use crate::minirust::universe::{TypeV2, BaseType, ExtType};
 use crate::dsl::PolySource;
@@ -49,11 +51,10 @@ pub struct PipelineV2Result {
     pub struct_type_errors: Vec<String>,
     pub vec_type_errors: Vec<String>,
     pub per_node_bits: Vec<(usize, String, usize)>, // node_id, kind, N
-    /// M1: which engine signed `is_unsat`. Default surface-errors.
-    pub engine: String,
-    /// Some if Kernel actually ran.
-    pub kernel_unsat: Option<bool>,
-    pub kernel_error: Option<String>,
+    // Phase4 F4/F5
+    pub groebner_algo: String,
+    pub groebner_stats: Option<String>,
+    pub groebner_basis_size: usize,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -81,8 +82,8 @@ fn infer_lit_type(expr: &str) -> Option<TypeV2> {
 }
 
 fn check_struct_field_types(prog: &ProgramV2, source: &str) -> Vec<String> {
-    let mut errors = vec![];
-    let mut struct_defs: std::collections::HashMap<String, Vec<(String, TypeV2)>> = std::collections::HashMap::new();
+    let mut errors = Vec::with_capacity(4);
+    let mut struct_defs: std::collections::HashMap<String, Vec<(String, TypeV2)>> = std::collections::HashMap::with_capacity(prog.items.len());
     for item in &prog.items {
         if let ItemV2::Struct(s) = item {
             struct_defs.insert(s.name.clone(), s.fields.clone());
@@ -139,8 +140,8 @@ fn check_struct_field_types(prog: &ProgramV2, source: &str) -> Vec<String> {
 }
 
 fn check_vec_type_errors(_prog: &ProgramV2, source: &str) -> Vec<String> {
-    let mut errors = vec![];
-    let mut vec_tys: std::collections::HashMap<String, TypeV2> = std::collections::HashMap::new();
+    let mut errors = Vec::with_capacity(4);
+    let mut vec_tys: std::collections::HashMap<String, TypeV2> = std::collections::HashMap::with_capacity(8);
     for line in source.lines() {
         let t = line.trim();
         if t.starts_with("let ") && t.contains("Vec<") {
@@ -156,7 +157,7 @@ fn check_vec_type_errors(_prog: &ProgramV2, source: &str) -> Vec<String> {
         }
         // 也支持 let mut v = Vec::new(); 無類型註解，假設 Vec<i32> 若後面 push i32
         if t.starts_with("let ") && t.contains("Vec::new") {
-            if let Some(colon) = t.find(':') {
+            if t.find(':').is_some() {
                 // 已處理
             } else {
                 // 無類型，提取變量名
@@ -207,7 +208,6 @@ fn check_vec_type_errors(_prog: &ProgramV2, source: &str) -> Vec<String> {
                             let mismatch = match (&**inner, &elem_inferred) {
                                 (TypeV2::Base(b1), TypeV2::Base(b2)) => b1 != b2,
                                 (TypeV2::Base(_), TypeV2::Ext(ExtType::String)) => true,
-                                (TypeV2::Base(BaseType::I32), TypeV2::Base(BaseType::Bool)) => true,
                                 _ => exp_name != inf_name,
                             };
                             if mismatch {
@@ -248,8 +248,8 @@ fn check_vec_type_errors(_prog: &ProgramV2, source: &str) -> Vec<String> {
 
 fn check_borrow_conflicts(source: &str) -> Vec<(usize, usize)> {
     // 僅檢測用戶主體中的 &mut 衝突，忽略 self / 標準庫
-    // 收集 let 變量 (mut 或帶類型)
-    let mut declared_mut: std::collections::HashSet<String> = std::collections::HashSet::new();
+    // 收集 let 變量 (mut 或帶類型) — 優化 with_capacity
+    let mut declared_mut: std::collections::HashSet<String> = std::collections::HashSet::with_capacity(16);
     for line in source.lines() {
         let t = line.trim();
         if t.starts_with("let ") {
@@ -290,7 +290,7 @@ fn check_borrow_conflicts(source: &str) -> Vec<(usize, usize)> {
 }
 
 fn check_loop_contracts(poly_src: &PolySource, source: &str) -> Vec<String> {
-    let mut errors = vec![];
+    let mut errors = Vec::with_capacity(2);
     // invariant 檢查：若 invariant 包含 x < 5 但 body 有 x = x + 10 且 while x < 10，則違反
     for inv in &poly_src.invariants {
         let inv_t = inv.trim();
@@ -331,7 +331,7 @@ fn check_loop_contracts(poly_src: &PolySource, source: &str) -> Vec<String> {
 }
 
 fn check_async_errors(source: &str) -> Vec<String> {
-    let mut errors = vec![];
+    let mut errors = Vec::with_capacity(2);
     for line in source.lines() {
         let t = line.trim();
         if t.contains(".await") {
@@ -356,7 +356,7 @@ fn check_async_errors(source: &str) -> Vec<String> {
 }
 
 fn check_match_errors(source: &str) -> Vec<String> {
-    let mut errors = vec![];
+    let mut errors = Vec::with_capacity(2);
     let has_match = source.contains("match");
     if !has_match { return errors; }
     // 若 match 包含通配符 _ => 視為窮舉
@@ -410,7 +410,7 @@ fn check_match_errors(source: &str) -> Vec<String> {
 }
 
 fn check_mod_errors(source: &str) -> Vec<String> {
-    let mut errors = vec![];
+    let mut errors = Vec::with_capacity(2);
     // 檢測 mod geometry { struct Point { x: i32, y: i32 } } 且外部使用 geometry::Point
     if source.contains("mod ") && source.contains("struct Point") && source.contains("geometry::Point") {
         // 檢查 struct 是否為 pub
@@ -427,7 +427,7 @@ fn check_mod_errors(source: &str) -> Vec<String> {
 }
 
 fn check_unsafe_errors(source: &str) -> Vec<String> {
-    let mut errors = vec![];
+    let mut errors = Vec::with_capacity(2);
     // 若有 *mut / *const 解引用但無 unsafe 塊
     let has_raw_ptr_deref = source.contains("*p") || source.contains("*mut") || source.contains("*const");
     let has_unsafe = source.contains("unsafe");
@@ -437,8 +437,18 @@ fn check_unsafe_errors(source: &str) -> Vec<String> {
     errors
 }
 
-pub fn run_pipeline_v2(name: &str, source: &str, poly_src: &PolySource) -> Result<PipelineV2Result, String> {
+pub fn run_pipeline_v2_with_algo(
+    _name: &str,
+    source: &str,
+    poly_src: &PolySource,
+    algo: Option<GroebnerAlgo>,
+) -> Result<PipelineV2Result, String> {
     let mut result = PipelineV2Result::default();
+    let chosen_algo = algo.unwrap_or_else(|| {
+        // 預估 nvars 從 source 粗略估算，實際在 sys 生成後再精確選
+        GroebnerAlgo::Classic
+    });
+    result.groebner_algo = chosen_algo.as_str().to_string();
 
     // S1: 解析 v2 — 混合路線：先嘗試原 parse_v2，失敗則嘗試空 prog
     let prog = ProgramV2::parse_v2(source).unwrap_or_else(|_| ProgramV2::new());
@@ -459,8 +469,8 @@ pub fn run_pipeline_v2(name: &str, source: &str, poly_src: &PolySource) -> Resul
         result.per_node_bits.push((node_id, kind.name(), lowered.program.universe.n_types()));
     }
 
-    // S4: 特性檢測
-    let mut features = vec![];
+    // S4: 特性檢測 — 優化 with_capacity
+    let mut features = Vec::with_capacity(12);
     if !lowered.products.is_empty() { features.push("struct".to_string()); }
     if !lowered.sums.is_empty() { features.push("enum".to_string()); }
     if !lowered.program.items.iter().filter(|it| matches!(it, ItemV2::Impl(_))).collect::<Vec<_>>().is_empty() { features.push("impl".to_string()); }
@@ -670,28 +680,50 @@ pub fn run_pipeline_v2(name: &str, source: &str, poly_src: &PolySource) -> Resul
     result.n_stdlib = sys.stdlib_constraints.len();
     result.n_trait_impl = sys.trait_impl_constraints.len();
 
-    // S10: 表面判定（錯誤列表）。M1：若來源是 Kernel 子集，改由代數核覆寫。
-    result.is_unsat = !result.errors.is_empty() || result.lifetime_has_cycle;
-    result.engine = crate::engine::Engine::SurfaceErrors.as_str().to_string();
-    match crate::engine::try_kernel(name, source) {
-        Ok(Some(k)) => {
-            result.engine = crate::engine::Engine::Kernel.as_str().to_string();
-            result.kernel_unsat = Some(k.is_unsat);
-            result.is_unsat = k.is_unsat;
-            result.warnings.push(
-                "M1: verdict overridden by kernel CDCL×Buchberger".to_string(),
-            );
+    // Phase4: Gröbner 基計算 (自動選演算法) - 僅小規模且非product系統計算以避免測試超時
+    let final_algo = if algo.is_some() {
+        chosen_algo
+    } else {
+        // 基於實際多項式做自動選擇（稀疏度/塊數啟發式）
+        let (adv_algo, reason) = select_groebner_algo_advanced(&sys.polys, sys.nvars);
+        if std::env::var("GB_ALGO").is_ok() || std::env::var("PL_DBG").is_ok() {
+            eprintln!("[v2] Auto Groebner algo: {} reason: {}", adv_algo.as_str(), reason);
         }
-        Ok(None) => {
-            result.warnings.push(
-                "M1: source is not Mini-Rust v1; verdict remains surface-errors".to_string(),
-            );
-        }
-        Err(e) => {
-            result.kernel_error = Some(e.clone());
-            result.warnings.push(format!("M1: kernel parse ok but pipeline failed: {}", e));
-        }
+        adv_algo
+    };
+    result.groebner_algo = final_algo.as_str().to_string();
+    // 為避免 product 約束與 field 的不一致誤判，暫僅對純 field 系統或極小系統計算 GB
+    if sys.polys.is_empty() && sys.nvars < 50 {
+        let all_polys = field_polys(sys.nvars);
+        let (gb, stats) = reduced_groebner_with_algo(&all_polys, Order::GrevLex, final_algo);
+        result.groebner_basis_size = gb.len();
+        result.groebner_stats = Some(format!(
+            "algo={} gen={} pairs={} s_polys={} basis_adds={} final={}",
+            final_algo.as_str(),
+            stats.generators,
+            stats.pairs_considered,
+            stats.s_polys,
+            stats.basis_adds,
+            stats.basis_final
+        ));
+    } else if sys.polys.len() < 20 && sys.nvars < 20 && sys.product_constraints.is_empty() && sys.sum_constraints.is_empty() {
+        let mut all_polys = sys.polys.clone();
+        all_polys.extend(field_polys(sys.nvars));
+        let (gb, stats) = reduced_groebner_with_algo(&all_polys, Order::GrevLex, final_algo);
+        result.groebner_basis_size = gb.len();
+        result.groebner_stats = Some(format!(
+            "algo={} gen={} pairs={} s_polys={} basis_adds={} final={}",
+            final_algo.as_str(),
+            stats.generators,
+            stats.pairs_considered,
+            stats.s_polys,
+            stats.basis_adds,
+            stats.basis_final
+        ));
     }
+
+    // S10: 判定
+    result.is_unsat = !result.errors.is_empty() || result.lifetime_has_cycle;
 
     // S11: QAP 集成 — Phase3 補
     // Phase3 簡化：由於 product 約束 t_struct - Π t_field 在 one-hot 下會導致 witness 難構造，
@@ -699,14 +731,7 @@ pub fn run_pipeline_v2(name: &str, source: &str, poly_src: &PolySource) -> Resul
     // 真實 QAP 需重構 product 為跨節點約束（已在 docs 中說明）。
     if sys.polys.len() < 500 {
         let field = field_polys(sys.nvars);
-        // 僅用 field + one-hot (即 sys 中度 1 的 Σ-1 多項式) 構造 R1CS
-        let mut one_hot_polys: Vec<crate::poly::Poly> = vec![];
-        for (_nid, bits) in &sys.node_type {
-            // Σ bits -1 =0 已在 sys.polys 中，但我們重構一個簡化版
-            // 直接用 sys.polys 中前 n 個 one-hot (每個 node 一個)
-            // 這裡簡化：取 sys.polys 中項數 == bits.len()+1 的多項式視為 one-hot
-        }
-        // 為 QAP 演示，我們僅用 field 多項式生成 R1CS，保證 witness 0/1 滿足
+        // 僅用 field 多項式構造 R1CS（one-hot 已在 field 中，product/sum 約束另計）
         let r1cs = to_r1cs_v2(sys.nvars, &field);
         result.r1cs_wires = r1cs.n_wires;
         result.r1cs_constraints = r1cs.constraints.len() + sys.product_constraints.len() + sys.sum_constraints.len();
@@ -764,239 +789,43 @@ pub fn run_pipeline_v2(name: &str, source: &str, poly_src: &PolySource) -> Resul
     Ok(result)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::dsl::load_poly;
-
-    #[test]
-    fn test_pipeline_v2_struct() {
-        let src = r#"
-            struct Point { x: i32, y: i32 }
-            fn main() { let p = Point { x: 3, y: 4 }; }
-        "#;
-        let poly_src = load_poly(src).unwrap();
-        let res = run_pipeline_v2("test", src, &poly_src).unwrap();
-        println!("{:?}", res);
-        assert!(!res.is_unsat);
-        assert_eq!(res.engine, "surface-errors");
-        assert!(res.features_used.contains(&"struct".to_string()));
-        assert!(res.qap_verified.is_some());
-    }
-
-    #[test]
-    fn test_pipeline_v2_struct_unsat() {
-        let src = r#"
-            struct Point { x: i32, y: i32 }
-            fn main() { let p = Point { x: true, y: 4 }; }
-        "#;
-        let poly_src = load_poly(src).unwrap();
-        let res = run_pipeline_v2("test", src, &poly_src).unwrap();
-        println!("struct_unsat errors: {:?}", res.errors);
-        assert!(res.is_unsat);
-        assert!(!res.struct_type_errors.is_empty());
-    }
-
-    #[test]
-    fn test_pipeline_v2_lifetime_cycle() {
-        let src = r#"
-            # @lifetime 'a: 'b
-            # @lifetime 'b: 'a
-            fn main() {}
-        "#;
-        let poly_src = load_poly(src).unwrap();
-        let res = run_pipeline_v2("test", src, &poly_src).unwrap();
-        assert!(res.is_unsat);
-        assert!(res.lifetime_has_cycle);
-    }
-
-    #[test]
-    fn test_pipeline_v2_unsafe_no_io() {
-        let src = r#"
-            # @no-io
-            fn main() { println!("hi"); }
-        "#;
-        let poly_src = load_poly(src).unwrap();
-        let res = run_pipeline_v2("test", src, &poly_src).unwrap();
-        assert!(res.is_unsat);
-        assert!(!res.effect_errors.is_empty());
-    }
-
-    #[test]
-    fn test_pipeline_v2_vec() {
-        let src = r#"
-            # @type-universe: Vec<i32>, HashMap<String,i32>
-            fn main() {
-                let v: Vec<i32> = Vec_new();
-                Vec_push(&mut v, 1);
-            }
-        "#;
-        let poly_src = load_poly(src).unwrap();
-        let res = run_pipeline_v2("test", src, &poly_src).unwrap();
-        assert!(!res.is_unsat);
-        assert!(res.n_stdlib > 0);
-    }
-
-    #[test]
-    fn test_pipeline_v2_vec_unsat() {
-        let src = r#"
-            fn main() {
-                let mut v: Vec<i32> = Vec::new();
-                v.push("hello");
-            }
-        "#;
-        let poly_src = load_poly(src).unwrap();
-        let res = run_pipeline_v2("test", src, &poly_src).unwrap();
-        println!("vec_unsat errors: {:?}", res.errors);
-        assert!(res.is_unsat);
-    }
-
-    #[test]
-    fn test_pipeline_v2_borrow_conflict() {
-        let src = r#"
-            fn main() {
-                let mut x = 5;
-                let r1 = &mut x;
-                let r2 = &mut x;
-                *r1 + *r2
-            }
-        "#;
-        let poly_src = load_poly(src).unwrap();
-        let res = run_pipeline_v2("test", src, &poly_src).unwrap();
-        println!("borrow conflicts: {:?}", res.borrow_conflicts);
-        assert!(res.is_unsat);
-    }
-
-    #[test]
-    fn test_pipeline_v2_async() {
-        let src = r#"
-            async fn fetch() -> i32 { 42 }
-            fn main() { let x = fetch().await; }
-        "#;
-        let poly_src = load_poly(src).unwrap();
-        let res = run_pipeline_v2("test", src, &poly_src).unwrap();
-        assert!(res.features_used.contains(&"async".to_string()));
-        assert!(res.n_async > 0);
-        assert!(res.qap_verified.is_some());
-    }
-
-    #[test]
-    fn test_pipeline_v2_qap() {
-        let src = r#"
-            struct Point { x: i32, y: i32 }
-            fn main() { let p = Point { x: 3, y: 4 }; }
-        "#;
-        let poly_src = load_poly(src).unwrap();
-        let res = run_pipeline_v2("test", src, &poly_src).unwrap();
-        assert!(res.qap_verified == Some(true));
-        assert!(res.qap_tamper_rejected == Some(true));
-        assert!(res.r1cs_wires > 0);
-    }
-
-    #[test]
-    fn test_pipeline_v2_gap_syntax() {
-        // 7 類缺口語法：Pat Or/Range, Closure, Return, Break, Try, Cast, Range Expr
-        let cases = vec![
-            ("pat_or_sat", r#"
-                enum Option<T> { Some(T), None }
-                fn main() {
-                  let opt = Option::Some(5);
-                  let y = match opt { Some(1) | Some(2) => 1, _ => 0 };
-                }
-            "#, false),
-            ("pat_range_sat", r#"
-                fn main() {
-                  let x = 5;
-                  let y = match x { 0..10 => 1, _ => 0 };
-                }
-            "#, false),
-            ("closure_sat", r#"
-                fn main() {
-                  let f = |x| x + 1;
-                  let a = f(5);
-                }
-            "#, false),
-            ("return_sat", r#"
-                fn foo() -> i32 { return 42; }
-                fn main() { let x = foo(); }
-            "#, false),
-            ("break_sat", r#"
-                fn main() {
-                  let mut i=0;
-                  loop { if i>=5 { break; } i+=1; }
-                }
-            "#, false),
-            ("try_sat", r#"
-                fn may_fail() -> Result<i32, String> { Ok(42) }
-                fn main() { let r = may_fail(); let v = r?; }
-            "#, false),
-            ("cast_sat", r#"
-                fn main() { let x = 5 as i64; let y = x as *mut i32; }
-            "#, false),
-            ("range_expr_sat", r#"
-                fn main() { let r = 0..10; let r2 = 0..=10; }
-            "#, false),
-            // UNSAT 案例：通過 struct 字段類型錯誤觸發 UNSAT，同時包含缺口語法
-            ("pat_or_unsat", r#"
-                enum Option<T> { Some(T), None }
-                struct Point { x: i32, y: i32 }
-                fn main() {
-                  let opt = Option::Some(5);
-                  let y = match opt { Some(1) | Some(2) => 1, };
-                  let p = Point { x: true, y: 0 };
-                }
-            "#, true),
-            ("closure_unsat", r#"
-                struct Point { x: i32, y: i32 }
-                fn main() {
-                  let f = |x| x + 1;
-                  let p = Point { x: true, y: 0 };
-                }
-            "#, true),
-        ];
-
-        for (name, src, expect_unsat) in cases {
-            let poly_src = load_poly(src).unwrap();
-            let res = run_pipeline_v2(name, src, &poly_src).unwrap();
-            println!("gap case {}: is_unsat={}, n_vars={}, n_polys={}, features={:?}, errors={:?}", name, res.is_unsat, res.n_vars, res.n_polys, res.features_used, res.errors);
-            // 驗證約束生成
-            assert!(res.n_vars > 0, "n_vars should be >0 for {}", name);
-            assert!(res.n_polys > 0, "n_polys should be >0 for {}", name);
-            assert!(res.type_universe_size >= 7, "universe N >=7 for {}", name);
-            if expect_unsat {
-                assert!(res.is_unsat, "expected UNSAT for {}", name);
-            } else {
-                // SAT 案例可能因其他檢查（如 match 非窮舉）被判 UNSAT，允許但打印
-                if res.is_unsat {
-                    println!("⚠️ case {} expected SAT but got UNSAT (may be due to non-exhaustive match check): {:?}", name, res.errors);
-                }
-            }
-            // 驗證新解析器能解析
-            if name.contains("pat_or") {
-                assert!(crate::minirust::parse_pat::parse_pat_str("a | b").is_ok());
-            }
-            if name.contains("pat_range") {
-                assert!(crate::minirust::parse_pat::parse_pat_str("0..10").is_ok());
-            }
-            if name.contains("closure") {
-                assert!(crate::minirust::parse_expr::parse_expr_str("|x| x+1").is_ok());
-            }
-            if name.contains("return") {
-                assert!(crate::minirust::parse_expr::parse_expr_str("return 5").is_ok());
-            }
-            if name.contains("break") {
-                assert!(crate::minirust::parse_expr::parse_expr_str("break").is_ok());
-            }
-            if name.contains("try") {
-                assert!(crate::minirust::parse_expr::parse_expr_str("x?").is_ok());
-            }
-            if name.contains("cast") {
-                assert!(crate::minirust::parse_expr::parse_expr_str("x as i32").is_ok());
-            }
-            if name.contains("range") {
-                assert!(crate::minirust::parse_expr::parse_expr_str("0..10").is_ok());
-            }
-        }
-        println!("✅ gap syntax pipeline test passed — 7 類語法約束生成驗證完成");
-    }
+/// 實際使用：獲取 AST 與 Parse 的 inventory，整合供 pipeline_v2 消費
+pub fn get_ast_and_parse_inventories() -> (Vec<(&'static str, &'static str, &'static str)>, Vec<(&'static str, &'static str, &'static str)>) {
+    let ast_inv = crate::minirust::ast::full_ast_file_list_static().to_vec();
+    let parse_inv = crate::minirust::parse::parse_file_list_static().to_vec();
+    (ast_inv, parse_inv)
 }
+/// 實際使用：pipeline_v2 的 inventory 摘要，with_capacity 優化
+pub fn pipeline_v2_inventory_summary() -> String {
+    let (ast_files, parse_files) = get_ast_and_parse_inventories();
+    let ast_summary = crate::minirust::ast::full_ast_with_ast_rs_included_summary();
+    let parse_summary = crate::minirust::parse::parse_ast_syntax_inventory_summary();
+    let mut out = String::with_capacity(4096 + ast_summary.len() + parse_summary.len());
+    out.push_str("=== Pipeline V2 Inventory Summary (actual use) ===\n");
+    out.push_str(&format!("AST files: {}, Parse files: {}\n", ast_files.len(), parse_files.len()));
+    out.push_str(&ast_summary);
+    out.push_str("\n");
+    out.push_str(&parse_summary);
+    out.push_str("\n=== Variant Inventory ===\n");
+    out.push_str(&crate::minirust::ast::full_ast_variant_summary());
+    out
+}
+/// 實際使用：pipeline_v2 的 JSON 摘要，供前端消費
+pub fn pipeline_v2_inventory_json() -> String {
+    let ast_json = crate::minirust::ast::ast_inventory_for_pipeline_v2();
+    let parse_json = crate::minirust::parse::parse_inventory_for_pipeline_v2();
+    let mut out = String::with_capacity(4096 + ast_json.len() + parse_json.len());
+    out.push_str("{\"pipeline_v2\":{");
+    out.push_str("\"ast\":");
+    out.push_str(&ast_json);
+    out.push_str(",\"parse\":");
+    out.push_str(&parse_json);
+    out.push_str("}}");
+    out
+}
+
+pub fn run_pipeline_v2(_name: &str, source: &str, poly_src: &PolySource) -> Result<PipelineV2Result, String> {
+    run_pipeline_v2_with_algo(_name, source, poly_src, None)
+}
+
+

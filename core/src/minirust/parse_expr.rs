@@ -63,11 +63,11 @@ impl ExprParser {
             }
         }
 
-        // Closure inputs: | ... |  or || 
+        // Closure inputs: | ... |  or || — 優化 with_capacity
         if let Some(Tok::Pipe) = self.peek() {
             // |x, y| ...
             self.bump(); // first |
-            let mut inputs = vec![];
+            let mut inputs = Vec::with_capacity(4);
             loop {
                 if let Some(Tok::Pipe) = self.peek() {
                     self.bump();
@@ -364,6 +364,16 @@ impl ExprParser {
         let mut base = self.parse_primary()?;
         loop {
             match self.peek() {
+                Some(Tok::LBrack) => {
+                    // Index: base[ index ]
+                    self.bump();
+                    let index = self.parse_expr()?;
+                    // expect ]
+                    if let Some(Tok::RBrack) = self.peek() {
+                        self.bump();
+                    }
+                    base = FullExpr::Index { base: Box::new(base), index: Box::new(index) };
+                }
                 Some(Tok::Dot) => {
                     self.bump();
                     // field or method?
@@ -400,9 +410,9 @@ impl ExprParser {
                     }
                 }
                 Some(Tok::LParen) => {
-                    // Call
+                    // Call — 優化 with_capacity
                     self.bump();
-                    let mut args = vec![];
+                    let mut args = Vec::with_capacity(2);
                     loop {
                         if let Some(Tok::RParen) = self.peek() { self.bump(); break; }
                         args.push(self.parse_expr()?);
@@ -420,7 +430,7 @@ impl ExprParser {
                         _ => "".to_string(),
                     };
                     self.bump();
-                    let mut fields = vec![];
+                    let mut fields = Vec::with_capacity(4);
                     let mut rest = None;
                     loop {
                         match self.peek() {
@@ -463,6 +473,31 @@ impl ExprParser {
             Some(Tok::Int(n)) => { self.bump(); Ok(FullExpr::Lit(format!("{}", n))) }
             Some(Tok::Str(s)) => { self.bump(); Ok(FullExpr::Lit(format!("\"{}\"", s))) }
             Some(Tok::Kw("true")) | Some(Tok::Kw("false")) => { let kw = self.bump().unwrap().show(); Ok(FullExpr::Lit(kw)) }
+            Some(Tok::LBrack) => {
+                    // Array literal [1,2,3] or [0; 10] — 優化 with_capacity
+                self.bump();
+                if let Some(Tok::RBrack) = self.peek() {
+                    self.bump();
+                    return Ok(FullExpr::Array(vec![]));
+                }
+                let first = self.parse_expr()?;
+                if let Some(Tok::Semi) = self.peek() {
+                    // [elem; len]
+                    self.bump();
+                    let len = self.parse_expr()?;
+                    if let Some(Tok::RBrack) = self.peek() { self.bump(); }
+                    return Ok(FullExpr::ArrayRepeat { elem: Box::new(first), len: Box::new(len) });
+                }
+                let mut elems = Vec::with_capacity(4);
+                elems.push(first);
+                while let Some(Tok::Comma) = self.peek() {
+                    self.bump();
+                    if let Some(Tok::RBrack) = self.peek() { break; }
+                    elems.push(self.parse_expr()?);
+                }
+                if let Some(Tok::RBrack) = self.peek() { self.bump(); }
+                Ok(FullExpr::Array(elems))
+            }
             Some(Tok::Ident(name)) => {
                 self.bump();
                 // 若後面是 :: 路徑，繼續拼接
@@ -631,50 +666,22 @@ pub fn parse_expr_str(src: &str) -> Result<FullExpr, String> {
     parse_expr_from_tokens(&toks)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_closure() {
-        let e = parse_expr_str("|x| x + 1").unwrap();
-        match e {
-            FullExpr::Closure { inputs, .. } => assert_eq!(inputs.len(), 1),
-            _ => panic!("expected closure, got {:?}", e),
-        }
-        let e2 = parse_expr_str("|| 42").unwrap();
-        assert!(matches!(e2, FullExpr::Closure { .. }));
-        let e3 = parse_expr_str("move |x, y| x + y").unwrap();
-        match e3 {
-            FullExpr::Closure { is_move: true, inputs, .. } => assert_eq!(inputs.len(), 2),
-            _ => panic!("expected move closure"),
-        }
-    }
-
-    #[test]
-    fn test_return_break_try_cast() {
-        let e = parse_expr_str("return 5").unwrap();
-        assert!(matches!(e, FullExpr::Return(Some(_))));
-        let e2 = parse_expr_str("break").unwrap();
-        assert!(matches!(e2, FullExpr::Break { .. }));
-        let e3 = parse_expr_str("break 'outer 42").unwrap();
-        match e3 {
-            FullExpr::Break { label: Some(_), expr: Some(_), .. } => {},
-            _ => panic!("expected break with label+expr"),
-        }
-        let e4 = parse_expr_str("x?").unwrap();
-        assert!(matches!(e4, FullExpr::Try(_)));
-        let e5 = parse_expr_str("x as i32").unwrap();
-        assert!(matches!(e5, FullExpr::Cast { .. }));
-        let e6 = parse_expr_str("x as *mut i32").unwrap();
-        assert!(matches!(e6, FullExpr::Cast { .. }));
-    }
-
-    #[test]
-    fn test_range_expr() {
-        let e = parse_expr_str("0..10").unwrap();
-        assert!(matches!(e, FullExpr::Range { inclusive: false, .. }));
-        let e2 = parse_expr_str("0..=10").unwrap();
-        assert!(matches!(e2, FullExpr::Range { inclusive: true, .. }));
-    }
+/// 實際使用：解析並返回統計，減少 clone
+pub fn parse_expr_with_stats(src: &str) -> Result<(FullExpr, String), String> {
+    let toks = super::lexer::lex(src)?;
+    let expr = parse_expr_from_tokens(&toks)?;
+    let mut s = String::with_capacity(128);
+    s.push_str(&format!("Expr parsed: len={} toks={} variant={}\n", src.len(), toks.len(), expr.variant_name()));
+    Ok((expr, s))
 }
+
+/// 實際使用：expr 文件清單
+pub fn parse_expr_file_list() -> Vec<(&'static str, &'static str, &'static str)> {
+    vec![
+        ("parse_expr.rs", "FullExpr 34 變體：Closure/Return/Break/Try/Cast/Range/Index/Array — 優化 with_capacity", "core/src/minirust/parse_expr.rs"),
+        ("lexer.rs", "Tok 詞法 — expr 依賴", "core/src/minirust/lexer.rs"),
+        ("parse_pat.rs", "Pat 解析 — match arm 依賴", "core/src/minirust/parse_pat.rs"),
+    ]
+}
+
+

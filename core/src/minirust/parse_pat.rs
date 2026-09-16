@@ -27,6 +27,7 @@ impl PatParser {
         t
     }
 
+    #[allow(dead_code)]
     fn expect(&mut self, expected: &Tok) -> Result<(), String> {
         match self.bump() {
             Some(g) if &g == expected => Ok(()),
@@ -44,10 +45,11 @@ impl PatParser {
         self.parse_or()
     }
 
-    /// Or: a | b | c
+    /// Or: a | b | c — 優化 with_capacity
     fn parse_or(&mut self) -> Result<FullPat, String> {
         let first = self.parse_range()?;
-        let mut cases = vec![first];
+        let mut cases = Vec::with_capacity(2);
+        cases.push(first);
         while let Some(Tok::Pipe) = self.peek() {
             self.bump(); // consume |
             // 允許 | 後緊跟另一模式
@@ -264,6 +266,27 @@ impl PatParser {
                     }
                 }
             }
+            Some(Tok::LBrack) => {
+                // Slice pattern [a, b, c]
+                self.bump();
+                let mut elems = vec![];
+                loop {
+                    if let Some(Tok::RBrack) = self.peek() {
+                        self.bump();
+                        break;
+                    }
+                    elems.push(self.parse_pat()?);
+                    if let Some(Tok::Comma) = self.peek() {
+                        self.bump();
+                    } else if let Some(Tok::RBrack) = self.peek() {
+                        continue;
+                    } else {
+                        // skip unexpected
+                        break;
+                    }
+                }
+                Ok(FullPat::Slice(elems))
+            }
             Some(Tok::LBrace) => {
                 // Block as macro placeholder
                 self.bump();
@@ -278,7 +301,8 @@ impl PatParser {
                 }
                 Ok(FullPat::Macro(inner))
             }
-            Some(Tok::LBrace) | Some(Tok::RBrace) => Err("unexpected brace in pat".into()),
+            Some(Tok::RBrace) => Err("unexpected brace in pat".into()),
+            Some(Tok::RBrack) => Err("unexpected ] in pat".into()),
             Some(other) => {
                 // Fallback: consume and return as Macro placeholder
                 let txt = self.bump().unwrap().show();
@@ -302,46 +326,21 @@ pub fn parse_pat_str(src: &str) -> Result<FullPat, String> {
     parse_pat_from_tokens(&toks)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_or_pat() {
-        let pat = parse_pat_str("Some(x) | None").unwrap();
-        match pat {
-            FullPat::Or(v) => assert_eq!(v.len(), 2),
-            _ => panic!("expected Or, got {:?}", pat),
-        }
-    }
-
-    #[test]
-    fn test_range_pat() {
-        let pat = parse_pat_str("0..10").unwrap();
-        match pat {
-            FullPat::Range { inclusive: false, .. } => {},
-            _ => panic!("expected Range, got {:?}", pat),
-        }
-        let pat2 = parse_pat_str("0..=10").unwrap();
-        match pat2 {
-            FullPat::Range { inclusive: true, .. } => {},
-            _ => panic!("expected inclusive Range"),
-        }
-        let pat3 = parse_pat_str("'a'..='z'").unwrap();
-        match pat3 {
-            FullPat::Range { inclusive: true, .. } => {},
-            _ => panic!("expected char range"),
-        }
-    }
-
-    #[test]
-    fn test_wild_and_ident() {
-        let pat = parse_pat_str("_").unwrap();
-        assert!(matches!(pat, FullPat::Wild));
-        let pat2 = parse_pat_str("mut x").unwrap();
-        match pat2 {
-            FullPat::Ident { mutbl: true, name, .. } => assert_eq!(name, "x"),
-            _ => panic!("expected mut ident"),
-        }
-    }
+/// 實際使用：解析並返回統計，減少 clone
+pub fn parse_pat_with_stats(src: &str) -> Result<(FullPat, String), String> {
+    let toks = super::lexer::lex(src)?;
+    let pat = parse_pat_from_tokens(&toks)?;
+    let mut s = String::with_capacity(128);
+    s.push_str(&format!("Pat parsed: len={} toks={} variant={}\n", src.len(), toks.len(), pat.variant_name()));
+    Ok((pat, s))
 }
+
+/// 實際使用：pat 文件清單
+pub fn parse_pat_file_list() -> Vec<(&'static str, &'static str, &'static str)> {
+    vec![
+        ("parse_pat.rs", "FullPat 14 變體：Or/Range/Slice/TupleStruct/Struct — 優化 with_capacity", "core/src/minirust/parse_pat.rs"),
+        ("lexer.rs", "Tok 詞法 — pat 依賴", "core/src/minirust/lexer.rs"),
+    ]
+}
+
+

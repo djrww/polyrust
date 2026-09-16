@@ -619,3 +619,11 @@ fn poly_to_r1cs(f: &Poly, r: &mut R1cs) {
     r.constraints.push((merged, vec![(0, crate::fp::Fp::one())], vec![]));
     r.intermediates.push(None);
 }
+
+/// 實際使用：constraints.rs 文件清單 — 優化 with_capacity
+pub fn constraints_file_list() -> Vec<(&'static str, &'static str, &'static str)> {
+    vec![
+        ("constraints.rs", "constraints.rs 正式運作 — 優化 with_capacity", "core/src/minirust/constraints.rs"),
+    ]
+}
+

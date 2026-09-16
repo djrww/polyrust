@@ -3,6 +3,91 @@
 use crate::minirust::ast::*;
 use crate::minirust::lexer::{lex, Tok};
 
+/// Parse 模塊的 AST_SYNTAX_INVENTORY — 把 parse.rs 列入
+/// 對應 ast.rs 的 AST_SYNTAX_INVENTORY，列出所有 parse 相關文件
+pub const AST_SYNTAX_INVENTORY: &[(&str, &str, &str)] = &[
+    ("parse.rs", "原始 Mini-Rust 解析 7型別 — Parser::parse_program, Type 7 + BinOp 9 + EKind 17", "core/src/minirust/parse.rs"),
+    ("parse_v2.rs", "ProgramV2 解析 — struct/enum/fn/impl/trait/mod/const/static/type", "core/src/minirust/parse_v2.rs"),
+    ("parse_pat.rs", "FullPat 解析 — 14 變體 Slice/Or/Range 100%", "core/src/minirust/parse_pat.rs"),
+    ("parse_expr.rs", "FullExpr 解析 — 34 變體 Closure/Index/Await/Try/Cast/Range 100%", "core/src/minirust/parse_expr.rs"),
+    ("parse_full.rs", "FullType 解析 — 15 變體 100% + 39 正例 + 9 反例 + 15 Pat + 39 Expr + 4 parse 比較", "core/src/minirust/parse_full.rs"),
+    ("lexer.rs", "詞法 Tok 定義", "core/src/minirust/lexer.rs"),
+    ("ast.rs", "統一 AST 單一來源 — 被 parse 依賴的 Type/EKind/Full* 定義", "core/src/minirust/ast.rs"),
+];
+
+/// 同名別名，方便從 parse 模塊直接訪問
+pub const PARSE_AST_SYNTAX_INVENTORY: &[(&str, &str, &str)] = AST_SYNTAX_INVENTORY;
+
+/// Parse 文件清單 — 包含 parse.rs 自身 — 優化版：預分配
+pub fn parse_file_list() -> Vec<(&'static str, &'static str, &'static str)> {
+    // 實際使用：直接引用靜態切片，避免不必要分配
+    AST_SYNTAX_INVENTORY.to_vec()
+}
+/// 零分配版本：返回靜態切片，供 pipeline_v2 高頻調用
+pub fn parse_file_list_static() -> &'static [(&'static str, &'static str, &'static str)] {
+    AST_SYNTAX_INVENTORY
+}
+/// 實際使用：供 pipeline_v2 消費的文本列表，with_capacity 優化
+pub fn parse_file_list_for_pipeline() -> Vec<String> {
+    let mut out = Vec::with_capacity(AST_SYNTAX_INVENTORY.len());
+    for (name, desc, path) in AST_SYNTAX_INVENTORY {
+        let mut s = String::with_capacity(name.len() + desc.len() + path.len() + 8);
+        s.push_str(name);
+        s.push_str(": ");
+        s.push_str(desc);
+        s.push_str(" @ ");
+        s.push_str(path);
+        out.push(s);
+    }
+    out
+}
+
+/// Parse 全 AST 列表含 parse.rs — 詳細文本 — 優化 with_capacity
+pub fn parse_ast_syntax_inventory_summary() -> String {
+    // 預估容量：頭 200 + 每文件 120
+    let mut out = String::with_capacity(256 + AST_SYNTAX_INVENTORY.len()*128);
+    out.push_str("=== Parse AST_SYNTAX_INVENTORY (把 parse.rs 列入) ===\n");
+    out.push_str(&format!("文件數: {}\n", AST_SYNTAX_INVENTORY.len()));
+    for (name, desc, path) in AST_SYNTAX_INVENTORY {
+        out.push_str("- ");
+        out.push_str(name);
+        out.push_str(": ");
+        out.push_str(desc);
+        out.push_str(" (");
+        out.push_str(path);
+        out.push_str(")\n");
+    }
+    out.push_str("\n--- 能力對照 ---\n");
+    out.push_str("parse.rs: 7 Type + 17 EKind = 24 變體基礎\n");
+    out.push_str("parse_v2.rs: 11 ItemV2 + 34 擴展\n");
+    out.push_str("parse_pat.rs: 14 FullPat 100%\n");
+    out.push_str("parse_expr.rs: 34 FullExpr 100%\n");
+    out.push_str("parse_full.rs: 15 FullType 100% + 39/9/15/39 正反例\n");
+    out.push_str("lexer.rs: Tok 詞法\n");
+    out.push_str("ast.rs: 統一 AST 被依賴\n");
+    out
+}
+/// 實際使用：pipeline_v2 消費的 JSON-like 摘要
+pub fn parse_inventory_for_pipeline_v2() -> String {
+    let mut out = String::with_capacity(2048);
+    out.push_str("{\"parse_syntax_inventory\":[");
+    for (i, (name, desc, path)) in AST_SYNTAX_INVENTORY.iter().enumerate() {
+        if i>0 { out.push(','); }
+        out.push_str(&format!("{{\"name\":\"{}\",\"desc\":\"{}\",\"path\":\"{}\"}}", name, desc.replace('\"', "'"), path));
+    }
+    out.push_str("]}");
+    out
+}
+/// 實際使用：帶統計的解析入口，返回 Program + 變體覆蓋信息
+pub fn parse_program_with_stats(src: &str) -> Result<(Program, String), String> {
+    let prog = Parser::parse_program(src)?;
+    let mut summary = String::with_capacity(256);
+    summary.push_str(&format!("Program: {} fns, {} macros, next_id={}\n", prog.fns.len(), prog.macros.len(), prog.next_id));
+    // 統計 EKind 覆蓋（簡化）
+    summary.push_str(&format!("main_body id={}\n", prog.main_body.id));
+    Ok((prog, summary))
+}
+
 pub struct Parser {
     toks: Vec<Tok>,
     pos: usize,

@@ -3,9 +3,6 @@
 //!
 //! 執行：cargo run --release [-- demo|obligations|all]
 
-//! polyrust 二進位：向後相容的 CLI 入口。
-//! 所有邏輯都在 `polyrust_core` 函式庫；本檔只做命令列分派與展示。
-
 use polyrust_core::{
     cdcl, driver, formal, frac, groebner, minirust, obligations, pipeline, poly, server,
 };
@@ -56,8 +53,6 @@ fn hr(title: &str) {
 }
 
 fn report(r: &PipelineResult, verbose_poly: bool) {
-    let src_first_line = "";
-    let _ = src_first_line;
     println!("□ 來源（見上方源碼）");
     println!("□ 宏展開（衛生轉錄；模板引入的識別字改名 name#hN）：");
     for l in &r.expansion_log {
@@ -140,7 +135,6 @@ fn main() {
     let mode = args.get(1).map(|s| s.as_str()).unwrap_or("all");
     let json = args.iter().any(|a| a == "--json" || a == "-j");
 
-    // 「可輸入」子命令：check / expand / check-v2（含 --json 出口，供前端與 LLM 呼叫）
     if mode == "check" {
         if !json {
             print_banner();
@@ -153,11 +147,59 @@ fn main() {
         }
         std::process::exit(driver::cmd_check_v2(&args, json));
     }
+    if mode == "check-v3" || mode == "checkv3" || mode == "v3" {
+        if !json {
+            print_banner();
+        }
+        std::process::exit(driver::cmd_check_v3(&args, json));
+    }
+    if mode == "txt-feedback" || mode == "txt" || mode == "txt_feedback" {
+        if !json {
+            print_banner();
+        }
+        std::process::exit(driver::cmd_txt_feedback(&args, json));
+    }
+    if mode == "native-bidir" || mode == "native_bidir" || mode == "bidir" || mode == "native-bidirectional" {
+        if !json {
+            print_banner();
+        }
+        std::process::exit(driver::cmd_native_bidirectional(&args, json));
+    }
+    if mode == "closed-loop" || mode == "closed_loop" || mode == "cl" {
+        if !json {
+            print_banner();
+        }
+        std::process::exit(driver::cmd_closed_loop(&args, json));
+    }
+    if mode == "audit" {
+        if !json {
+            print_banner();
+        }
+        std::process::exit(driver::cmd_audit(&args, json));
+    }
+    if mode == "daemon" {
+        if !json {
+            print_banner();
+        }
+        std::process::exit(driver::cmd_daemon(&args, json));
+    }
+    if mode == "v3-auto" || mode == "v3_auto" || mode == "check-v3-auto" {
+        if !json {
+            print_banner();
+        }
+        std::process::exit(driver::cmd_v3_auto(&args, json));
+    }
     if mode == "expand" {
         if !json {
             print_banner();
         }
         std::process::exit(driver::cmd_expand(&args, json));
+    }
+    if mode == "coverage" {
+        if !json {
+            print_banner();
+        }
+        std::process::exit(driver::cmd_coverage(&args, json));
     }
     if mode == "ast-coverage" || mode == "ast-full" || mode == "syntax-inventory" {
         let arg2 = args.get(2).map(|s| s.as_str()).unwrap_or("-");
@@ -173,7 +215,6 @@ fn main() {
         };
         let report = minirust::ast_full::HandwrittenParser::coverage_report(&src);
         if json {
-            // json 需要 serde_json，但 core 零依賴，手寫簡易 json
             println!(r#"{{"source": {:?}, "missing_count": {}}}"#, arg2, minirust::ast_full::HandwrittenParser::missing_syntax(&src).len());
             for (k, present, desc) in &report {
                 println!("{}: {} - {}", k, present, desc);
@@ -193,8 +234,7 @@ fn main() {
                 for m in &missing {
                     println!("  - {}", m);
                 }
-                println!("
-獲取方式:");
+                println!("\n獲取方式:");
                 println!("  - core 手寫：擴展 universe.rs::parse_type_v2 + parse_full.rs");
                 println!("  - 前端 syn：frontends/full/src/syn_bridge.rs 用 syn::parse_str::<File>");
             }
@@ -213,44 +253,56 @@ fn main() {
         return;
     }
     if mode == "exhaust" {
-        // 一致性 oracle：窮舉細程序空間，管線 ⟺ 檢查器。
         if !json {
             print_banner();
         }
         std::process::exit(driver::cmd_exhaust(&args, json));
     }
     if mode == "brute" {
-        // @brute 對照常態化：暴力法 ⟺ 代數法逐位元比對（子句層 + 約束層）。
         if !json {
             print_banner();
         }
         std::process::exit(driver::cmd_brute(&args, json));
     }
     if mode == "nl" {
-        // 自然語言 → .poly（LLM 護欄）。文字來源：args[2] 或 `-`（stdin）。
         if !json {
             print_banner();
         }
         std::process::exit(driver::cmd_nl(&args, json));
     }
     if mode == "funnel" {
-        // 護欄漏斗量測：聚合 `nl` 運行的 NDJSON 日誌。
         if !json {
             print_banner();
         }
         std::process::exit(driver::cmd_funnel(&args, json));
     }
+    if mode == "dsl" {
+        if !json {
+            print_banner();
+        }
+        std::process::exit(driver::cmd_dsl(&args, json));
+    }
+    if mode == "nl-codegen" || mode == "nl_codegen" || mode == "nlcodegen" {
+        if !json {
+            print_banner();
+        }
+        std::process::exit(driver::cmd_nl_codegen(&args, json));
+    }
+    if mode == "commercial-pipeline" || mode == "commercial_pipeline" || mode == "commercial" {
+        if !json {
+            print_banner();
+        }
+        std::process::exit(driver::cmd_commercial_pipeline(&args, json));
+    }
     if mode == "gen" {
-        // 檔案模式（.poly / 路徑 / stdin）：與 check/expand 一致，json 不印 banner。
         let arg2 = args.get(2).map(|s| s.as_str()).unwrap_or("A");
-        let is_file = arg2.contains('/') || arg2.ends_with(".poly") || arg2 == "-";
+        let is_file = arg2.contains('/') || arg2.ends_with(".poly") || arg2.ends_with(".rs") || arg2 == "-";
         if is_file {
             if !json {
                 print_banner();
             }
             std::process::exit(driver::cmd_gen(&args, json));
         }
-        // demo 簡寫 A/B/C/D：往下走（印 banner 後處理）
     }
 
     print_banner();
@@ -272,7 +324,6 @@ fn main() {
     }
 
     if mode == "debug" {
-        // 除錯：σ_D 驗證（定理 1 的手動檢查）
         let args2: Vec<String> = std::env::args().collect();
         let src = std::fs::read_to_string(args2.get(2).expect("用法：polyrust debug <file>")).unwrap();
         let p = minirust::parse::Parser::parse_program(&src).unwrap();
@@ -313,7 +364,6 @@ fn main() {
                 println!("  違反域多項式 x{}", i);
             }
         }
-        // 系統本身可解嗎？
         {
             use poly::Order;
             use groebner::{field_polys, reduced_groebner, solve_boolean, Strategy};
@@ -327,7 +377,6 @@ fn main() {
             if let Some(sol) = &sol {
                 let bad = all.iter().filter(|f| !f.eval_full(sol).is_zero()).count();
                 println!("見證違反 {} 條（應為 0）", bad);
-                // 違反子句？
                 for (ci, c) in sys.clauses.iter().enumerate() {
                     let ok = c.iter().any(|&l| {
                         let v = cdcl::lit_var(l);
@@ -349,7 +398,6 @@ fn main() {
     }
 
     if mode == "gen" {
-        // 只處理 demo 簡寫 A/B/C/D（檔案模式已在上方提前處理）。
         let arg2 = args.get(2).map(|s| s.as_str()).unwrap_or("A");
         let (src, cg) = match arg2 {
             "A" => (DEMO_A, true),

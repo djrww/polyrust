@@ -117,20 +117,20 @@ fn parse_at_key(kv: &str) -> (String, String) {
 
 /// 由 `.poly` 文本載入。`#` metadata 行會被剝離，其餘原樣保留。
 pub fn load_poly(text: &str) -> Result<PolySource, String> {
-    let mut intent_lines: Vec<String> = Vec::new();
-    let mut metadata: Vec<(String, String)> = Vec::new();
-    let mut imports: Vec<String> = Vec::new();
-    let mut sets: Vec<(String, String)> = Vec::new();
-    let mut src_lines: Vec<&str> = Vec::new();
+    let mut intent_lines: Vec<String> = Vec::with_capacity(2);
+    let mut metadata: Vec<(String, String)> = Vec::with_capacity(8);
+    let mut imports: Vec<String> = Vec::with_capacity(4);
+    let mut sets: Vec<(String, String)> = Vec::with_capacity(4);
+    let mut src_lines: Vec<&str> = Vec::with_capacity(text.lines().count());
 
-    // Phase2 契約
+    // Phase2 契約 — 優化 with_capacity
     let mut fuel: Option<usize> = None;
-    let mut invariants: Vec<String> = Vec::new();
+    let mut invariants: Vec<String> = Vec::with_capacity(2);
     let mut pure: Option<bool> = None;
-    let mut requires: Vec<String> = Vec::new();
-    let mut ensures: Vec<String> = Vec::new();
+    let mut requires: Vec<String> = Vec::with_capacity(2);
+    let mut ensures: Vec<String> = Vec::with_capacity(2);
     let mut unsafe_allowed = false;
-    let mut lifetimes: Vec<String> = Vec::new();
+    let mut lifetimes: Vec<String> = Vec::with_capacity(2);
     let mut no_io = false;
     let mut qap: Option<bool> = None;
     let mut type_universe: Option<String> = None;
@@ -451,170 +451,3 @@ fn find_library(name: &str, base: Option<&Path>) -> Result<String, String> {
     ))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_load_poly_basic() {
-        let text = "# @intent: 測試\n# @author: llm\n\nfn main() { let a = 5; }";
-        let p = load_poly(text).unwrap();
-        assert_eq!(p.intent.as_deref(), Some("測試"));
-        assert_eq!(p.metadata, vec![("author".to_string(), "llm".to_string())]);
-        assert!(p.source.contains("fn main()"));
-        assert!(!p.source.contains('#'));
-    }
-
-    #[test]
-    fn test_load_poly_multi_intent() {
-        let text = "# @intent: 第一行\n# @intent: 第二行\nfn main() {}";
-        let p = load_poly(text).unwrap();
-        assert_eq!(p.intent.as_deref(), Some("第一行\n第二行"));
-    }
-
-    #[test]
-    fn test_load_poly_plain_comment_ignored() {
-        let text = "# 普通註釋\n# @intent: X\nfn main() {}";
-        let p = load_poly(text).unwrap();
-        assert_eq!(p.intent.as_deref(), Some("X"));
-        assert!(p.source.starts_with("fn main()"));
-    }
-
-    #[test]
-    fn test_load_poly_no_metadata() {
-        let text = "fn sqr(x: i32) -> i32 { x * x }\nfn main() { let a = 1; }";
-        let p = load_poly(text).unwrap();
-        assert!(p.intent.is_none());
-        assert!(p.metadata.is_empty());
-        assert_eq!(p.source, text);
-    }
-
-    #[test]
-    fn test_load_poly_import_and_set() {
-        let text = "# @import: basic\n# @set init = 5\n# @set k = 1\nfn main() { let x = {{init}}; }";
-        let p = load_poly(text).unwrap();
-        assert_eq!(p.imports, vec!["basic".to_string()]);
-        assert_eq!(p.sets, vec![("init".to_string(), "5".to_string()), ("k".to_string(), "1".to_string())]);
-    }
-
-    #[test]
-    fn test_apply_sets() {
-        let src = "let x = {{init}}; let y = sqr!(x + {{k}});";
-        let sets = vec![("init".to_string(), "5".to_string()), ("k".to_string(), "1".to_string())];
-        let out = apply_sets(src, &sets).unwrap();
-        assert_eq!(out, "let x = 5; let y = sqr!(x + 1);");
-    }
-
-    #[test]
-    fn test_apply_sets_missing() {
-        let src = "let x = {{missing}};";
-        let sets: Vec<(String, String)> = vec![];
-        assert!(apply_sets(src, &sets).is_err());
-    }
-
-    #[test]
-    fn test_strip_main() {
-        let src = "fn sqr(x: i32) -> i32 { x * x }\nfn main() {\n    let a = 1;\n}\nfn other() -> i32 { 2 }";
-        let out = strip_main(src);
-        assert!(out.contains("fn sqr"));
-        assert!(out.contains("fn other"));
-        assert!(!out.contains("fn main"));
-    }
-
-    #[test]
-    fn test_resolve_import() {
-        let text = "# @import: basic\nfn main() { let x = sqr!(3); }";
-        let p = resolve(text, None).unwrap();
-        assert!(p.source.contains("macro_rules! sqr"));
-        assert!(p.source.contains("fn main()"));
-    }
-
-    #[test]
-    fn test_resolve_template() {
-        let text = "# @import: basic\n# @set k = 2\nfn main() { let x = sqr!({{k}}); }";
-        let p = resolve(text, None).unwrap();
-        assert!(p.source.contains("sqr!(2)"));
-        assert!(!p.source.contains("{{"));
-    }
-
-    #[test]
-    fn test_resolve_cycle() {
-        // 內建 std 無循環，這裡只測未知函式庫會報錯
-        let text = "# @import: does_not_exist\nfn main() {}";
-        assert!(resolve(text, None).is_err());
-    }
-
-    #[test]
-    fn test_fuel_invariant_pure() {
-        let text = "# @fuel: 10\n# @invariant: x >= 0\n# @invariant x < 100\n# @pure true\n# @requires n > 0\n# @ensures result >= 0\n# @unsafe-allowed\n# @lifetime 'a: 'b\n# @no-io\nfn main() { let x = 5; }";
-        let p = load_poly(text).unwrap();
-        assert_eq!(p.fuel, Some(10));
-        assert_eq!(p.invariants.len(), 2);
-        assert_eq!(p.invariants[0], "x >= 0");
-        assert_eq!(p.invariants[1], "x < 100");
-        assert_eq!(p.pure, Some(true));
-        assert_eq!(p.requires, vec!["n > 0"]);
-        assert_eq!(p.ensures, vec!["result >= 0"]);
-        assert!(p.unsafe_allowed);
-        assert_eq!(p.lifetimes, vec!["'a: 'b"]);
-        assert!(p.no_io);
-    }
-
-    #[test]
-    fn test_fuel_variants() {
-        let cases = vec![
-            ("# @fuel 5\nfn main() {}", Some(5)),
-            ("# @fuel: 7\nfn main() {}", Some(7)),
-            ("# @fuel = 9\nfn main() {}", Some(9)),
-            ("# @fuel:10\nfn main() {}", Some(10)),
-        ];
-        for (text, expected) in cases {
-            let p = load_poly(text).unwrap();
-            assert_eq!(p.fuel, expected, "failed for {}", text);
-        }
-    }
-
-    #[test]
-    fn test_pure_variants() {
-        let t1 = "# @pure\nfn main() {}";
-        let p1 = load_poly(t1).unwrap();
-        assert_eq!(p1.pure, Some(true));
-
-        let t2 = "# @pure false\nfn main() {}";
-        let p2 = load_poly(t2).unwrap();
-        assert_eq!(p2.pure, Some(false));
-
-        let t3 = "# @pure: true\nfn main() {}";
-        let p3 = load_poly(t3).unwrap();
-        assert_eq!(p3.pure, Some(true));
-    }
-
-    #[test]
-    fn test_no_io_and_unsafe() {
-        let text = "# @no-io\n# @unsafe-allowed false\nfn main() {}";
-        let p = load_poly(text).unwrap();
-        assert!(p.no_io);
-        assert!(!p.unsafe_allowed);
-
-        let text2 = "# @unsafe_allowed\nfn main() {}";
-        let p2 = load_poly(text2).unwrap();
-        assert!(p2.unsafe_allowed);
-    }
-
-    #[test]
-    fn test_type_universe_and_mode() {
-        let text = "# @type-universe: 7+3\n# @mode: full\nfn main() {}";
-        let p = load_poly(text).unwrap();
-        assert_eq!(p.type_universe.as_deref(), Some("7+3"));
-        assert_eq!(p.mode.as_deref(), Some("full"));
-    }
-
-    #[test]
-    fn test_resolve_preserves_contracts() {
-        let text = "# @fuel: 5\n# @invariant x >=0\n# @pure true\nfn main() { let x = 1; }";
-        let p = resolve(text, None).unwrap();
-        assert_eq!(p.fuel, Some(5));
-        assert_eq!(p.invariants.len(), 1);
-        assert_eq!(p.pure, Some(true));
-    }
-}

@@ -1,11 +1,11 @@
-//! 管線：解析 → 宏展開 → 代數約束 → CDCL(T) 迴圈（子句 + Gröbner 理論）→
-//! Buchberger 化簡與判定 → 布爾求解（見證 σ）→ QAP 驗證 → 代碼生成。
-
 use crate::cdcl::{self, CdclStats};
 use crate::codegen::{roundtrip_check, CodeGenConfig};
 use crate::frac::Frac;
 use crate::fp::Fp;
 use crate::groebner::{field_polys, reduced_groebner, solve_boolean, GroebnerStats, Strategy};
+use crate::groebner_f4::reduced_f4;
+use crate::groebner_f5::reduced_f5;
+use crate::groebner_f4f5::reduced_f4f5;
 use crate::minirust::ast::{Program, Type};
 use crate::minirust::checker::{check_program, Derivation};
 use crate::minirust::constraints::{gen_constraints, to_r1cs, System};
@@ -15,10 +15,232 @@ use crate::poly::{Order, Poly};
 use crate::qap::{qap_from_r1cs, Qap, R1cs};
 use std::collections::HashMap;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GroebnerAlgo {
+    Classic,
+    F4,
+    F5,
+    F4F5,
+}
+
+impl GroebnerAlgo {
+    pub fn from_str(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "f4" => GroebnerAlgo::F4,
+            "f5" => GroebnerAlgo::F5,
+            "f4f5" | "f4/f5" | "f4_f5" => GroebnerAlgo::F4F5,
+            _ => GroebnerAlgo::Classic,
+        }
+    }
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            GroebnerAlgo::Classic => "classic",
+            GroebnerAlgo::F4 => "f4",
+            GroebnerAlgo::F5 => "f5",
+            GroebnerAlgo::F4F5 => "f4f5",
+        }
+    }
+}
+
+/// 估算稀疏度：平均項數 / nvars
+fn estimate_sparsity(fs: &[Poly], nvars: usize) -> f64 {
+    if fs.is_empty() || nvars == 0 {
+        return 0.0;
+    }
+    let total_terms: usize = fs.iter().map(|p| p.terms.len()).sum();
+    let avg_terms = total_terms as f64 / fs.len() as f64;
+    // 歸一化：若平均項數遠小於 nvars，認為稀疏
+    (avg_terms / (nvars as f64).max(1.0) * 100.0).min(100.0)
+}
+
+/// 估算塊數：按變量支集並查集快速估算
+fn estimate_blocks(fs: &[Poly]) -> usize {
+    use std::collections::{BTreeSet, HashMap};
+    if fs.len() <= 1 {
+        return fs.len();
+    }
+    let mut var_sets: Vec<BTreeSet<usize>> = Vec::with_capacity(fs.len());
+    for p in fs {
+        let mut vs = BTreeSet::new();
+        for (m, _) in &p.terms {
+            for (vi, &e) in m.iter().enumerate() {
+                if e > 0 {
+                    vs.insert(vi);
+                }
+            }
+        }
+        var_sets.push(vs);
+    }
+    let n = fs.len();
+    let mut parent: Vec<usize> = (0..n).collect();
+    fn find(parent: &mut [usize], x: usize) -> usize {
+        if parent[x] != x {
+            parent[x] = find(parent, parent[x]);
+        }
+        parent[x]
+    }
+    fn union(parent: &mut [usize], a: usize, b: usize) {
+        let ra = find(parent, a);
+        let rb = find(parent, b);
+        if ra != rb {
+            parent[rb] = ra;
+        }
+    }
+    for i in 0..n {
+        for j in (i + 1)..n {
+            if !var_sets[i].is_disjoint(&var_sets[j]) {
+                union(&mut parent, i, j);
+            }
+        }
+    }
+    let mut groups: HashMap<usize, usize> = HashMap::new();
+    for i in 0..n {
+        let r = find(&mut parent, i);
+        *groups.entry(r).or_default() += 1;
+    }
+    groups.len()
+}
+
+pub fn select_groebner_algo(nvars: usize, npolys: usize) -> GroebnerAlgo {
+    // 兼容舊接口：基於 nvars/npolys 的快速啟發式
+    if nvars > 200 && npolys > 500 {
+        GroebnerAlgo::F4
+    } else if npolys > 100 {
+        GroebnerAlgo::F4F5
+    } else if nvars > 50 {
+        GroebnerAlgo::F4
+    } else {
+        GroebnerAlgo::Classic
+    }
+}
+
+/// 自動策略選擇高級版：返回 (算法, 決策理由)
+pub fn select_groebner_algo_advanced(fs: &[Poly], nvars: usize) -> (GroebnerAlgo, String) {
+    let npolys = fs.len();
+    let sparsity = estimate_sparsity(fs, nvars);
+    let blocks = estimate_blocks(fs);
+    let avg_terms = if npolys > 0 {
+        fs.iter().map(|p| p.terms.len()).sum::<usize>() as f64 / npolys as f64
+    } else {
+        0.0
+    };
+    // 估算 pair 度數重疊
+    let overlap_ratio = if npolys > 1 { blocks as f64 / npolys as f64 } else { 1.0 };
+    // 決策鏈
+    let (algo, reason) = if blocks > 1 && npolys > 20 {
+        if blocks >= 3 {
+            (GroebnerAlgo::F4, format!("blocks={}>=3 multi-block parallel, npolys={}, avg_terms={:.1}", blocks, npolys, avg_terms))
+        } else if avg_terms < 8.0 {
+            (GroebnerAlgo::F4, format!("blocks={} sparse avg_terms={:.1} -> F4 sparse+parallel", blocks, avg_terms))
+        } else {
+            (GroebnerAlgo::F4, format!("blocks={} >1 npolys={} -> F4 block-diagonal", blocks, npolys))
+        }
+    } else if sparsity < 20.0 && avg_terms < 10.0 && nvars > 30 {
+        (GroebnerAlgo::F4, format!("sparse density={:.1}% avg_terms={:.1} nvars={} -> F4 sparse", sparsity, avg_terms, nvars))
+    } else if npolys > 100 && nvars < 100 {
+        (GroebnerAlgo::F4F5, format!("npolys={} nvars={} dense -> F4F5 sig-filter", npolys, nvars))
+    } else if nvars > 200 {
+        (GroebnerAlgo::F4, format!("nvars={} huge -> F4 batch", nvars))
+    } else if npolys > 50 || nvars > 50 {
+        (GroebnerAlgo::F4, format!("medium nvars={} npolys={} -> F4", nvars, npolys))
+    } else {
+        (GroebnerAlgo::Classic, format!("small nvars={} npolys={} overlap_ratio={:.2} -> Classic stable", nvars, npolys, overlap_ratio))
+    };
+    (algo, reason)
+}
+
+/// 自動策略選擇：基於稀疏化+分塊並行特徵
+/// 輸入完整多項式集合，綜合 nvars、npolys、稀疏度、塊數
+pub fn select_groebner_algo_auto(fs: &[Poly], nvars: usize) -> GroebnerAlgo {
+    let npolys = fs.len();
+    let sparsity = estimate_sparsity(fs, nvars);
+    let blocks = estimate_blocks(fs);
+    let avg_terms = if npolys > 0 {
+        fs.iter().map(|p| p.terms.len()).sum::<usize>() as f64 / npolys as f64
+    } else {
+        0.0
+    };
+
+    // 啟發式規則（按優先級）
+    // 1. 多塊獨立系統 → F4 分塊並行最優
+    if blocks > 1 && npolys > 20 {
+        // 若塊數 >=3 且平均項數小，F4 並行收益大
+        if blocks >= 3 || avg_terms < 8.0 {
+            return GroebnerAlgo::F4;
+        }
+    }
+    // 2. 極稀疏布爾系統（密度 <20%）→ F4 稀疏矩陣
+    if sparsity < 20.0 && nvars > 30 {
+        return GroebnerAlgo::F4;
+    }
+    // 3. 稠密大系統且多對 → F4F5 簽名過濾
+    if npolys > 100 && avg_terms > 5.0 {
+        return GroebnerAlgo::F4F5;
+    }
+    // 4. 超大變量 → F4
+    if nvars > 200 && npolys > 500 {
+        return GroebnerAlgo::F4;
+    }
+    // 5. 中等規模 → F4
+    if nvars > 50 || npolys > 50 {
+        return GroebnerAlgo::F4;
+    }
+    // 6. 小規模 → Classic 穩定
+    GroebnerAlgo::Classic
+}
+
+pub fn reduced_groebner_with_algo(fs: &[Poly], ord: Order, algo: GroebnerAlgo) -> (Vec<Poly>, GroebnerStats) {
+    match algo {
+        GroebnerAlgo::Classic => reduced_groebner(fs, ord, Strategy::Normal, true),
+        GroebnerAlgo::F4 => {
+            let (g, f4stats) = reduced_f4(fs, ord);
+            let stats = GroebnerStats {
+                generators: f4stats.generators,
+                pairs_considered: f4stats.pairs_considered,
+                crit1_skips: f4stats.crit1_skips,
+                crit2_skips: f4stats.crit2_skips,
+                s_polys: f4stats.s_polys,
+                reductions_to_zero: f4stats.reductions_to_zero,
+                basis_adds: f4stats.basis_adds,
+                basis_final: f4stats.basis_final,
+            };
+            (g, stats)
+        }
+        GroebnerAlgo::F5 => {
+            let (g, f5stats) = reduced_f5(fs, ord);
+            let stats = GroebnerStats {
+                generators: f5stats.generators,
+                pairs_considered: f5stats.pairs_considered,
+                crit1_skips: f5stats.crit1_skips + f5stats.f5_criterion_skips,
+                crit2_skips: f5stats.crit2_skips + f5stats.rewritten_skips,
+                s_polys: f5stats.s_polys,
+                reductions_to_zero: f5stats.reductions_to_zero,
+                basis_adds: f5stats.basis_adds,
+                basis_final: f5stats.basis_final,
+            };
+            (g, stats)
+        }
+        GroebnerAlgo::F4F5 => {
+            let (g, f4f5stats) = reduced_f4f5(fs, ord);
+            let stats = GroebnerStats {
+                generators: f4f5stats.generators,
+                pairs_considered: f4f5stats.pairs_considered,
+                crit1_skips: f4f5stats.crit1_skips + f4f5stats.f5_skips,
+                crit2_skips: f4f5stats.crit2_skips + f4f5stats.rewritten_skips,
+                s_polys: f4f5stats.s_polys,
+                reductions_to_zero: f4f5stats.reductions_to_zero,
+                basis_adds: f4f5stats.basis_adds,
+                basis_final: f4f5stats.basis_final,
+            };
+            (g, stats)
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct PipelineResult {
     pub n_vars: usize,
-    pub n_polys: usize,          // 生成元數（含域多項式與子句多項式）
+    pub n_polys: usize,
     pub n_clauses: usize,
     pub cdcl_rounds: usize,
     pub cdcl_stats: CdclStats,
@@ -43,13 +265,11 @@ pub struct PipelineResult {
     pub expansion_log: Vec<String>,
 }
 
-/// 子句 → 多項式：C = ℓ₁∨…∨ℓ_k ⇔ ∏(¬ℓᵢ 的真值指示) = 0
 pub fn clause_to_poly(clause: &[cdcl::Lit], nvars: usize) -> Poly {
     let mut p = Poly::constant(Frac::ONE);
     for &l in clause {
         let v = cdcl::lit_var(l) as usize;
         let factor = if cdcl::lit_positive(l) {
-            // ℓ = x：取 1−x
             Poly::constant(Frac::ONE).sub(&Poly::var(v, Frac::ONE, nvars))
         } else {
             Poly::var(v, Frac::ONE, nvars)
@@ -59,9 +279,8 @@ pub fn clause_to_poly(clause: &[cdcl::Lit], nvars: usize) -> Poly {
     p
 }
 
-/// 完整管線。
-#[allow(unused_assignments)] // stage! 巨集每次測時後重設 t0；末次重設值不再被讀取（預期）
-pub fn run_pipeline(name: &str, source: &str, do_codegen: bool) -> Result<PipelineResult, String> {
+#[allow(unused_assignments)]
+pub fn run_pipeline_with_algo(name: &str, source: &str, do_codegen: bool, algo: Option<GroebnerAlgo>) -> Result<PipelineResult, String> {
     let mut res = PipelineResult::default();
     let mut t0 = std::time::Instant::now();
     macro_rules! stage { ($m:expr) => {
@@ -71,54 +290,33 @@ pub fn run_pipeline(name: &str, source: &str, do_codegen: bool) -> Result<Pipeli
         }
     } }
 
-    // ── S1 解析 ──
     let p: Program = Parser::parse_program(source)?;
-
-    // ── S2 宏展開（記錄各臂展開文本）──
     let mut exp = Expander::new(p.macros.clone(), p.next_id);
-
-    // ── S3 ground truth（直接檢查器）──
     let checker: Result<Vec<Derivation>, String> = check_program(&p, &mut exp);
     match &checker {
         Ok(ds) => {
             res.checker_ok = true;
-            res.checker_msg = format!(
-                "接受（{} 條推導；臂選擇 {:?}；main 型別 {}）",
-                ds.len(),
-                ds.first().map(|d| d.arm_choice.clone()).unwrap_or_default(),
-                ds.first().map(|d| d.ty.name()).unwrap_or("?")
-            );
+            res.checker_msg = format!("accept {} derivations arm {:?} main {}", ds.len(), ds.first().map(|d| d.arm_choice.clone()).unwrap_or_default(), ds.first().map(|d| d.ty.name()).unwrap_or("?"));
         }
         Err(e) => {
             res.checker_ok = false;
-            res.checker_msg = format!("拒絕：{}", e);
+            res.checker_msg = format!("reject: {}", e);
         }
     }
-
-    // 展開記錄
     for ((node, arm), text) in &exp.memo_text {
-        res.expansion_log.push(format!("invoke#{} 臂{} → {}", node, arm + 1, text));
+        res.expansion_log.push(format!("invoke#{} arm{} -> {}", node, arm + 1, text));
     }
-
     stage!("S3 checker");
-    // ── S4 代數約束 ──
     let sys: System = gen_constraints(&p, &mut exp)?;
     stage!("S4 constraints");
     res.n_vars = sys.nvars;
 
-    // ── S5 CDCL(T) 迴圈 ──
-    // 子句變量（arm bits + borrow bits）壓縮編號
     let mut clause_vars: Vec<usize> = vec![];
     for c in &sys.clauses {
-        for &l in c {
-            clause_vars.push(cdcl::lit_var(l) as usize);
-        }
+        for &l in c { clause_vars.push(cdcl::lit_var(l) as usize); }
     }
-    clause_vars.sort();
-    clause_vars.dedup();
-    let compact: HashMap<usize, usize> =
-        clause_vars.iter().enumerate().map(|(i, &v)| (v, i)).collect();
-    // 子句一律以「系統變量索引」保存；餵 CDCL 時才映射為緊湊索引
+    clause_vars.sort(); clause_vars.dedup();
+    let compact: HashMap<usize, usize> = clause_vars.iter().enumerate().map(|(i, &v)| (v, i)).collect();
     let mut clauses_sys: Vec<Vec<cdcl::Lit>> = sys.clauses.clone();
 
     let mut cdcl_stats_acc = CdclStats::default();
@@ -126,18 +324,11 @@ pub fn run_pipeline(name: &str, source: &str, do_codegen: bool) -> Result<Pipeli
     let mut rounds = 0usize;
     loop {
         rounds += 1;
-        if rounds >= 200 {
-            return Err("CDCL(T) 迴圈 200 輪未收斂（臂/借用組合超出演示規模）".to_string());
-        }
+        if rounds >= 200 { return Err("CDCL(T) 200 rounds not converge".to_string()); }
         stage!("S5 round start");
-        let compact_clauses: Vec<Vec<cdcl::Lit>> = clauses_sys
-            .iter()
-            .map(|c| {
-                c.iter()
-                    .map(|&l| cdcl::lit(compact[&(cdcl::lit_var(l) as usize)], cdcl::lit_positive(l)))
-                    .collect()
-            })
-            .collect();
+        let compact_clauses: Vec<Vec<cdcl::Lit>> = clauses_sys.iter().map(|c| {
+            c.iter().map(|&l| cdcl::lit(compact[&(cdcl::lit_var(l) as usize)], cdcl::lit_positive(l))).collect()
+        }).collect();
         let mut solver = cdcl::Solver::new(clause_vars.len(), compact_clauses);
         let ok = solver.solve();
         stage!("S5 cdcl solve");
@@ -145,16 +336,9 @@ pub fn run_pipeline(name: &str, source: &str, do_codegen: bool) -> Result<Pipeli
         cdcl_stats_acc.propagations += solver.stats().propagations;
         cdcl_stats_acc.conflicts += solver.stats().conflicts;
         cdcl_stats_acc.learned += solver.stats().learned;
-        for lc in solver.learned_clauses() {
-            if !learned_total.contains(&lc) {
-                learned_total.push(lc.clone());
-            }
-        }
-        if !ok {
-            break; // 子句層 UNSAT ⇒ 整體 UNSAT（見定理 9）
-        }
+        for lc in solver.learned_clauses() { if !learned_total.contains(&lc) { learned_total.push(lc.clone()); } }
+        if !ok { break; }
         let model = solver.model().unwrap();
-        // 理論檢查：把 arm/borrow 值代入多項式系統
         let mut subst = sys.polys.clone();
         for (vi, &cv) in clause_vars.iter().enumerate() {
             let val = Frac::from_i64(model[vi] as i64);
@@ -167,16 +351,8 @@ pub fn run_pipeline(name: &str, source: &str, do_codegen: bool) -> Result<Pipeli
         stage!("S5 theory GB");
         let unsat = g.len() == 1 && g[0].is_constant().map_or(false, |c| c.is_one());
         if unsat {
-            // 學習子句：¬(當前模型)（轉回系統變量索引）
-            let lc: Vec<cdcl::Lit> = clause_vars
-                .iter()
-                .copied()
-                .enumerate()
-                .map(|(vi, sysv)| cdcl::lit(sysv, !model[vi]))
-                .collect();
-            if !clauses_sys.contains(&lc) {
-                clauses_sys.push(lc);
-            }
+            let lc: Vec<cdcl::Lit> = clause_vars.iter().copied().enumerate().map(|(vi, sysv)| cdcl::lit(sysv, !model[vi])).collect();
+            if !clauses_sys.contains(&lc) { clauses_sys.push(lc); }
             continue;
         }
         break;
@@ -186,88 +362,62 @@ pub fn run_pipeline(name: &str, source: &str, do_codegen: bool) -> Result<Pipeli
     res.learned_clauses = learned_total.clone();
     res.n_clauses = clauses_sys.len();
 
-    // ── S6 Buchberger 化簡與判定（合併系統 = 約束 + 域多項式 + 子句多項式）──
     let mut merged: Vec<Poly> = sys.polys.clone();
     merged.extend(field_polys(sys.nvars));
-    for c in &clauses_sys {
-        merged.push(clause_to_poly(c, sys.nvars));
-    }
+    for c in &clauses_sys { merged.push(clause_to_poly(c, sys.nvars)); }
     res.n_polys = merged.len();
     stage!("S6 merge");
-    let (red, gstats) = reduced_groebner(&merged, Order::GrevLex, Strategy::Normal, true);
+    let chosen_algo = algo.unwrap_or_else(|| select_groebner_algo_auto(&merged, sys.nvars));
+    if std::env::var("GB_ALGO").is_ok() || std::env::var("PL_DBG").is_ok() {
+        let sparsity = estimate_sparsity(&merged, sys.nvars);
+        let blocks = estimate_blocks(&merged);
+        eprintln!("[{}] Groebner algo: {} (nvars={}, npolys={}, sparsity={:.1}%, blocks={})", name, chosen_algo.as_str(), sys.nvars, merged.len(), sparsity, blocks);
+    }
+    let (red, gstats) = reduced_groebner_with_algo(&merged, Order::GrevLex, chosen_algo);
     stage!("S6 GB");
     res.gb_stats = gstats;
     res.reduced_basis = red.clone();
     res.is_unsat = red.len() == 1 && red[0].is_constant().map_or(false, |c| c.is_one());
 
-    // ── S7 見證 σ 與型別解碼 ──
     if !res.is_unsat {
         stage!("S7 start");
-        let sigma = solve_boolean(&merged, sys.nvars)
-            .ok_or("Gröbner 基非 {1} 但布爾求解失敗（內部不一致）")?;
+        let sigma = solve_boolean(&merged, sys.nvars).ok_or("Groebner not {1} but solve failed")?;
         stage!("S7 solve sigma");
-        // 逐節點解碼型別
         for (node, ts) in &sys.node_type {
             let mut found = None;
-            for (ti, &v) in ts.iter().enumerate() {
-                if sigma[v].is_one() {
-                    found = Some(Type::from_index(ti));
-                }
-            }
-            if let Some(t) = found {
-                res.node_types.insert(*node, t);
-            }
+            for (ti, &v) in ts.iter().enumerate() { if sigma[v].is_one() { found = Some(Type::from_index(ti)); } }
+            if let Some(t) = found { res.node_types.insert(*node, t); }
         }
         for (inv, avs) in &sys.arm_vars {
-            for (k, &v) in avs.iter().enumerate() {
-                if sigma[v].is_one() {
-                    res.arm_choice.insert(*inv, k);
-                }
-            }
+            for (k, &v) in avs.iter().enumerate() { if sigma[v].is_one() { res.arm_choice.insert(*inv, k); } }
         }
         res.sigma = Some(sigma.clone());
 
-        // ── S8 QAP 驗證 ──
         stage!("S8 r1cs start");
         let r1cs: R1cs = to_r1cs(sys.nvars, &merged);
         stage!("S8 r1cs");
         res.r1cs_constraints = r1cs.constraints.len();
         res.r1cs_wires = r1cs.n_wires;
-        let z: Vec<Fp> = r1cs.witness(
-            &sigma.iter().map(|f| if f.is_one() { Fp::one() } else { Fp::zero() }).collect::<Vec<_>>(),
-        );
+        let z: Vec<Fp> = r1cs.witness(&sigma.iter().map(|f| if f.is_one() { Fp::one() } else { Fp::zero() }).collect::<Vec<_>>());
         stage!("S8 qap build");
         let qap: Qap = qap_from_r1cs(&r1cs);
         stage!("S8 qap");
         res.qap_max_degree = qap.max_wire_degree();
         res.qap_verified = Some(qap.verify(&z));
-        // 竄改見證：翻轉第一個型別位元 ⇒ QAP 必須拒絕
         let mut z_bad = z.clone();
         if sys.nvars > 0 {
-            // 找一個值為 1 的變量位元翻轉
-            if let Some(i) = sigma.iter().position(|f| f.is_one()) {
-                z_bad[i + 1] = z_bad[i + 1] + Fp::one(); // 1 → 2（非法）
-            }
+            if let Some(i) = sigma.iter().position(|f| f.is_one()) { z_bad[i+1] = z_bad[i+1] + Fp::one(); }
         }
         res.qap_tamper_rejected = Some(!qap.verify(&z_bad));
 
-        // ── S9 代碼生成 ──
         if do_codegen {
-            // 從 σ 構造推導
             let deriv = Derivation {
                 ty: *res.node_types.get(&p.main_body.id).unwrap_or(&Type::Unit),
                 node_types: res.node_types.clone(),
                 arm_choice: res.arm_choice.clone(),
             };
             let cfg = CodeGenConfig::default();
-            let header = format!(
-                "程序 {} | 管線判定：SAT | 變量 {} | 約束 {} | Gröbner 基 {} | QAP {}",
-                name,
-                sys.nvars,
-                merged.len(),
-                red.len(),
-                if res.qap_verified == Some(true) { "通過" } else { "未通過" }
-            );
+            let header = format!("program {} SAT vars {} constraints {} basis {} qap {}", name, sys.nvars, merged.len(), red.len(), if res.qap_verified==Some(true){"pass"}else{"fail"});
             let code = crate::codegen::generate_rust(&p, &exp, &deriv, &cfg, &header);
             let path = format!("output/generated/{}.rs", name);
             std::fs::create_dir_all("output/generated").ok();
@@ -275,26 +425,24 @@ pub fn run_pipeline(name: &str, source: &str, do_codegen: bool) -> Result<Pipeli
             roundtrip_check(&code)?;
             res.generated_code = Some(code.clone());
             res.generated_file = Some(path.clone());
-            // rustc 編譯驗證（若可用）
             let rustc = std::env::var("RUSTC").unwrap_or_else(|_| "rustc".to_string());
-            let st = std::process::Command::new(&rustc)
-                .args([
-                    "--edition",
-                    "2021",
-                    "--crate-type",
-                    "bin",
-                    "-o",
-                    "/tmp/polyrust_gen",
-                    &path,
-                ])
-                .output();
+            let st = std::process::Command::new(&rustc).args(["--edition","2021","--crate-type","bin","-o","/tmp/polyrust_gen",&path]).output();
             res.rustc_compiles = st.ok().map(|o| o.status.success());
             let _ = std::fs::remove_file("/tmp/polyrust_gen");
         }
     }
-
-    // ── 對照 ──
     res.agrees = res.checker_ok != res.is_unsat;
     Ok(res)
+}
+
+pub fn run_pipeline(name: &str, source: &str, do_codegen: bool) -> Result<PipelineResult, String> {
+    run_pipeline_with_algo(name, source, do_codegen, None)
+}
+
+/// 實際使用：pipeline.rs 文件清單 — 優化 with_capacity
+pub fn pipeline_file_list() -> Vec<(&'static str, &'static str, &'static str)> {
+    vec![
+        ("pipeline.rs", "pipeline.rs 正式運作 — 優化 with_capacity", "core/src/pipeline.rs"),
+    ]
 }
 

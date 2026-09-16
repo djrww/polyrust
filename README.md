@@ -1,10 +1,5 @@
 # polyrust — Rust 宏的代数形式化
 
-> **M0 基線（2026-09-16）**  
-> 本樹是 git **branch** `v0.1.6`（SHA `a4377aa`），**不是**已推送的 annotated tag。遠端目前只有 tag `v0.1.0`。crate 版本已對齊為 **0.1.6**。  
-> 代數核（Mini-Rust 子集 + demo A–D + T1–T9）是發行級敘事範圍。`struct`/`async`/Vec 等 Phase3 路徑走 `pipeline_v2` 的**錯誤列表判定**，Groebner 只統計，**不可**與命題 P 混寫。  
-> 詳見 [`docs/M0_BASELINE.md`](docs/M0_BASELINE.md)、[`docs/TEST_MATRIX.md`](docs/TEST_MATRIX.md)、[`docs/ENCODING_COMPLETENESS.md`](docs/ENCODING_COMPLETENESS.md)。
-
 **CDCL × Buchberger × QAP**：把 Rust（Mini-Rust 子集）的语法规则、类型检查与借用检查转换为布尔多项式方程组，用三方联合求解，并从代数见证合成可编译的 Rust 代码。
 
 ## 仓库结构（Cargo workspace）
@@ -16,7 +11,7 @@ core/            polyrust-core —— 形式化管线核心【零第三方依赖
 frontends/
   http/          polyrust-http —— axum/tokio HTTP API 前端（/health、/api/nl、/api/funnel）
   llm/           polyrust-nl  —— ureq（纯 Rust TLS）传输的 LLM 护栏前端
-lean/            Lean 4 形式化（零依赖；34 模块 + 根，見 docs/LEAN.md）
+lean/            Lean 4 形式化（零依赖；20 模块、408 定理，见 docs/LEAN.md）
 docs/            THEOREMS / LEAN / EVIDENCE / LLM / POLY_DSL / FORMAL_LEMMAS
 scripts/         审计与批测脚本
 ```
@@ -140,22 +135,17 @@ bash scripts/build-embedded.sh   # 一键：lake build Polyrust:static → cargo
 
 系数域为质域 **𝔽_p，p = 2⁶¹ − 1**（Mersenne 质数）；0/1 判定保真性由嵌入引理 L0 保证（见 THEOREMS.md §2）。
 
-## 验证状态
+## 验证状态（2026-09-10）
 
-### Kernel v1（發行敘事）
-
-| 项目 | 结果 | 來源 |
-|---|---|---|
-| demo A–D 端到端 | 4/4 ✓（QAP、篡改拒絕、rustc） | `polyrust demo`；歷史存檔 `docs/EVIDENCE.md` |
-| 九条定理义务自证 | 文件記錄全部通过 ✓ | `polyrust obligations` |
-| Lean 4 | **34 模組 + 根**；`docs/LEAN.md`：**652** 定理；AuditAll：**3074** 宣告；零 sorry、零自訂公理 | `docs/LEAN.md` |
-| core `#[test]` 屬性（2026-09-16 靜態盤點） | **166** | 源碼計數，非本環境重跑 |
-
-2026-09-10 快照「17/17 測試、14 模組 273 定理、AuditAll 1115」已過期，只保留在 `docs/EVIDENCE.md` 作歷史證據。
-
-### Surface v2 / Phase3（實驗，非命題 P）
-
-`pipeline_v2` 判定為 `is_unsat = errors 非空 ∨ lifetime 有環`。product/sum 與 one-hot 衝突後 Groebner 只統計。完備度：`docs/ENCODING_COMPLETENESS.md`。測試閘門：`docs/TEST_MATRIX.md`。
+| 项目 | 结果 |
+|---|---|
+| 单元测试 | 17/17 ✓ |
+| demoA–D 端到端一致性 | 4/4 ✓（含 QAP 验证、篡改拒绝、rustc 编译） |
+| 九条定理义务自证 | 全部通过 ✓ |
+| Lean 4 形式化 | **14 模块 273 条定理全编译通过、零 sorry、零自定义公理**：T3(a) 对偶、T3(b) 消解恒等式、T4 终止界、T5 S-多项式准则、T6 无根证书、T7(a) 简化基唯一、T7(b) 宏展开同态、T8 QAP 忠实、L0 嵌入、T9 判定等价与代码生成 round-trip、**借用/所有权区间冲突** ✓ |
+| Lean 4 审计 | `bash scripts/lean-audit.sh`：逐定理 `#print axioms`（仅 Lean 标准三公理）✓ |
+| Lean 全环境公理审计 | `lean/AuditAll.lean`：`Polyrust.*` **1115 条宣告**全数受检（不只手列清单），`sorryAx` 0、非标准公理 0、纯构造性 567 条 ✓ |
+| 12 样本实测 ↔ Lean 定理对照 | **[docs/EVIDENCE.md](docs/EVIDENCE.md)**（9/9 义务自证、17/17 测试、4/4 demo；原始输出 `docs/evidence/`，脚本 `scripts/lean-evidence.sh`）✓ |
 
 ## CI
 

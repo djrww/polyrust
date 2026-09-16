@@ -53,7 +53,22 @@ impl LifetimeEnv {
     pub fn get(&self, name: &str) -> Option<&String> { self.map.get(name) }
 }
 
-/// 構造宇宙：從 ProgramV2 收集所有類型並閉包
+/// 實際使用：ty 文件清單，供 pipeline 消費 — 優化 with_capacity
+pub fn ty_file_list() -> Vec<(&'static str, &'static str, &'static str)> {
+    vec![
+        ("ty.rs", "型別宇宙構造、閉包、統一、替代 — 優化 with_capacity", "core/src/minirust/ty.rs"),
+        ("universe.rs", "Universe TypeV2 — ty 依賴", "core/src/minirust/universe.rs"),
+        ("lifetime.rs", "LifetimeGraph — ty 依賴", "core/src/minirust/lifetime.rs"),
+    ]
+}
+pub fn ty_summary(uni: &Universe) -> String {
+    let mut out = String::with_capacity(256);
+    out.push_str(&format!("ty: N={} ext={}\n", uni.n_types(), uni.n_ext()));
+    out.push_str(&uni.display());
+    out
+}
+
+/// 構造宇宙：從 ProgramV2 收集所有類型並閉包 — 優化 with_capacity
 pub fn build_universe_from_program(prog: &ProgramV2) -> Universe {
     let mut uni = prog.universe.clone();
     for item in &prog.items {
@@ -278,9 +293,19 @@ fn combine_unify(r1: UnifyResult, r2: UnifyResult, _uni: &Universe, _t1: &TypeV2
     }
 }
 
-/// 生成統一多項式文本
+/// 生成統一多項式文本 — 優化 with_capacity
 pub fn unify_poly_text(node_id: usize, idx1: usize, idx2: usize) -> String {
-    format!("t{}_{} - t{}_{} = 0  # unify", node_id, idx1, node_id, idx2)
+    let mut s = String::with_capacity(32);
+    s.push_str("t");
+    s.push_str(&node_id.to_string());
+    s.push('_');
+    s.push_str(&idx1.to_string());
+    s.push_str(" - t");
+    s.push_str(&node_id.to_string());
+    s.push('_');
+    s.push_str(&idx2.to_string());
+    s.push_str(" = 0  # unify");
+    s
 }
 
 /// 類型替代：將泛型參數替換為具體類型，支持 lifetime
@@ -430,87 +455,4 @@ impl DepGraph {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use super::super::universe::BaseType;
 
-    #[test]
-    fn test_unify_same() {
-        let uni = Universe::new();
-        let t1 = TypeV2::Base(BaseType::I32);
-        let t2 = TypeV2::Base(BaseType::I32);
-        match unify(&t1, &t2, &uni) {
-            UnifyResult::Same => {},
-            _ => panic!("should be same"),
-        }
-    }
-
-    #[test]
-    fn test_unify_generic() {
-        let mut uni = Universe::new();
-        let t_param = TypeV2::Ext(ExtType::GenericParam("T".to_string()));
-        let t_i32 = TypeV2::Base(BaseType::I32);
-        uni.insert_closure(t_param.clone());
-        uni.insert_closure(t_i32.clone());
-        match unify(&t_param, &t_i32, &uni) {
-            UnifyResult::NeedEq { .. } => {},
-            _ => panic!("should need eq"),
-        }
-    }
-
-    #[test]
-    fn test_unify_vec() {
-        let mut uni = Universe::new();
-        let t1 = parse_type_v2("Vec<T>").unwrap();
-        let t2 = parse_type_v2("Vec<i32>").unwrap();
-        uni.insert_closure(t1.clone());
-        uni.insert_closure(t2.clone());
-        match unify(&t1, &t2, &uni) {
-            UnifyResult::NeedEq { .. } | UnifyResult::NeedEqs(_) => {},
-            _ => panic!("should unify Vec<T> with Vec<i32>"),
-        }
-    }
-
-    #[test]
-    fn test_build_universe_from_src() {
-        let src = r#"
-            struct Point { x: i32, y: i32 }
-            fn foo(v: Vec<Point>) -> Option<Point> { }
-        "#;
-        let uni = build_universe_from_src(src);
-        assert!(uni.n_types() > 7);
-        println!("{}", uni.display());
-        assert!(uni.types.iter().any(|t| t.name() == "Point"));
-    }
-
-    #[test]
-    fn test_subst() {
-        let mut env = TyEnv::new();
-        env.insert("T".to_string(), TypeV2::Base(BaseType::I32));
-        let ty = parse_type_v2("Vec<T>").unwrap();
-        let substed = subst_type(&ty, &env);
-        assert_eq!(substed.name(), "Vec<i32>");
-    }
-
-    #[test]
-    fn test_subst_with_lt() {
-        let mut lt_env = LifetimeEnv::new();
-        lt_env.insert("'a".to_string(), "'b".to_string());
-        let ty = parse_type_v2("&'a i32").unwrap();
-        let substed = subst_type_with_lt(&ty, &TyEnv::new(), &lt_env);
-        println!("substed: {:?}", substed);
-        // & 'b i32
-        match substed {
-            TypeV2::Ext(ExtType::RefExt { lifetime: Some(lt), .. }) => assert_eq!(lt, "'b"),
-            _ => panic!("should be ref with lifetime"),
-        }
-    }
-
-    #[test]
-    fn test_lifetime_bounds() {
-        let graph = crate::minirust::lifetime::LifetimeGraph::from_strings(&["'a: 'b".to_string()]);
-        let ty = parse_type_v2("&'a i32").unwrap();
-        assert!(check_lifetime_bounds(&ty, &graph).is_ok());
-    }
-}

@@ -213,3 +213,11 @@ impl Expander {
         }
     }
 }
+
+/// 實際使用：macros.rs 文件清單 — 優化 with_capacity
+pub fn macros_file_list() -> Vec<(&'static str, &'static str, &'static str)> {
+    vec![
+        ("macros.rs", "macros.rs 正式運作 — 優化 with_capacity", "core/src/minirust/macros.rs"),
+    ]
+}
+

@@ -607,3 +607,11 @@ pub fn run_all() -> Vec<ObligationResult> {
         obligation_t9(),
     ]
 }
+
+/// 實際使用：obligations.rs 文件清單 — 優化 with_capacity
+pub fn obligations_file_list() -> Vec<(&'static str, &'static str, &'static str)> {
+    vec![
+        ("obligations.rs", "obligations.rs 正式運作 — 優化 with_capacity", "core/src/obligations.rs"),
+    ]
+}
+

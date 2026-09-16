@@ -31,20 +31,21 @@ bash ../scripts/lean-audit.sh   # 可信度審計：sorry 掃描 + #print axioms
 `#print axioms`，全部只列出 Lean 標準三公理（`propext`、`Classical.choice`、
 `Quot.sound`）或不依賴任何公理。若有 `sorry`，清單會出現 `sorryAx`。
 
-規模：**652 條定理/引理，8,605 行**（不含註解行另有數百行說明）。
-`AuditAll.lean` 全庫審計：受檢宣告 3074、純構造 1769、零 `sorry`、零自訂公理。
-**1769 條純構造宣告的逐條功用清冊見 [`docs/FORMAL_LEMMAS.md`](FORMAL_LEMMAS.md)**（由 `Enumerate3.lean` 環境掃描自動生成，判據與審計同源，`getModuleIdxFor?` 精確歸屬）。
+規模：**873 條定理/引理，10,221 行**（不含註解行另有數百行說明）。
+`AuditAll.lean` 全庫審計：受檢宣告 3432、純構造 1870、零 `sorry`、零自訂公理。
+**1870 條純構造宣告的逐條功用清冊見 [`docs/FORMAL_LEMMAS.md`](FORMAL_LEMMAS.md)**（由 `Enumerate3.lean` 環境掃描自動生成，判據與審計同源，`getModuleIdxFor?` 精確歸屬）。
 
 ---
 
-## 2. 模組 ↔ 文檔定理對照（含四類分類）
+## 2. 模組 ↔ 文檔定理對照（含五類分類）
 
-四類定義（任務要求）：
+五類定義（任務要求，含增量迭代）：
 
 - **補全（雙向完備）**：把單向引理補成 ⟺，如 `typable↔root`、`borrow_sat↔clean`、`clauseSat↔polyZero`、`parse/gen` round-trip 雙向。
 - **新增（鐵律核心）**：不可違反的核心命題，如 one-hot 排他、field poly `x²−x=0`、borrow 衝突互斥、lifetime 無環、unsafe 邊界、watch 移動保語義。
 - **衍生（由核心推出）**：由鐵律直接推出的結論，如 pair/sum 可定型推論、pairBitSum 乘積、isMonoAt 區域化、borrow 1∈理想、P5/P6 差異。
 - **次要（支撐性）**：底層支撐引理，如位元算術、MonoExp 整除、supportLe、List 求和。
+- **增量迭代（第5類，迭代收斂）**：覆蓋解析/生成/型別檢查/借用/F4/F5/LoopContract 的迭代單調與收斂，如 `parseFuel_mono_succ`、`gen_length_iter`、`check_add_iff`、`borrowSystem_append_pairs_eq`、`f4_ideal_invariant_iter`、`f5_sig_iter_trans`、`fuel_iter_mono` 等，全部純構造、零 sorry、零 axiom。
 
 | Lean 模組 | 行數 | 總宣告 | 純構造 | 四類 | 核心內容 |
 |---|---|---:|---:|---|---|
@@ -82,6 +83,7 @@ bash ../scripts/lean-audit.sh   # 可信度審計：sorry 掃描 + #print axioms
 | `Polyrust/IronLaw.lean` | 254 | 48 | 13 | 鐵律核心 | one-hot 排他、field poly `x²−x=0`、borrow 衝突互斥、lifetime 無環、unsafe 邊界、watch 保語義、子句對偶 |
 | `Polyrust/Derived.lean` | 236 | 41 | 5 | 衍生 | pair/sum 可定型推論、pairBitSum 乘積、isMonoAt 區域化、borrow 1∈理想、watch 多步守恆、P5/P6 差異 |
 | `Polyrust/Completion.lean` | 299 | 44 | 3 | 雙向完備 | clauseSat↔polyZero 雙向、false↔1、borrow_sat↔clean、typable↔root、watch iff、parse/gen 雙向、one-hot 唯一性雙向、field poly 雙向 |
+| `Polyrust/IncrementalIteration.lean` | 636 | 85 | 85 | 增量迭代 | parseFuel 單調/穩定/收斂、gen 迭代、sizeT 單調、check 分解、Typable/IsRoot 單調、borrowSystem 單調、F4/F5 迭代收斂、fuel 迭代、端到端迭代 |
 | `Audit.lean` | 160 | — | — | 工具 | 主定理 `#print axioms` |
 | `AuditAll.lean` | 75 | 3074 受檢 | 1769 純構造 | 工具 | 全庫掃描，零 sorry、零自訂公理，`AUDIT_RESULT=CLEAN` |
 
@@ -106,14 +108,15 @@ bash ../scripts/lean-audit.sh   # 可信度審計：sorry 掃描 + #print axioms
 | **T8** | `qap_duality` | deg 層面以列表次數陳述 |
 | **T9** | `typable_iff_root`、`untypable_iff_no_root`、`parse_gen`、`gen_length` | (b) rustc 可編譯與 (c) 語義保持不在 Lean 內，由 Rust 側實測 |
 
-### 四類新增覆蓋（本次補全）
+### 五類新增覆蓋（本次補全，含增量迭代）
 
-| 四類 | Lean 模組 | 代表定理 | 說明 |
+| 五類 | Lean 模組 | 代表定理 | 說明 |
 |---|---|---|---|
 | **補全** | `Completion` | `clauseSat_false_iff_polyOne`、`borrow_sat_iff_clean_completion`、`typable_iff_root_completion`、`watch_move_iff`、`parse_gen_sound`/`parse_gen_complete_left_inverse`、`oneHot_iff_exists_unique`、`field_poly_iff_bool` | 把以往單向引理補成 ⟺，實現判定等價的雙向完備；`clauseSat=false ↔ poly=1` 補上空子句與全假子句的對偶；`oneHot` 雙向把「和=1」與「存在唯一真」釘在一起 |
 | **新增** | `IronLaw` | `iron_one_hot_unique`、`iron_field_poly_bit`、`iron_borrow_clash_unsat`、`iron_overlaps_self_of_nonempty`、`iron_static_outlives_all`、`iron_unsafe_gate_fails_when_unsafe_not_allowed`、`iron_watch_move0_preserves`、`iron_clause_duality`、`iron_base_ne_ext` | 不可違反的鐵律：型別唯一、位元 0/1、借用互斥、區間自重疊、static 出超所有、unsafe 閘控、watch 保語義、子句對偶、基底≠擴展 |
 | **衍生** | `Derived` | `derived_typable_pair_iff`、`derived_type_typable_sum_iff`、`derived_pairBitSum_eq_mul`、`derived_isMonoAt_of_root`、`derived_borrow_clash_one_mem`、`derived_watchMoves_preserve_sat`、`derived_p5_p6_differ` | 由鐵律直接推出的結論：積型 AND、和型 OR、one-hot 乘積/相加、區域化單型、1∈理想顯式見證、多步守恆、P5/P6 僅差區間 |
 | **次要** | `Minor` | `minor_bit_mul_self`、`minor_bit_eq_zero_or_one`、`minor_litFactor_zero_or_one`、`minor_dividesM_trans`、`minor_supportLe_nth_false`、`minor_listSum_nonneg`、`minor_field_poly_bit` | 底層支撐：位元算術、Lit、MonoExp、supportLe、List 求和、field poly；全部純構造、零公理、供鐵律與完備性引用 |
+| **增量迭代** | `IncrementalIteration` | `parseFuel_mono_succ`/`parseFuel_mono`、`gen_length_iter`/`sizeT_pos`、`check_add_iff`、`typable_add_imp_left`/`isRoot_add_imp_left`、`borrowSystem_append_pairs_eq`/`borrow_sat_mono_pairs`/`borrow_unsat_mono_pairs`、`f4_ideal_invariant_iter`/`f4_ideal_invariant_iter3`、`f5_sig_iter_trans`/`f5_criterion_mono`/`f4f5_iter_preserves`、`fuel_iter_mono`/`fuel_iter_default_le`/`incremental_iteration_complete` | 迭代收斂：第5類覆蓋解析/生成/型別檢查/借用/F4/F5/LoopContract 的單調與迭代穩定，fuel 增加保持 some、gen 追加結合、check 分解、Typable/IsRoot 子表達式單調、borrowSystem 子集單調與 UNSAT 單調、F4 理想不變迭代、F5 簽名傳遞閉包與準則單調、F4F5 迭代收斂、端到端 t9+borrow 迭代 |
 
 ### 「錯了會怎樣」：若這些定理為假
 

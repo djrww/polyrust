@@ -20,5 +20,9 @@ path = "src/lib.rs"
 name = "polyrust"
 path = "src/main.rs"
 
+[[bin]]
+name = "bench_f4f5"
+path = "src/bench_f4f5.rs"
+
 [dependencies]
 # 刻意留空——這是本核心不變的承諾。

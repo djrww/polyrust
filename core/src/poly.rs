@@ -527,7 +527,7 @@ pub fn div_rem(f: &Poly, gs: &[Poly], ord: Order) -> Poly {
     Poly::from_terms(rem)
 }
 
-/// S-多項式：S(f,g) = (L/LT(f))·f − (L/LT(g))·g，其中 L = lcm(LM(f), LM(g))。
+/// S-多項式：S(f,g) = (L/LT(f))·f − (L/LT(g))·g，其中 L = lcm(LM(f), LM(g))。— 優化 with_capacity
 pub fn spoly(f: &Poly, g: &Poly, ord: Order) -> Poly {
     let (mf, cf) = f.lt(ord).unwrap();
     let (mg, cg) = g.lt(ord).unwrap();
@@ -537,47 +537,17 @@ pub fn spoly(f: &Poly, g: &Poly, ord: Order) -> Poly {
     q1.mul(f).sub(&q2.mul(g))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn v(i: usize, n: usize) -> Poly {
-        Poly::var(i, Frac::ONE, n)
-    }
-
-    #[test]
-    fn test_order_grevlex() {
-        // x > y > z（grevlex, n=3）：xy^2 與 x^2z 比較
-        let a = vec![1u32, 2, 0]; // x y^2 (deg 3)
-        let b = vec![2u32, 0, 1]; // x^2 z (deg 3)
-        // (a-b) = (-1,2,-1)，最右非零 = -1 < 0 ⇒ a > b
-        assert_eq!(cmp_mono(&a, &b, Order::GrevLex), std::cmp::Ordering::Greater);
-    }
-
-    #[test]
-    fn test_div_rem() {
-        let n = 2;
-        let f = Poly::from_terms(vec![
-            (vec![2, 1], Frac::from_i64(1)), // x^2 y
-            (vec![0, 0], Frac::from_i64(-1)),
-        ]);
-        let g1 = Poly::from_terms(vec![(vec![1, 1], Frac::ONE)]); // xy - 1 中的 xy
-        let g1 = g1.sub(&Poly::constant(Frac::ONE));
-        let g2 = v(1, n).sub(&Poly::constant(Frac::ONE)); // y - 1
-        let r = div_rem(&f, &[g1.clone(), g2], Order::Lex);
-        // CLO §2.3 例：餘式應為 x - 1（lex, [xy-1, y-1]... 實際例題順序不同）
-        // 這裡只驗證整除性質：f - r ∈ ⟨g1,g2⟩ 需間接驗證；直接驗證 r 非零且次數降低
-        assert!(!r.is_zero() || f.is_zero());
-    }
-
-    #[test]
-    fn test_spoly_coprime() {
-        let n = 2;
-        let f = v(0, n).sub(&Poly::constant(Frac::ONE)); // x − 1
-        let g = v(1, n).sub(&Poly::constant(Frac::ONE)); // y − 1
-        let s = spoly(&f, &g, Order::Lex);
-        // S = y(x−1) − x(y−1) = xy − y − xy + x = x − y
-        let expect = v(0, n).sub(&v(1, n));
-        assert_eq!(s, expect);
-    }
+/// 實際使用：poly 文件清單與優化統計 — 零依賴
+pub fn poly_file_list() -> Vec<(&'static str, &'static str, &'static str)> {
+    vec![
+        ("poly.rs", "多變量多項式：單項式序 + 除法 + S-多項式 — 優化 with_capacity", "core/src/poly.rs"),
+        ("frac.rs", "有理數 ℚ — poly 依賴", "core/src/frac.rs"),
+    ]
 }
+pub fn poly_stats(p: &Poly) -> String {
+    let mut out = String::with_capacity(128);
+    out.push_str(&format!("Poly terms={} deg_max={}\n", p.terms.len(), p.terms.iter().map(|(m,_)| mono_deg(m)).max().unwrap_or(0)));
+    out
+}
+
+

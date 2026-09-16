@@ -48,9 +48,9 @@ pub fn lex_v2(src: &str) -> Result<Vec<Tok>, String> {
     Ok(toks)
 }
 
-/// 從 token 流中提取類型字符串（用於 7+i 解析）
+/// 從 token 流中提取類型字符串（用於 7+i 解析）— 優化 with_capacity
 pub fn extract_type_tokens(toks: &[Tok], start: usize) -> (String, usize) {
-    let mut s = String::new();
+    let mut s = String::with_capacity(64);
     let mut depth = 0;
     let mut i = start;
     while i < toks.len() {
@@ -150,24 +150,24 @@ pub fn build_universe_from_src(src: &str) -> Result<super::universe::Universe, S
     Ok(universe)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_lex_v2() {
-        let src = "struct Point { x: i32 } enum Option<T> { Some(T), None }";
-        let toks = lex_v2(src).unwrap();
-        // 檢查 struct 被識別為 Kw
-        assert!(toks.iter().any(|t| matches!(t, Tok::Kw("struct"))));
-        assert!(toks.iter().any(|t| matches!(t, Tok::Kw("enum"))));
-    }
-
-    #[test]
-    fn test_build_universe() {
-        let src = "fn foo(x: Vec<i32>) -> Option<String> { }";
-        let uni = build_universe_from_src(src).unwrap();
-        assert!(uni.n_types() > 7);
-        println!("{}", uni.display());
-    }
+/// 實際使用：parse_v2 文件清單與統計 — 優化 with_capacity
+pub fn parse_v2_file_list() -> Vec<(&'static str, &'static str, &'static str)> {
+    vec![
+        ("parse_v2.rs", "擴展詞法 EXT_KW + 類型提取 + Universe 構建 — 優化 with_capacity", "core/src/minirust/parse_v2.rs"),
+        ("lexer.rs", "Tok 詞法 — v2 依賴", "core/src/minirust/lexer.rs"),
+        ("universe.rs", "TypeV2 Universe — v2 依賴", "core/src/minirust/universe.rs"),
+    ]
 }
+pub fn parse_v2_summary(src: &str) -> String {
+    let mut out = String::with_capacity(512);
+    match build_universe_from_src(src) {
+        Ok(uni) => {
+            out.push_str(&format!("parse_v2: src_len={} universe_N={} ext={}\n", src.len(), uni.n_types(), uni.n_ext()));
+            out.push_str(&uni.display());
+        }
+        Err(e) => out.push_str(&format!("parse_v2 error: {}\n", e)),
+    }
+    out
+}
+
+

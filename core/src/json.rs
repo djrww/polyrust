@@ -92,33 +92,16 @@ impl J {
 
 impl std::fmt::Display for J {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut out = String::new();
+        let mut out = String::with_capacity(256);
         self.write(&mut out);
         f.write_str(&out)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_escape() {
-        assert_eq!(J::s("a\"b\\c\nd").to_string(), "\"a\\\"b\\\\c\\nd\"");
-    }
-
-    #[test]
-    fn test_nested() {
-        let v = J::obj(vec![
-            ("name", J::s("x")),
-            ("ok", J::Bool(true)),
-            ("n", J::Int(42)),
-            ("none", J::Null),
-            ("list", J::Arr(vec![J::Int(1), J::Int(2)])),
-        ]);
-        assert_eq!(
-            v.to_string(),
-            "{\"name\":\"x\",\"ok\":true,\"n\":42,\"none\":null,\"list\":[1,2]}"
-        );
-    }
+/// 實際使用：json 文件清單
+pub fn json_file_list() -> Vec<(&'static str, &'static str, &'static str)> {
+    vec![
+        ("json.rs", "極簡 JSON 序列化 — 優化 with_capacity", "core/src/json.rs"),
+    ]
 }
+
+

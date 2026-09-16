@@ -151,3 +151,11 @@ fn walk(e: &E, env: &mut HashMap<String, usize>, w: &mut Walker) {
         }
     }
 }
+
+/// 實際使用：analysis.rs 文件清單 — 優化 with_capacity
+pub fn analysis_file_list() -> Vec<(&'static str, &'static str, &'static str)> {
+    vec![
+        ("analysis.rs", "analysis.rs 正式運作 — 優化 with_capacity", "core/src/minirust/analysis.rs"),
+    ]
+}
+

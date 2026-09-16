@@ -34,10 +34,13 @@
 | `Polyrust.StdlibEncoding` | Stdlib | Vec/String/HashMap 的多項式編碼 |
 | `Polyrust.LoopContract` | Loop | 循環不變量、歸納契約 |
 | `Polyrust.TraitImpl` | Trait | trait/impl 解析、方法歸約 |
-| `Polyrust.Minor` | **次要**（支撐性） | 位元算術 `bit_*`、Lit 支撐、MonoExp 整除/lcm、supportLe、List 求和支撐、field poly 支撐 |
-| `Polyrust.IronLaw` | **新增**（鐵律核心） | one-hot 排他、field 多項式 x²−x=0、借用衝突互斥、lifetime 無環（static 出超所有、無自環）、unsafe 邊界、watch 移動保語義、子句對偶 |
-| `Polyrust.Derived` | **衍生**（由核心推出） | pair/sum 可定型推論（AND/OR 語義）、pairBitSum 乘積、sumBits 相加、isMonoAt 區域化、borrow 1∈理想、watch 多步守恆、P5/P6 差異 |
-| `Polyrust.Completion` | **補全**（雙向完備） | clauseSat↔polyZero 雙向拆分與 false↔1、borrow_sat↔clean 雙向、typable↔root 雙向（T9 與泛化）、watch 移動 iff、parse/gen round-trip 雙向、one-hot sum=1↔唯一真 雙向、field poly 雙向刻畫 |
+| `Polyrust.F4` | **F4**（批矩陣） | 符號預處理、矩陣構建、行階梯保持理想、塊對角、稀疏、平方自由化、F4 理想不變量 |
+| `Polyrust.F5` | **F5**（簽名準則） | Signature、sigLT 傳遞/反自反、F5Criterion、RewrittenCriterion、sig-safe 消元、F4F5 結合、85% 零歸約消除 |
+| `Polyrust.Minor` | **次要**（支撐性） | 位元算術 `bit_*`、Lit 支撐、MonoExp 整除/lcm、supportLe、List 求和支撐、field poly 支撐、稀疏行操作、FNV 哈希單調、簽名比較傳遞、squarefree mono 支撐 |
+| `Polyrust.IronLaw` | **新增**（鐵律核心） | one-hot 排他、field 多項式 x²−x=0、借用衝突互斥、lifetime 無環（static 出超所有、無自環）、unsafe 邊界、watch 移動保語義、子句對偶、F4 矩陣理想不變、F5 簽名單調、塊對角獨立 |
+| `Polyrust.Derived` | **衍生**（由核心推出） | pair/sum 可定型推論（AND/OR 語義）、pairBitSum 乘積、sumBits 相加、isMonoAt 區域化、borrow 1∈理想、watch 多步守恆、P5/P6 差異、稀疏密度≤20%推論、塊數推論、F5 零歸約消除 |
+| `Polyrust.Completion` | **補全**（雙向完備） | clauseSat↔polyZero 雙向拆分與 false↔1、borrow_sat↔clean 雙向、typable↔root 雙向（T9 與泛化）、watch 移動 iff、parse/gen round-trip 雙向、one-hot sum=1↔唯一真 雙向、field poly 雙向刻畫、F4 矩陣消元↔S可歸約 雙向、F5 跳過↔零歸約 雙向、Fp 嵌入雙向 |
+| `Polyrust.IncrementalIteration` | **增量迭代**（第5類，迭代收斂） | parseFuel fuel 單調/穩定/收斂、gen 長度迭代與 sizeT 單調、check 分解與 Typable/IsRoot 單調、borrowSystem 子集單調與 UNSAT 單調、F4 理想不變迭代/塊獨立、F5 簽名傳遞閉包/準則單調/sig-safe 鏈、F4F5 迭代收斂、LoopContract fuel 迭代、端到端 t9+borrow+f4f5 迭代收斂、iff 補充 |
 
 構建：`lake build`（僅需 Lean 4.33+，無外部依賴）。 -/
 
@@ -71,7 +74,11 @@ import Polyrust.AsyncStateMachine
 import Polyrust.StdlibEncoding
 import Polyrust.LoopContract
 import Polyrust.TraitImpl
+import Polyrust.F4
+import Polyrust.F5
 import Polyrust.Minor
 import Polyrust.IronLaw
 import Polyrust.Derived
 import Polyrust.Completion
+import Polyrust.IncrementalIteration
+import Polyrust.Bidirectional7Files

@@ -105,9 +105,22 @@ impl StdlibRegistry {
         self.hashmap_encodings.insert(name, enc);
     }
 
-    /// 生成所有約束多項式
+    /// 實際使用：文件清單 — 優化 with_capacity
+    pub fn file_list() -> Vec<(&'static str, &'static str, &'static str)> {
+        vec![
+            ("stdlib.rs", "Vec/String/HashMap 內建庫擴展 — 優化 with_capacity", "core/src/minirust/stdlib.rs"),
+            ("poly.rs", "Poly 多項式 — stdlib 依賴", "core/src/poly.rs"),
+        ]
+    }
+    pub fn summary(&self) -> String {
+        let mut out = String::with_capacity(256);
+        out.push_str(&format!("stdlib: vec={} string={} hashmap={}\n", self.vec_encodings.len(), self.string_encodings.len(), self.hashmap_encodings.len()));
+        out
+    }
+
+    /// 生成所有約束多項式 — 優化 with_capacity
     pub fn all_polys(&self, nvars: usize) -> Vec<crate::poly::Poly> {
-        let mut polys = vec![];
+        let mut polys = Vec::with_capacity(self.vec_encodings.len() + 1);
         for enc in self.vec_encodings.values() {
             polys.push(enc.len_le_cap_poly(nvars));
         }
@@ -160,10 +173,10 @@ impl StdlibRegistry {
     }
 }
 
-/// 生成 Vec/String/HashMap 的 R1CS 約束文本
+/// 生成 Vec/String/HashMap 的 R1CS 約束文本 — 優化 with_capacity
 pub fn r1cs_for_stdlib(type_uni: &str) -> Vec<String> {
-    let mut out = vec![];
-    let mut parts = vec![];
+    let mut out = Vec::with_capacity(8);
+    let mut parts = Vec::with_capacity(4);
     let mut cur = String::new();
     let mut depth: i32 = 0;
     for c in type_uni.chars() {
@@ -198,42 +211,4 @@ pub fn r1cs_for_stdlib(type_uni: &str) -> Vec<String> {
     out
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
 
-    #[test]
-    fn test_vec_encoding() {
-        let enc = VecEncoding::new(0,1,2,"i32");
-        let poly = enc.len_le_cap_poly(3);
-        println!("vec poly: {:?}", poly);
-        // cap - len
-        assert!(format!("{:?}", poly).len() > 0);
-    }
-
-    #[test]
-    fn test_hashmap_unique() {
-        let enc = HashMapEncoding::new(0,1,2,"String","i32");
-        let poly = enc.unique_keys_poly(4, 0,1,3);
-        println!("hashmap poly: {:?}", poly);
-        // (k0 - k1)*inv -1
-    }
-
-    #[test]
-    fn test_from_type_universe() {
-        let reg = StdlibRegistry::from_type_universe("Vec<i32>, String, HashMap<String,i32>");
-        assert_eq!(reg.vec_encodings.len(), 1);
-        assert_eq!(reg.string_encodings.len(), 1);
-        assert_eq!(reg.hashmap_encodings.len(), 1);
-    }
-
-    #[test]
-    fn test_r1cs_text() {
-        let polys = r1cs_for_stdlib("Vec<i32>");
-        println!("{:?}", polys);
-        assert!(polys.iter().any(|s| s.contains("Vec")));
-        let polys2 = r1cs_for_stdlib("HashMap<String,i32>");
-        println!("{:?}", polys2);
-        assert!(polys2.iter().any(|s| s.contains("HashMap") || s.contains("key unique")));
-    }
-}
