@@ -550,6 +550,10 @@ pub fn generate_rust_from_lowered(lowered: &Lowered) -> String {
     out.push_str("// === Generated (async state machine, from lower.rs::generated) ===\n");
     for item in &lowered.generated {
         match item {
+            ItemV2::Union(u) => {
+                out.push_str(&format!("// Generated union: {}\n", u.name));
+                out.push_str(&format!("pub union {} {{ /* {} fields, unsafe access */ }}\n\n", u.name, u.fields.len()));
+            }
             ItemV2::Enum(e) => {
                 out.push_str(&format!("// Generated enum: {}\n", e.name));
                 out.push_str(&format!("pub enum {} {{\n", e.name));
@@ -583,6 +587,9 @@ pub fn generate_rust_from_lowered(lowered: &Lowered) -> String {
     out.push_str("// === Flattened ProgramV2 items ===\n");
     for item in &lowered.program.items {
         match item {
+            ItemV2::Union(u) => {
+                out.push_str(&format!("pub union {} {{ {} fields, unsafe access }}\n", u.name, u.fields.len()));
+            }
             ItemV2::Struct(s) => {
                 out.push_str(&format!("pub struct {} {{ {} fields }}\n", s.name, s.fields.len()));
             }

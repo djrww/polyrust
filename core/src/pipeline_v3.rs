@@ -244,7 +244,7 @@ fn risk_level_to_iso(level: &RiskLevel) -> &'static str {
 }
 
 fn generate_lean_proof_refs(v2: &crate::pipeline_v2::PipelineV2Result) -> Vec<String> {
-    let mut refs = Vec::with_capacity(12);
+    let mut refs = Vec::with_capacity(20);
     refs.push("Polyrust.IncrementalIteration.parseFuel_mono".to_string());
     refs.push("Polyrust.IncrementalIteration.borrowSystem_subset_mono".to_string());
     refs.push("Polyrust.IncrementalIteration.f4_ideal_invariant_iter".to_string());
@@ -261,6 +261,39 @@ fn generate_lean_proof_refs(v2: &crate::pipeline_v2::PipelineV2Result) -> Vec<St
     }
     if v2.n_unsafe > 0 {
         refs.push("Polyrust.Unsafe.unsafe_gate_sound".to_string());
+    }
+    // 五類 unsafe 前移：F4/F5 ideal 不變 + 無運行期 UB
+    if v2.n_raw_ptr_safety > 0 {
+        refs.push("Polyrust.UnsafeSafety.raw_ptr_deref_requires_valid_and_unsafe".to_string());
+        refs.push("Polyrust.IronLaw.iron_raw_ptr_safe_no_ub".to_string());
+    }
+    if v2.n_static_mut_safety > 0 {
+        refs.push("Polyrust.UnsafeSafety.static_mut_access_requires_safe".to_string());
+        refs.push("Polyrust.UnsafeSafety.static_mut_safe_protection".to_string());
+        refs.push("Polyrust.IronLaw.iron_static_mut_safe_no_data_race".to_string());
+    }
+    if v2.n_union_safety > 0 {
+        refs.push("Polyrust.UnsafeSafety.union_safe_requires_tag_match".to_string());
+        refs.push("Polyrust.IronLaw.iron_union_safe_no_type_pun".to_string());
+    }
+    if v2.n_unsafe_fn_safety > 0 {
+        refs.push("Polyrust.UnsafeSafety.unsafe_fn_call_requires_safe".to_string());
+        refs.push("Polyrust.UnsafeSafety.unsafe_fn_safe_requires_precond".to_string());
+        refs.push("Polyrust.IronLaw.iron_unsafe_fn_safe_no_ub".to_string());
+    }
+    if v2.n_unsafe_trait_safety > 0 {
+        refs.push("Polyrust.UnsafeSafety.unsafe_trait_impl_requires_safe".to_string());
+        refs.push("Polyrust.UnsafeSafety.unsafe_trait_safe_requires_invariant".to_string());
+        refs.push("Polyrust.IronLaw.iron_unsafe_trait_safe_no_ub".to_string());
+    }
+    if v2.n_raw_ptr_safety + v2.n_static_mut_safety + v2.n_union_safety + v2.n_unsafe_fn_safety + v2.n_unsafe_trait_safety > 0 {
+        refs.push("Polyrust.IronLaw.all_unsafe_safe_implies_no_runtime_ub".to_string());
+        refs.push("Polyrust.IronLaw.iron_all_unsafe_safe_example_no_ub".to_string());
+        // F4/F5 ideal 不變：unsafe safety 多項式在自迭代中保持 ideal
+        refs.push("Polyrust.F4.f4_ideal_invariant".to_string());
+        refs.push("Polyrust.F5.f5_criterion_preserves_ideal".to_string());
+        refs.push("Polyrust.IronLaw.iron_f4_ideal_invariant".to_string());
+        refs.push("Polyrust.IronLaw.iron_f5_criterion_preserves_ideal".to_string());
     }
     refs.push("Polyrust.ModuleFlatten.qualify_prefix_injective".to_string());
     refs.push("Polyrust.MatchDecisionTree.compileMatchAux_depth_le_arms".to_string());
@@ -284,6 +317,21 @@ fn generate_remediation(v2: &crate::pipeline_v2::PipelineV2Result) -> Vec<String
     }
     if v2.n_unsafe > 0 {
         rem.push(format!("审查 {} 个 unsafe 操作: 确保在 @unsafe-allowed 块内，且满足 t_unsafe_op*(1-in_unsafe)=0", v2.n_unsafe));
+    }
+    if v2.n_raw_ptr_safety > 0 {
+        rem.push(format!("裸指針安全: {} 個 raw_ptr_safety 證明，需滿足 valid = non_null∧aligned∧in_bounds∧not_dangling 且 (1-valid)*deref=0, (1-in_unsafe)*deref=0", v2.n_raw_ptr_safety));
+    }
+    if v2.n_static_mut_safety > 0 {
+        rem.push(format!("static mut 多線程安全: {} 個 static_mut_safety，需 safe = in_unsafe∧(exclusive∨mutex∨single) 且 (1-safe)*access=0，檢查是否在 thread::spawn/async 上下文", v2.n_static_mut_safety));
+    }
+    if v2.n_union_safety > 0 {
+        rem.push(format!("union 安全: {} 個 union_safety，需 tag_match*(active-accessed)=0 且 safe = in_unsafe*tag_match", v2.n_union_safety));
+    }
+    if v2.n_unsafe_fn_safety > 0 {
+        rem.push(format!("unsafe fn 安全: {} 個 unsafe_fn_safety，需 safe = in_unsafe*precond 且 (1-safe)*call=0，確保 precond 成立", v2.n_unsafe_fn_safety));
+    }
+    if v2.n_unsafe_trait_safety > 0 {
+        rem.push(format!("unsafe trait 安全: {} 個 unsafe_trait_safety，需 safe = is_unsafe_impl*invariant 且 (1-safe)*impl=0，確保 invariant 成立", v2.n_unsafe_trait_safety));
     }
     if !v2.errors.is_empty() {
         for e in &v2.errors {
@@ -601,9 +649,10 @@ fn select_groebner_algo_v3(
     // 启发式: 根据 v2 统计
     let n = v2.n_polys;
     let has_cycle = v2.lifetime_has_cycle;
-    let has_unsafe = v2.n_unsafe > 0;
+    let has_unsafe = v2.n_unsafe > 0 || v2.n_raw_ptr_safety > 0 || v2.n_static_mut_safety > 0 || v2.n_union_safety > 0 || v2.n_unsafe_fn_safety > 0 || v2.n_unsafe_trait_safety > 0;
     let many_conflicts = v2.borrow_conflicts.len() > 2;
 
+    // 五類 unsafe 前移：任何 unsafe safety 證明存在，強制 F4F5 以保證 ideal 不變（F4 ideal_invariant, F5 signature）
     if has_cycle || has_unsafe || many_conflicts {
         GroebnerAlgo::F4F5
     } else if n > 200 {
@@ -1359,6 +1408,11 @@ mod tests {
             n_async: 0,
             n_lifetime: 2,
             n_unsafe: 0,
+            n_raw_ptr_safety: 0,
+            n_static_mut_safety: 0,
+            n_union_safety: 0,
+            n_unsafe_fn_safety: 0,
+            n_unsafe_trait_safety: 0,
             n_stdlib: 0,
             n_trait_impl: 0,
             type_universe_size: 8,

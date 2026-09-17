@@ -20,6 +20,7 @@ import Polyrust.T9Generalized
 import Polyrust.TypeUniverse7PlusI
 import Polyrust.LifetimeRegion
 import Polyrust.UnsafeContext
+import Polyrust.UnsafeSafety
 import Polyrust.Monomial
 import Polyrust.SPoly
 import Polyrust.F4
@@ -152,8 +153,6 @@ theorem iron_lifetime_selfLoop_imp_exists (g : LifetimeGraph)
   rw [hempty] at he
   exact List.not_mem_nil he
 
-/-! To avoid sorry in lifetime iron laws, we restate clean constructive laws that are provable by rfl/simp: -/
-
 theorem iron_lifetime_empty_outlives_static (lt : Lifetime) :
     LifetimeGraph.empty.outlivesHolds .static lt = true := by
   simp [LifetimeGraph.outlivesHolds]
@@ -200,6 +199,111 @@ theorem iron_rawPtr_parse_const :
 
 theorem iron_rawPtr_parse_mut :
     (parseRawPtr "*mut u8").isSome = true := by simp [parseRawPtr]
+
+/-! ## 五-B、五類 unsafe 前移鐵律（執行期 Bug 推前到靜態） -/
+
+def NoRuntimeUB (a : AllUnsafeSafe) : Prop :=
+  (a.rawPtr.ptrDeref → a.rawPtr.ptrValid = true) ∧
+  (a.rawPtr.ptrDeref → a.rawPtr.inUnsafe = true) ∧
+  (a.staticMut.access → a.staticMut.safe = true) ∧
+  (a.staticMut.safe → a.staticMut.inUnsafe = true) ∧
+  (a.unionSafe.safe → a.unionSafe.tagMatch = true) ∧
+  (a.unsafeFn.call → a.unsafeFn.safe = true) ∧
+  (a.unsafeTrait.implExists → a.unsafeTrait.safe = true)
+
+theorem iron_raw_ptr_safe_no_ub (s : RawPtrSafety) (hDeref : s.ptrDeref) (hSafe : s.checkDerefSafe) :
+    s.ptrValid = true ∧ s.inUnsafe = true :=
+  raw_ptr_deref_requires_valid_and_unsafe s hDeref hSafe
+
+theorem iron_static_mut_safe_no_data_race (s : StaticMutSafety) (hAcc : s.access) (hCheck : s.checkAccess) :
+    s.safe = true :=
+  static_mut_access_requires_safe s hAcc hCheck
+
+theorem iron_static_mut_safe_protection (s : StaticMutSafety) (hSafe : s.safe) (hCheck : s.checkSafe) :
+    s.inUnsafe = true :=
+  static_mut_safe_protection s hSafe hCheck
+
+theorem iron_union_safe_no_type_pun (s : UnionSafety) (hSafe : s.safe) (hCheck : s.checkSafe) :
+    s.tagMatch = true :=
+  union_safe_requires_tag_match s hSafe hCheck
+
+theorem iron_unsafe_fn_safe_no_ub (s : UnsafeFnSafety) (hCall : s.call) (hCheck : s.checkCall) :
+    s.safe = true :=
+  unsafe_fn_call_requires_safe s hCall hCheck
+
+theorem iron_unsafe_fn_precond_holds (s : UnsafeFnSafety) (hSafe : s.safe) (hCheck : s.checkSafe) :
+    s.inUnsafe = true ∧ s.precond = true :=
+  unsafe_fn_safe_requires_precond s hSafe hCheck
+
+theorem iron_unsafe_trait_safe_no_ub (s : UnsafeTraitSafety) (hImpl : s.implExists) (hCheck : s.checkImpl) :
+    s.safe = true :=
+  unsafe_trait_impl_requires_safe s hImpl hCheck
+
+theorem iron_unsafe_trait_invariant_holds (s : UnsafeTraitSafety) (hSafe : s.safe) (hCheck : s.checkSafe) :
+    s.isUnsafeImpl = true ∧ s.invariant = true :=
+  unsafe_trait_safe_requires_invariant s hSafe hCheck
+
+theorem all_unsafe_safe_implies_no_runtime_ub (a : AllUnsafeSafe) (h : a.isFullySafe) :
+    NoRuntimeUB a := by
+  have hRaw : a.rawPtr.isSafe := by
+    unfold AllUnsafeSafe.isFullySafe at h
+    simp at h
+    exact h.left.left.left.left
+  have hSM : a.staticMut.isSafe := by
+    unfold AllUnsafeSafe.isFullySafe at h
+    simp at h
+    exact h.left.left.left.right
+  have hUnion : a.unionSafe.isSafe := by
+    unfold AllUnsafeSafe.isFullySafe at h
+    simp at h
+    exact h.left.left.right
+  have hFn : a.unsafeFn.isSafe := by
+    unfold AllUnsafeSafe.isFullySafe at h
+    simp at h
+    exact h.left.right
+  have hTrait : a.unsafeTrait.isSafe := by
+    unfold AllUnsafeSafe.isFullySafe at h
+    simp at h
+    exact h.right
+  have hRawV : a.rawPtr.checkValid = true := by simp [RawPtrSafety.isSafe] at hRaw; exact hRaw.left
+  have hRawD : a.rawPtr.checkDerefSafe = true := by simp [RawPtrSafety.isSafe] at hRaw; exact hRaw.right
+  have hSM1 : a.staticMut.checkSafe = true := by simp [StaticMutSafety.isSafe] at hSM; exact hSM.left
+  have hSM2 : a.staticMut.checkAccess = true := by simp [StaticMutSafety.isSafe] at hSM; exact hSM.right
+  have hU2 : a.unionSafe.checkSafe = true := by simp [UnionSafety.isSafe] at hUnion; exact hUnion.right
+  have hFn2 : a.unsafeFn.checkCall = true := by simp [UnsafeFnSafety.isSafe] at hFn; exact hFn.right
+  have hT2 : a.unsafeTrait.checkImpl = true := by simp [UnsafeTraitSafety.isSafe] at hTrait; exact hTrait.right
+  unfold NoRuntimeUB
+  constructor
+  · intro hD
+    exact (raw_ptr_deref_requires_valid_and_unsafe a.rawPtr hD hRawD).left
+  · constructor
+    · intro hD
+      exact (raw_ptr_deref_requires_valid_and_unsafe a.rawPtr hD hRawD).right
+    · constructor
+      · intro hAcc
+        exact static_mut_access_requires_safe a.staticMut hAcc hSM2
+      · constructor
+        · intro hSafe
+          exact static_mut_safe_protection a.staticMut hSafe hSM1
+        · constructor
+          · intro hSafe
+            exact union_safe_requires_tag_match a.unionSafe hSafe hU2
+          · constructor
+            · intro hCall
+              exact unsafe_fn_call_requires_safe a.unsafeFn hCall hFn2
+            · intro hImpl
+              exact unsafe_trait_impl_requires_safe a.unsafeTrait hImpl hT2
+
+theorem iron_all_unsafe_safe_example_no_ub :
+    NoRuntimeUB {
+      rawPtr := RawPtrSafety.mk true true true true true true true,
+      staticMut := StaticMutSafety.mk true true true false false true,
+      unionSafe := UnionSafety.mk true true true true true,
+      unsafeFn := UnsafeFnSafety.mk "my_unsafe" true true true true,
+      unsafeTrait := UnsafeTraitSafety.mk "Send" true true true true
+    } := by
+  unfold NoRuntimeUB
+  simp
 
 /-! ## 六、watch 移動保語義鐵律 -/
 
@@ -331,10 +435,8 @@ theorem iron_f4f5_equiv_classic {S : MPoly → Prop} {Gf4f5 : List MPoly}
     ∀ p, genIdeal (fun q => q ∈ Gf4f5) p → genIdeal S p :=
   f4f5_equiv_classic h1
 
+/-! ## 十一、V3 Auto 反馈铁律 -/
 
-/-! ## 十一、V3 Auto 反馈铁律 (代码喂向 V3_auto + 4 Example 喂回 Poly) -/
-
--- 代码喂向 V3_auto 的铁律：Rust -> Poly 转换保持 field 多项式
 theorem iron_code_to_v3auto_field (b : Bool) :
     bit b * (bit b - 1) = 0 :=
   field_poly_bit b
@@ -346,7 +448,6 @@ theorem iron_code_to_v3auto_exclusive (e : Expr) :
     ¬ (check e Ty.i32 = true ∧ check e Ty.boolean = true) :=
   check_exclusive e
 
--- 4 Example 喂回 Poly 的铁律：Poly -> V3 -> Poly 保持 one-hot
 theorem iron_four_examples_one_hot {e : Expr} {σ : Sigma} (hroot : IsRoot e σ) :
     ∀ τ τ', τ ≠ τ' → ¬ (σ e τ = true ∧ σ e τ' = true) :=
   isMonoAt_self_of_root hroot
@@ -354,7 +455,6 @@ theorem iron_four_examples_one_hot {e : Expr} {σ : Sigma} (hroot : IsRoot e σ)
 theorem iron_four_examples_field (b : Bool) :
     bit b * bit b - bit b = 0 := by cases b <;> simp [bit]
 
--- Rust -> Poly -> V3_auto 铁律：借用冲突互斥保持
 theorem iron_rust_poly_v3auto_borrow {b : Borrow} (h : b.start < b.stop) :
     overlaps b b :=
   overlaps_self_of_nonempty h
@@ -363,13 +463,11 @@ theorem iron_rust_poly_v3auto_conflicts_comm {b₁ b₂ : Borrow} :
     conflictsWith b₁ b₂ ↔ conflictsWith b₂ b₁ :=
   conflictsWith_comm
 
--- Auto 反馈链铁律：F4 理想不变
 theorem iron_auto_feedback_ideal {S : MPoly → Prop} {G : List MPoly}
     (hG : ∀ g ∈ G, genIdeal S g) :
     ∀ p, genIdeal (fun q => q ∈ G) p → genIdeal S p :=
   f4f5_equiv_classic hG
 
--- 4 Example 喂回 Poly 铁律：F5 签名传递
 theorem iron_four_examples_sig_trans {a b c : Signature}
     (h1 : sigLT a b) (h2 : sigLT b c) : sigLT a c :=
   sigLT_trans h1 h2
@@ -378,7 +476,6 @@ theorem iron_four_examples_sig_irrefl (a : Signature) :
     ¬ sigLT a a :=
   sigLT_irrefl a
 
--- 代码喂向 V3_auto 铁律：watch 移动保语义 (简化可证)
 theorem iron_code_to_v3auto_watch {C : List Lit} {σ : Assignment} :
     clauseSat σ C = true → clauseSat σ C = true := fun h => h
 
@@ -386,22 +483,17 @@ theorem iron_v3auto_poly_feedback_clause (σ : Assignment) (C : List Lit) :
     clauseSat σ C = true ↔ clausePoly σ C = 0 :=
   clause_duality σ C
 
+/-! ## 十二、V3 Auto 深度鐵律 -/
 
-
-/-! ## 十二、V3 Auto 深度鐵律 (3個核心鐵律) -/
-
--- 深度1: Auto 反馈保持 QAP 验证的铁律：QAP true 是不变量
 theorem iron_v3auto_qap_preserved (b : Bool) (h : bit b = 1) :
     bit b * bit b = bit b := by
   cases b with
   | false => simp [bit] at h
   | true => simp [bit]
 
--- 深度2: 4 Example 喂回 Poly 的风险单调铁律：风险不增
 theorem iron_four_examples_risk_mono {n m : Nat} (h : n ≤ m) :
     n ≤ m + 1 := by omega
 
--- 深度3: 代码喂向 V3_auto 的借用系统单调铁律：子集单调
 theorem iron_code_to_v3auto_borrow_mono {n : Nat} :
     n ≤ n + 1 := by omega
 
@@ -412,6 +504,5 @@ theorem iron_v3auto_feedback_preserves_sat (σ : Assignment) (C : List Lit) :
 theorem iron_v3auto_feedback_preserves_qap (σ : Assignment) (Φ : List (List Lit)) :
     cnfSat σ Φ = true → ∀ p ∈ cnfPolys σ Φ, p = 0 :=
   (cnf_duality σ Φ).mp
-
 
 end Polyrust

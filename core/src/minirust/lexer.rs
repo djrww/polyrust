@@ -193,7 +193,7 @@ pub fn lex(src: &str) -> Result<Vec<Tok>, String> {
             }
             out.push(match s.as_str() {
                 "fn" | "let" | "if" | "else" | "true" | "false" | "mut" | "macro_rules"
-                | "struct" | "enum" | "impl" | "trait" | "mod" | "use" | "pub" | "unsafe"
+                | "struct" | "enum" | "union" | "static" | "impl" | "trait" | "mod" | "use" | "pub" | "unsafe"
                 | "async" | "await" | "loop" | "while" | "for" | "match" | "where" | "dyn"
                 | "Self" | "super" | "crate" | "self"
                 | "return" | "break" | "continue" | "move" | "as" | "in" | "box" => {
@@ -207,6 +207,8 @@ pub fn lex(src: &str) -> Result<Vec<Tok>, String> {
                         "mut" => "mut",
                         "struct" => "struct",
                         "enum" => "enum",
+                        "union" => "union",
+                        "static" => "static",
                         "impl" => "impl",
                         "trait" => "trait",
                         "mod" => "mod",

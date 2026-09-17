@@ -50,6 +50,12 @@ pub struct SystemV2 {
     pub unsafe_constraints: Vec<UnsafeConstraint>,
     pub stdlib_constraints: Vec<StdlibConstraint>,
     pub trait_impl_constraints: Vec<TraitImplConstraint>,
+    // Unsafe Safety 前移：五類
+    pub raw_ptr_safety: Vec<crate::minirust::unsafe_safety::RawPtrSafety>,
+    pub static_mut_safety: Vec<crate::minirust::unsafe_safety::StaticMutSafety>,
+    pub union_safety: Vec<crate::minirust::unsafe_safety::UnionSafety>,
+    pub unsafe_fn_safety: Vec<crate::minirust::unsafe_safety::UnsafeFnSafety>,
+    pub unsafe_trait_safety: Vec<crate::minirust::unsafe_safety::UnsafeTraitSafety>,
 }
 
 #[derive(Clone, Debug)]
@@ -79,13 +85,13 @@ pub struct MatchConstraint {
     pub decision_tree: MatchDecisionTree,
 }
 
-fn mono_of(var: usize, nvars: usize) -> Vec<u32> {
+pub fn mono_of(var: usize, nvars: usize) -> Vec<u32> {
     let mut m = vec![0u32; nvars.max(var + 1)];
     m[var] = 1;
     m
 }
 
-fn var_poly(nvars: usize, v: usize) -> Poly {
+pub fn var_poly(nvars: usize, v: usize) -> Poly {
     Poly::var(v, Frac::ONE, nvars)
 }
 
@@ -114,7 +120,7 @@ fn type_bits_v2(sys: &mut SystemV2, node: usize, kind: &str) -> Vec<usize> {
     ts
 }
 
-fn emit(sys: &mut SystemV2, f: Poly) {
+pub fn emit(sys: &mut SystemV2, f: Poly) {
     if !f.is_zero() {
         sys.polys.push(f);
     }

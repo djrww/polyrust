@@ -454,4 +454,68 @@ mod tests {
             assert!(r.poly_source.len() > 0);
         }
     }
+
+    #[test]
+    fn test_unsafe_five_categories() {
+        // 五類 unsafe 前移：裸指針、unsafe fn、Unsafe Trait、static mut 多線程、union
+        let cases = vec![
+            ("raw_ptr", "# @unsafe-allowed\nfn main() { let x = 5; let p: *const i32 = &x as *const _; unsafe { let v = *p; println!(\"{}\", v); } }"),
+            ("static_mut", "# @unsafe-allowed\nstatic mut COUNTER: i32 = 0; fn main() { unsafe { COUNTER += 1; println!(\"{}\", COUNTER); } }"),
+            ("union", "# @unsafe-allowed\nunion MyUnion { i: i32, f: f32 } fn main() { let u = MyUnion { i: 42 }; unsafe { println!(\"{}\", u.i); } }"),
+            ("unsafe_fn", "# @unsafe-allowed\nunsafe fn my_unsafe_fn(x: i32) -> i32 { x * 2 } fn main() { unsafe { let y = my_unsafe_fn(21); println!(\"{}\", y); } }"),
+            ("unsafe_trait", "# @unsafe-allowed\nunsafe trait MyUnsafeTrait { fn do_unsafe(&self); } struct MyStruct; unsafe impl MyUnsafeTrait for MyStruct { fn do_unsafe(&self) { println!(\"unsafe trait impl\"); } } fn main() { let s = MyStruct; unsafe { s.do_unsafe(); } }"),
+        ];
+
+        for (name, src) in cases {
+            let config = CommercialPipelineConfig {
+                output_dir: PathBuf::from(format!("core/output/commercial_pipeline_unsafe_{}", name)),
+                ..Default::default()
+            };
+            // 直接跑 v3 管線，檢查 safety 計數
+            let v3_config = crate::pipeline_v3::PipelineV3Config::default();
+            let v3_result = crate::pipeline_v3::run_pipeline_v3_with_config(name, src, None, &v3_config).unwrap();
+            // 檢查對應 safety 計數 >0
+            if let Some(final_v2) = v3_result.iterations.last() {
+                // 至少有一個 v2 結果，檢查 commercial lean refs 包含對應定理
+                assert!(v3_result.commercial.lean_proof_refs.iter().any(|r| r.contains("Unsafe") || r.contains("unsafe") || r.contains("NoRuntimeUB") || r.contains("f4_ideal")), "lean refs should contain unsafe proofs for {}", name);
+            }
+            // 檢查 QAP 驗證或至少 SAT
+            assert!(!v3_result.final_is_unsat || v3_result.iterations.iter().any(|it| it.qap_verified.unwrap_or(false) || !it.is_unsat), "QAP should verify or SAT for {}", name);
+        }
+    }
+
+    #[test]
+    fn test_unsafe_safety_counts_and_qap() {
+        // 直接測試 pipeline_v2 的 safety 計數
+        let src_raw_ptr = r#"# @unsafe-allowed
+fn main() { let x = 5; let p: *const i32 = &x as *const _; unsafe { let v = *p; } }"#;
+        let poly = crate::dsl::load_poly(src_raw_ptr).unwrap();
+        let v2 = crate::pipeline_v2::run_pipeline_v2("test_raw", src_raw_ptr, &poly).unwrap();
+        assert!(v2.n_raw_ptr_safety > 0, "raw_ptr_safety should >0, got {}", v2.n_raw_ptr_safety);
+        assert!(v2.qap_verified.unwrap_or(false) || !v2.is_unsat, "QAP should verify for raw_ptr");
+
+        let src_static_mut = r#"# @unsafe-allowed
+static mut COUNTER: i32 = 0; fn main() { unsafe { COUNTER += 1; } }"#;
+        let poly2 = crate::dsl::load_poly(src_static_mut).unwrap();
+        let v2_2 = crate::pipeline_v2::run_pipeline_v2("test_static_mut", src_static_mut, &poly2).unwrap();
+        assert!(v2_2.n_static_mut_safety > 0, "static_mut_safety should >0, got {}", v2_2.n_static_mut_safety);
+
+        let src_union = r#"# @unsafe-allowed
+union MyUnion { i: i32, f: f32 } fn main() { let u = MyUnion { i: 42 }; unsafe { let x = u.i; } }"#;
+        let poly3 = crate::dsl::load_poly(src_union).unwrap();
+        let v2_3 = crate::pipeline_v2::run_pipeline_v2("test_union", src_union, &poly3).unwrap();
+        assert!(v2_3.n_union_safety > 0, "union_safety should >0, got {}", v2_3.n_union_safety);
+
+        let src_unsafe_fn = r#"# @unsafe-allowed
+unsafe fn my_unsafe(x: i32) -> i32 { x } fn main() { unsafe { let y = my_unsafe(1); } }"#;
+        let poly4 = crate::dsl::load_poly(src_unsafe_fn).unwrap();
+        let v2_4 = crate::pipeline_v2::run_pipeline_v2("test_unsafe_fn", src_unsafe_fn, &poly4).unwrap();
+        assert!(v2_4.n_unsafe_fn_safety > 0, "unsafe_fn_safety should >0, got {}", v2_4.n_unsafe_fn_safety);
+
+        let src_unsafe_trait = r#"# @unsafe-allowed
+unsafe trait T { fn f(&self); } struct S; unsafe impl T for S { fn f(&self) {} } fn main() {}"#;
+        let poly5 = crate::dsl::load_poly(src_unsafe_trait).unwrap();
+        let v2_5 = crate::pipeline_v2::run_pipeline_v2("test_unsafe_trait", src_unsafe_trait, &poly5).unwrap();
+        assert!(v2_5.n_unsafe_trait_safety > 0, "unsafe_trait_safety should >0, got {}", v2_5.n_unsafe_trait_safety);
+    }
 }

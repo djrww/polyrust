@@ -4,7 +4,7 @@
 pub use super::ast::{
     SpanInfo, Vis, Attr, Lifetime, GenericParam, Generics, WhereClause, TypeBound,
     FullType, FullPat, FullExpr, MatchArm, FullStmt, FullItem, FnItem, FnSig, FnInput,
-    StructItem, StructFields, NamedField, EnumItem, EnumVariant, ImplItem, TraitItem,
+    StructItem, StructFields, NamedField, EnumItem, EnumVariant, UnionItem, ImplItem, TraitItem,
     ModItem, UseItem, UseTree, ConstItem, StaticItem, TypeAliasItem, MacroItem,
     ExternBlockItem, FullProgram, FullParser, HandwrittenParser,
     AstStats, collect_stats_full, full_program_to_poly_code,

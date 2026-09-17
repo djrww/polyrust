@@ -8,6 +8,7 @@ name = "polyrust-core"
 version.workspace = true
 edition.workspace = true
 repository.workspace = true
+license.workspace = true
 description = "Mini-Rust 宏的代數形式化管線核心：CDCL + Buchberger + QAP（零第三方依賴）"
 build = "build.rs"
 

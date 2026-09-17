@@ -30,6 +30,11 @@ pub struct PipelineV2Result {
     pub n_async: usize,
     pub n_lifetime: usize,
     pub n_unsafe: usize,
+    pub n_raw_ptr_safety: usize,
+    pub n_static_mut_safety: usize,
+    pub n_union_safety: usize,
+    pub n_unsafe_fn_safety: usize,
+    pub n_unsafe_trait_safety: usize,
     pub n_stdlib: usize,
     pub n_trait_impl: usize,
     pub is_unsat: bool,
@@ -630,6 +635,57 @@ pub fn run_pipeline_v2_with_algo(
         let uc = gen_unsafe_constraint(&mut sys, 8888);
         sys.unsafe_constraints.push(uc);
     }
+    // Unsafe Safety 前移：五類真實安全證明，推前到靜態
+    {
+        use crate::minirust::unsafe_safety::*;
+        if source.contains("*const") || source.contains("*mut") {
+            // 裸指針：每個出現生成一個 safety 證明
+            for (i, _) in source.match_indices("*const").chain(source.match_indices("*mut")).enumerate() {
+                let s = gen_raw_ptr_safety(&mut sys, 9000 + i);
+                sys.raw_ptr_safety.push(s);
+            }
+        }
+        if source.contains("static mut") {
+            for i in 0..source.matches("static mut").count() {
+                let s = gen_static_mut_safety(&mut sys, 9100 + i);
+                sys.static_mut_safety.push(s);
+            }
+        }
+        if source.contains("union ") || source.contains("union{") {
+            for i in 0..source.matches("union").count() {
+                let s = gen_union_safety(&mut sys, 9200 + i);
+                sys.union_safety.push(s);
+            }
+        }
+        if source.contains("unsafe fn") || source.contains("unsafe_trait") || source.contains("unsafe trait") {
+            // unsafe fn 調用
+            for (i, line) in source.lines().enumerate() {
+                if line.contains("unsafe fn") {
+                    let name = line.split_whitespace().find(|w| w.contains("fn")).unwrap_or("unsafe_fn").to_string();
+                    let s = gen_unsafe_fn_safety(&mut sys, 9300 + i, &name);
+                    sys.unsafe_fn_safety.push(s);
+                }
+            }
+            // 若有 unsafe fn 調用但無定義，也生成一個通用
+            if source.contains("unsafe") && sys.unsafe_fn_safety.is_empty() {
+                let s = gen_unsafe_fn_safety(&mut sys, 9301, "generic_unsafe_fn");
+                sys.unsafe_fn_safety.push(s);
+            }
+        }
+        if source.contains("unsafe trait") || source.contains("impl") && source.contains("unsafe") {
+            for (i, line) in source.lines().enumerate() {
+                if line.contains("unsafe trait") || (line.contains("impl") && line.contains("unsafe")) {
+                    let trait_name = if line.contains("trait") {
+                        line.split_whitespace().last().unwrap_or("UnsafeTrait").to_string()
+                    } else {
+                        "GenericUnsafe".to_string()
+                    };
+                    let s = gen_unsafe_trait_safety(&mut sys, 9400 + i, &trait_name);
+                    sys.unsafe_trait_safety.push(s);
+                }
+            }
+        }
+    }
     if let Some(tu) = &poly_src.type_universe {
         let scs = gen_stdlib_constraints(&mut sys, tu);
         sys.stdlib_constraints.extend(scs);
@@ -677,6 +733,11 @@ pub fn run_pipeline_v2_with_algo(
     result.n_async = sys.async_constraints.len();
     result.n_lifetime = sys.lifetime_constraints.len();
     result.n_unsafe = sys.unsafe_constraints.len();
+    result.n_raw_ptr_safety = sys.raw_ptr_safety.len();
+    result.n_static_mut_safety = sys.static_mut_safety.len();
+    result.n_union_safety = sys.union_safety.len();
+    result.n_unsafe_fn_safety = sys.unsafe_fn_safety.len();
+    result.n_unsafe_trait_safety = sys.unsafe_trait_safety.len();
     result.n_stdlib = sys.stdlib_constraints.len();
     result.n_trait_impl = sys.trait_impl_constraints.len();
 

@@ -4,7 +4,7 @@
 
 use std::collections::HashMap;
 
-use super::ast_v2::{EnumDefV2, FnDefV2, ImplDefV2, ItemV2, ProgramV2, StructDefV2, TraitDefV2, VariantV2};
+use super::ast_v2::{EnumDefV2, FnDefV2, ImplDefV2, ItemV2, ProgramV2, StructDefV2, UnionDefV2, TraitDefV2, VariantV2};
 use super::universe::{TypeV2, ExtType, Universe};
 
 /// Lowering 上下文
@@ -102,6 +102,21 @@ pub fn lower_program(prog: ProgramV2) -> Result<Lowered, String> {
 
     for item in flat {
         match item {
+            ItemV2::Union(u) => {
+                // union lowering: treat as struct but with unsafe access tag, all fields share memory
+                // For constraints, union is product with overlapping fields, need special handling
+                // Here we lower as struct with tag 99 and record as product
+                let prod = lower_struct(&StructDefV2 {
+                    name: u.name.clone(),
+                    generics: u.generics.clone(),
+                    lifetimes: u.lifetimes.clone(),
+                    fields: u.fields.clone(),
+                    is_pub: u.is_pub,
+                    where_clauses: u.where_clauses.clone(),
+                }, &mut ctx)?;
+                products.insert(u.name.clone(), prod);
+                lowered_items.push(ItemV2::Union(u));
+            }
             ItemV2::Struct(s) => {
                 let prod = lower_struct(&s, &mut ctx)?;
                 products.insert(s.name.clone(), prod);
@@ -171,6 +186,18 @@ pub fn lower_program_with_stats(prog: ProgramV2) -> Result<(Lowered, String), St
 
 fn collect_item(item: &ItemV2, ctx: &mut LowerCtx) -> Result<(), String> {
     match item {
+        ItemV2::Union(u) => {
+            // union as struct for universe
+            ctx.structs.insert(u.name.clone(), StructDefV2 {
+                name: u.name.clone(),
+                generics: u.generics.clone(),
+                lifetimes: u.lifetimes.clone(),
+                fields: u.fields.clone(),
+                is_pub: u.is_pub,
+                where_clauses: u.where_clauses.clone(),
+            });
+            ctx.universe.insert_closure(TypeV2::Ext(ExtType::Struct { name: u.name.clone(), args: vec![] }));
+        }
         ItemV2::Struct(s) => {
             ctx.structs.insert(s.name.clone(), s.clone());
             ctx.universe.insert_closure(TypeV2::Ext(ExtType::Struct { name: s.name.clone(), args: vec![] }));
@@ -206,6 +233,7 @@ fn flatten_item(item: ItemV2, ctx: &mut LowerCtx, flat: &mut Vec<ItemV2>, mod_ma
             for sub in m.items {
                 let qname_before = match &sub {
                     ItemV2::Struct(s) => Some(s.name.clone()),
+                    ItemV2::Union(u) => Some(u.name.clone()),
                     ItemV2::Enum(e) => Some(e.name.clone()),
                     ItemV2::Mod(mm) => Some(mm.name.clone()),
                     _ => None,

@@ -11,13 +11,16 @@
 
 [workspace]
 resolver = "2"
-members = ["core", "frontends/http", "frontends/llm", "frontends/full"]
+members = ["core", "frontends/http", "frontends/llm", "frontends/full", "frontends/ide"]
 
 [workspace.package]
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 repository = "https://github.com/djrww/polyrust"
-license = "MIT OR Apache-2.0"
+license = "AGPL-3.0-only OR MIT OR Apache-2.0"
+# Commercial license available separately — see LICENSE and COMMERCIAL_NOTICE.md
+# SPDX: AGPL-3.0-only for open source, LicenseRef-PolyRust-Commercial for proprietary
+# Previous versions (<0.2.2) were MIT OR Apache-2.0, new contributions from 2024-12-01 are AGPL-3.0 + Commercial dual
 authors = ["PolyRust Team"]
 
 # ── 集中依賴版本管理：減輕重複、便於審計 ───────────────────────────────
@@ -38,6 +41,10 @@ syn = { version = "2", default-features = false, features = ["full", "extra-trai
 quote = { version = "1", default-features = false }
 # ureq：基線無特性（最輕），由 frontends/llm 的 features 控制 tls/json
 ureq = { version = "2", default-features = false }
+tower = { version = "0.4", default-features = false, features = ["util"] }
+notify = { version = "6", default-features = false }
+lsp-types = { version = "0.94", default-features = false, features = ["proposed"] }
+ropey = { version = "1.6", default-features = false }
 
 # ── Release：最優化執行期效能編譯（對全部成員生效）──────────────────────
 [profile.release]

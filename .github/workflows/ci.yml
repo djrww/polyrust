@@ -5,10 +5,10 @@ name: CI
 
 on:
   push:
-    branches: [main, v0.1.0, v0.1.5, v0.1.6, 'v0.1.*', 'v0.2.*']
+    branches: [main, v0.1.0, v0.1.5, v0.1.6, 'v0.1.*', 'v0.2.*', 'v0.2.1']
     tags: ['v*']
   pull_request:
-    branches: [main, v0.1.0, v0.1.5, v0.1.6, 'v0.1.*', 'v0.2.*']
+    branches: [main, v0.1.0, v0.1.5, v0.1.6, 'v0.1.*', 'v0.2.*', 'v0.2.1']
   workflow_dispatch:
 
 concurrency:
@@ -141,10 +141,28 @@ jobs:
             /tmp/audit_all.txt
             /tmp/audit.txt
 
+  deny:
+    name: License audit · cargo deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-deny
+        run: cargo install cargo-deny --locked
+      - name: cargo deny check all
+        run: |
+          cargo deny check all
+          cargo deny list > /tmp/deny_list.txt
+      - name: Upload deny list
+        uses: actions/upload-artifact@v4
+        with:
+          name: cargo-deny-list
+          path: /tmp/deny_list.txt
+
   # ── 匯總閘門 ─────────────────────────────────────────────────────────
   verify:
     name: verify（匯總）
-    needs: [rust, lean]
+    needs: [rust, lean, deny]
     runs-on: ubuntu-latest
     steps:
       - run: echo "Rust 側與 Lean 側驗測全數通過"

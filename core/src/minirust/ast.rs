@@ -326,11 +326,12 @@ pub struct TypeAliasDefV2 {
     pub is_pub: bool,
 }
 
-/// 頂層項 — Path C 擴展 const/static/type
+/// 頂層項 — Path C 擴展 const/static/type + union
 #[derive(Clone, Debug)]
 pub enum ItemV2 {
     Struct(StructDefV2),
     Enum(EnumDefV2),
+    Union(UnionDefV2),
     Fn(FnDefV2),
     Impl(ImplDefV2),
     Trait(TraitDefV2),
@@ -340,6 +341,16 @@ pub enum ItemV2 {
     TypeAlias(TypeAliasDefV2),
     Use(String),
     Macro(String), // 宏定義文本占位
+}
+
+#[derive(Clone, Debug)]
+pub struct UnionDefV2 {
+    pub name: String,
+    pub generics: Vec<String>,
+    pub lifetimes: Vec<String>,
+    pub fields: Vec<(String, TypeV2)>,
+    pub is_pub: bool,
+    pub where_clauses: Vec<String>,
 }
 
 /// 完整程序 v2
@@ -372,6 +383,7 @@ impl ProgramV2 {
             }
             let is_pub_struct = line.starts_with("struct ") || line.starts_with("pub struct ") || line.starts_with("pub(crate) struct ");
             let is_pub_enum = line.starts_with("enum ") || line.starts_with("pub enum ") || line.starts_with("pub(crate) enum ");
+            let is_union = line.starts_with("union ") || line.starts_with("pub union ") || line.starts_with("pub(crate) union ");
             let is_trait = line.starts_with("trait ") || line.starts_with("pub trait ") || line.starts_with("pub(crate) trait ") || line.starts_with("pub unsafe trait ") || line.starts_with("unsafe trait ");
             let is_impl = line.starts_with("impl ");
             let is_mod = line.starts_with("mod ") || line.starts_with("pub mod ") || line.starts_with("pub(crate) mod ");
@@ -387,6 +399,13 @@ impl ProgramV2 {
                 }
                 prog.universe.insert_closure(TypeV2::Ext(ExtType::Struct { name: def.name.clone(), args: vec![] }));
                 prog.items.push(ItemV2::Struct(def));
+            } else if is_union {
+                let def = Self::parse_union(&lines, &mut i)?;
+                for (_, ty) in &def.fields {
+                    prog.universe.insert_closure(ty.clone());
+                }
+                prog.universe.insert_closure(TypeV2::Ext(ExtType::Struct { name: def.name.clone(), args: vec![] }));
+                prog.items.push(ItemV2::Union(def));
             } else if is_pub_enum {
                 let def = Self::parse_enum(&lines, &mut i)?;
                 for v in &def.variants {
@@ -443,6 +462,66 @@ impl ProgramV2 {
             }
         }
         Ok(prog)
+    }
+
+    fn parse_union(lines: &[&str], idx: &mut usize) -> Result<UnionDefV2, String> {
+        // union 解析：類似 struct，但語義是所有字段共享內存，訪問需 unsafe
+        let line = lines[*idx].trim();
+        let rest = if line.starts_with("pub(crate) union ") {
+            line["pub(crate) union ".len()..].trim()
+        } else if line.starts_with("pub union ") {
+            line["pub union ".len()..].trim()
+        } else if line.starts_with("union ") {
+            line["union ".len()..].trim()
+        } else if line.starts_with("pub(crate) ") {
+            // fallback
+            let after_pub = line["pub(crate) ".len()..].trim();
+            if after_pub.starts_with("union ") {
+                after_pub["union ".len()..].trim()
+            } else {
+                after_pub
+            }
+        } else if line.starts_with("pub ") {
+            let after_pub = line["pub ".len()..].trim();
+            if after_pub.starts_with("union ") {
+                after_pub["union ".len()..].trim()
+            } else {
+                after_pub
+            }
+        } else {
+            line
+        };
+        let name_end = rest.find(|c: char| c == '{' || c == '<' || c.is_whitespace()).unwrap_or(rest.len());
+        let name = rest[..name_end].trim().to_string();
+        let mut fields = Vec::new();
+        *idx += 1;
+        while *idx < lines.len() {
+            let l = lines[*idx].trim();
+            if l.starts_with('}') {
+                *idx += 1;
+                break;
+            }
+            if l.is_empty() || l.starts_with("//") || l.starts_with('#') {
+                *idx += 1;
+                continue;
+            }
+            if let Some(colon_idx) = l.find(':') {
+                let fname = l[..colon_idx].trim().trim_start_matches("pub ").trim().to_string();
+                let fty_str = l[colon_idx+1..].trim().trim_end_matches(',').trim_end_matches('}').trim().to_string();
+                if let Ok(ty) = super::universe::parse_type_v2(&fty_str) {
+                    fields.push((fname, ty));
+                }
+            }
+            *idx += 1;
+        }
+        Ok(UnionDefV2 {
+            name,
+            generics: vec![],
+            lifetimes: vec![],
+            fields,
+            is_pub: line.contains("pub"),
+            where_clauses: vec![],
+        })
     }
 
     fn parse_struct(lines: &[&str], idx: &mut usize) -> Result<StructDefV2, String> {
@@ -814,6 +893,7 @@ impl ProgramV2 {
         for item in &self.items {
             match item {
                 ItemV2::Struct(d) => s.push_str(&format!("  struct {} {{ {} fields }}\n", d.name, d.fields.len())),
+                ItemV2::Union(d) => s.push_str(&format!("  union {} {{ {} fields, unsafe }}\n", d.name, d.fields.len())),
                 ItemV2::Enum(d) => s.push_str(&format!("  enum {} {{ {} variants }}\n", d.name, d.variants.len())),
                 ItemV2::Fn(d) => s.push_str(&format!("  fn {} (async={}, unsafe={})\n", d.sig.name, d.sig.is_async, d.sig.is_unsafe)),
                 ItemV2::Impl(d) => s.push_str(&format!("  impl {} for {} ({} methods)\n", d.trait_name.as_deref().unwrap_or(""), d.self_ty.name(), d.methods.len())),
@@ -1068,6 +1148,7 @@ pub enum FullItem {
     Fn(FnItem),
     Struct(StructItem),
     Enum(EnumItem),
+    Union(UnionItem),
     Impl(ImplItem),
     Trait(TraitItem),
     Mod(ModItem),
@@ -1127,6 +1208,15 @@ pub struct NamedField {
     pub vis: Vis,
     pub name: String,
     pub ty: FullType,
+    pub attrs: Vec<Attr>,
+}
+
+#[derive(Clone, Debug)]
+pub struct UnionItem {
+    pub vis: Vis,
+    pub name: String,
+    pub generics: Generics,
+    pub fields: Vec<NamedField>,
     pub attrs: Vec<Attr>,
 }
 
@@ -1576,6 +1666,7 @@ pub fn collect_stats_v2(prog: &ProgramV2) -> AstStats {
         match item {
             ItemV2::Struct(_) => stats.n_structs += 1,
             ItemV2::Enum(_) => stats.n_enums += 1,
+            ItemV2::Union(_) => stats.n_structs += 1, // union 計入 struct 統計
             ItemV2::Fn(_) => stats.n_fns += 1,
             ItemV2::Impl(_) => stats.n_impls += 1,
             ItemV2::Trait(_) => stats.n_traits += 1,
@@ -1812,6 +1903,7 @@ impl FullItem {
             FullItem::Fn(_) => "Fn",
             FullItem::Struct(_) => "Struct",
             FullItem::Enum(_) => "Enum",
+            FullItem::Union(_) => "Union",
             FullItem::Impl(_) => "Impl",
             FullItem::Trait(_) => "Trait",
             FullItem::Mod(_) => "Mod",
@@ -1825,7 +1917,7 @@ impl FullItem {
         }
     }
     pub fn all_variant_names() -> Vec<&'static str> {
-        vec!["Fn","Struct","Enum","Impl","Trait","Mod","Use","Const","Static","TypeAlias","Macro","ExternCrate","ExternBlock"]
+        vec!["Fn","Struct","Enum","Union","Impl","Trait","Mod","Use","Const","Static","TypeAlias","Macro","ExternCrate","ExternBlock"]
     }
 }
 
@@ -1834,6 +1926,7 @@ impl ItemV2 {
         match self {
             ItemV2::Struct(_) => "Struct",
             ItemV2::Enum(_) => "Enum",
+            ItemV2::Union(_) => "Union",
             ItemV2::Fn(_) => "Fn",
             ItemV2::Impl(_) => "Impl",
             ItemV2::Trait(_) => "Trait",
@@ -1846,7 +1939,7 @@ impl ItemV2 {
         }
     }
     pub fn all_variant_names() -> Vec<&'static str> {
-        vec!["Struct","Enum","Fn","Impl","Trait","Mod","Const","Static","TypeAlias","Use","Macro"]
+        vec!["Struct","Enum","Union","Fn","Impl","Trait","Mod","Const","Static","TypeAlias","Use","Macro"]
     }
 }
 
