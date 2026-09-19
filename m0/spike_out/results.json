@@ -343,7 +343,7 @@
   "name": "enum_list",
   "cat": "matrix/struct_enum",
   "status": "ok",
-  "bytes": 68220,
+  "bytes": 68512,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -383,7 +383,7 @@
   "name": "enum_color",
   "cat": "matrix/struct_enum",
   "status": "rustc_reject",
-  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+  "first_err": "error[E0369]: binary operation `==` cannot be applied to type `Color`"
  },
  {
   "name": "struct_with_enum",
@@ -429,7 +429,7 @@
   "name": "struct_default",
   "cat": "matrix/struct_enum",
   "status": "rustc_reject",
-  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+  "first_err": "error[E0599]: no associated function or constant named `default` found for struct `Config` in the current scope"
  },
  {
   "name": "enum_with_data",
@@ -475,7 +475,7 @@
   "name": "vec_new",
   "cat": "matrix/vec_string",
   "status": "ok",
-  "bytes": 91527,
+  "bytes": 91819,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -495,7 +495,7 @@
   "name": "vec_len",
   "cat": "matrix/vec_string",
   "status": "ok",
-  "bytes": 83386,
+  "bytes": 83678,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -515,7 +515,7 @@
   "name": "vec_get",
   "cat": "matrix/vec_string",
   "status": "ok",
-  "bytes": 140772,
+  "bytes": 141064,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -535,7 +535,7 @@
   "name": "vec_iter_sum",
   "cat": "matrix/vec_string",
   "status": "ok",
-  "bytes": 406916,
+  "bytes": 407208,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -615,7 +615,7 @@
   "name": "hashmap_new",
   "cat": "matrix/vec_string",
   "status": "ok",
-  "bytes": 213478,
+  "bytes": 213770,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -635,7 +635,7 @@
   "name": "hashmap_get",
   "cat": "matrix/vec_string",
   "status": "ok",
-  "bytes": 232346,
+  "bytes": 232638,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -655,7 +655,7 @@
   "name": "vec_map",
   "cat": "matrix/vec_string",
   "status": "ok",
-  "bytes": 475830,
+  "bytes": 476122,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -695,7 +695,7 @@
   "name": "vec_filter",
   "cat": "matrix/vec_string",
   "status": "ok",
-  "bytes": 489548,
+  "bytes": 489840,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -715,7 +715,7 @@
   "name": "hashmap_len",
   "cat": "matrix/vec_string",
   "status": "ok",
-  "bytes": 90278,
+  "bytes": 90570,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -735,7 +735,7 @@
   "name": "string_split",
   "cat": "matrix/vec_string",
   "status": "ok",
-  "bytes": 571378,
+  "bytes": 571670,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -755,7 +755,7 @@
   "name": "vec_sort",
   "cat": "matrix/vec_string",
   "status": "ok",
-  "bytes": 199456,
+  "bytes": 199748,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -935,7 +935,7 @@
   "name": "loop_return",
   "cat": "matrix/loop_match",
   "status": "ok",
-  "bytes": 459949,
+  "bytes": 460241,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -955,7 +955,7 @@
   "name": "while_let",
   "cat": "matrix/loop_match",
   "status": "ok",
-  "bytes": 96591,
+  "bytes": 96883,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1015,7 +1015,7 @@
   "name": "for_enumerate",
   "cat": "matrix/loop_match",
   "status": "ok",
-  "bytes": 473394,
+  "bytes": 473686,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1235,7 +1235,7 @@
   "name": "borrow_in_loop",
   "cat": "matrix/borrowck",
   "status": "ok",
-  "bytes": 428960,
+  "bytes": 429252,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1275,7 +1275,7 @@
   "name": "ref_deref",
   "cat": "matrix/borrowck",
   "status": "rustc_reject",
-  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+  "first_err": "error[E0614]: type `{integer}` cannot be dereferenced"
  },
  {
   "name": "lifetime_struct",
@@ -1321,7 +1321,7 @@
   "name": "mut_borrow_split",
   "cat": "matrix/borrowck",
   "status": "ok",
-  "bytes": 121484,
+  "bytes": 121776,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1381,7 +1381,7 @@
   "name": "raw_ptr_box",
   "cat": "matrix/unsafe",
   "status": "ok",
-  "bytes": 82925,
+  "bytes": 83364,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1641,7 +1641,7 @@
   "name": "async_spawn",
   "cat": "matrix/async_io",
   "status": "rustc_reject",
-  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+  "first_err": "error[E0433]: cannot find module or crate `tokio` in this scope"
  },
  {
   "name": "future_combinator",
@@ -1707,7 +1707,7 @@
   "name": "pure_no_io",
   "cat": "matrix/async_io",
   "status": "ok",
-  "bytes": 421514,
+  "bytes": 421806,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1807,7 +1807,7 @@
   "name": "reactive_ui",
   "cat": "matrix/commercial",
   "status": "ok",
-  "bytes": 105123,
+  "bytes": 105415,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1827,7 +1827,7 @@
   "name": "enterprise_ide",
   "cat": "matrix/commercial",
   "status": "ok",
-  "bytes": 197498,
+  "bytes": 197790,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1967,25 +1967,25 @@
   "name": "examples/bad",
   "cat": "examples",
   "status": "rustc_reject",
-  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+  "first_err": "error[E0277]: cannot add `bool` to `{integer}`"
  },
  {
   "name": "examples/demo_7plusI",
   "cat": "examples",
   "status": "rustc_reject",
-  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+  "first_err": "error[E0425]: cannot find type `HashMap` in this scope"
  },
  {
   "name": "examples/demo_phase2",
   "cat": "examples",
   "status": "rustc_reject",
-  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+  "first_err": "error[E0425]: cannot find type `HashMap` in this scope"
  },
  {
   "name": "examples/full_syntax",
   "cat": "examples",
   "status": "rustc_reject",
-  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+  "first_err": "error[E0658]: `impl Trait` in type aliases is unstable"
  },
  {
   "name": "examples/sqr",
@@ -2011,7 +2011,7 @@
   "name": "examples/template",
   "cat": "examples",
   "status": "rustc_reject",
-  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+  "first_err": "error: cannot find macro `sqr` in this scope"
  },
  {
   "name": "phase3/async_sat",
@@ -2037,13 +2037,13 @@
   "name": "phase3/async_unknown",
   "cat": "examples",
   "status": "rustc_reject",
-  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+  "first_err": "error[E0728]: `await` is only allowed inside `async` functions and blocks"
  },
  {
   "name": "phase3/async_unsat",
   "cat": "examples",
   "status": "rustc_reject",
-  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+  "first_err": "error[E0728]: `await` is only allowed inside `async` functions and blocks"
  },
  {
   "name": "phase3/break_sat",
@@ -2069,25 +2069,25 @@
   "name": "phase3/break_unsat",
   "cat": "examples",
   "status": "rustc_reject",
-  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+  "first_err": "error[E0268]: `break` outside of a loop or labeled block"
  },
  {
   "name": "phase3/cast_sat",
   "cat": "examples",
   "status": "rustc_reject",
-  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+  "first_err": "error[E0596]: cannot borrow `y` as mutable, as it is not declared as mutable"
  },
  {
   "name": "phase3/cast_unsat",
   "cat": "examples",
   "status": "rustc_reject",
-  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+  "first_err": "error[E0308]: mismatched types"
  },
  {
   "name": "phase3/closure_sat",
   "cat": "examples",
   "status": "ok",
-  "bytes": 268036,
+  "bytes": 268475,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -2107,25 +2107,25 @@
   "name": "phase3/closure_unsat",
   "cat": "examples",
   "status": "rustc_reject",
-  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+  "first_err": "error[E0277]: cannot add `{integer}` to `bool`"
  },
  {
   "name": "phase3/io_sat",
   "cat": "examples",
   "status": "rustc_reject",
-  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+  "first_err": "error[E0423]: cannot find function `println` in this scope"
  },
  {
   "name": "phase3/io_unknown",
   "cat": "examples",
   "status": "rustc_reject",
-  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+  "first_err": "error[E0423]: cannot find function `println` in this scope"
  },
  {
   "name": "phase3/io_unsat",
   "cat": "examples",
   "status": "rustc_reject",
-  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+  "first_err": "error[E0423]: cannot find function `println` in this scope"
  },
  {
   "name": "phase3/lifetime_sat",
@@ -2251,7 +2251,7 @@
   "name": "phase3/match_sat",
   "cat": "examples",
   "status": "rustc_reject",
-  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+  "first_err": "error[E0308]: mismatched types"
  },
  {
   "name": "phase3/match_unknown",
@@ -2277,7 +2277,7 @@
   "name": "phase3/match_unsat",
   "cat": "examples",
   "status": "rustc_reject",
-  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+  "first_err": "error[E0308]: mismatched types"
  },
  {
   "name": "phase3/mod_sat",
@@ -2323,19 +2323,19 @@
   "name": "phase3/mod_unsat",
   "cat": "examples",
   "status": "rustc_reject",
-  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+  "first_err": "error[E0603]: struct `Point` is private"
  },
  {
   "name": "phase3/pat_or_sat",
   "cat": "examples",
   "status": "rustc_reject",
-  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+  "first_err": "error[E0408]: variable `x` is not bound in all patterns"
  },
  {
   "name": "phase3/pat_or_unsat",
   "cat": "examples",
   "status": "rustc_reject",
-  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+  "first_err": "error[E0308]: mismatched types"
  },
  {
   "name": "phase3/pat_range_sat",
@@ -2361,7 +2361,7 @@
   "name": "phase3/pat_range_unsat",
   "cat": "examples",
   "status": "rustc_reject",
-  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+  "first_err": "error[E0308]: mismatched types"
  },
  {
   "name": "phase3/return_break_sat",
@@ -2387,7 +2387,7 @@
   "name": "phase3/return_break_unsat",
   "cat": "examples",
   "status": "rustc_reject",
-  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+  "first_err": "error[E0268]: `break` outside of a loop or labeled block"
  },
  {
   "name": "phase3/return_sat",
@@ -2413,7 +2413,7 @@
   "name": "phase3/return_unsat",
   "cat": "examples",
   "status": "rustc_reject",
-  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+  "first_err": "error[E0308]: mismatched types"
  },
  {
   "name": "phase3/struct_sat",
@@ -2439,37 +2439,37 @@
   "name": "phase3/struct_unknown",
   "cat": "examples",
   "status": "rustc_reject",
-  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+  "first_err": "error[E0599]: no method named `fmt` found for struct `Point` in the current scope"
  },
  {
   "name": "phase3/struct_unsat",
   "cat": "examples",
   "status": "rustc_reject",
-  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+  "first_err": "error[E0308]: mismatched types"
  },
  {
   "name": "phase3/try_cast_sat",
   "cat": "examples",
   "status": "rustc_reject",
-  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+  "first_err": "error[E0277]: the `?` operator can only be used in a function that returns `Result` or `Option` (or another type that implements `std::ops::FromResidual`)"
  },
  {
   "name": "phase3/try_cast_unsat",
   "cat": "examples",
   "status": "rustc_reject",
-  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+  "first_err": "error[E0277]: the `?` operator can only be applied to values that implement `std::ops::Try`"
  },
  {
   "name": "phase3/try_sat",
   "cat": "examples",
   "status": "rustc_reject",
-  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+  "first_err": "error[E0277]: the `?` operator can only be used in a function that returns `Result` or `Option` (or another type that implements `std::ops::FromResidual`)"
  },
  {
   "name": "phase3/try_unsat",
   "cat": "examples",
   "status": "rustc_reject",
-  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+  "first_err": "error[E0277]: the `?` operator can only be applied to values that implement `std::ops::Try`"
  },
  {
   "name": "phase3/unsafe_sat",
@@ -2535,18 +2535,18 @@
   "name": "phase3/vec_sat",
   "cat": "examples",
   "status": "rustc_reject",
-  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+  "first_err": "error[E0425]: cannot find type `HashMap` in this scope"
  },
  {
   "name": "phase3/vec_unknown",
   "cat": "examples",
   "status": "rustc_reject",
-  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+  "first_err": "error[E0425]: cannot find type `HashMap` in this scope"
  },
  {
   "name": "phase3/vec_unsat",
   "cat": "examples",
   "status": "rustc_reject",
-  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+  "first_err": "error[E0425]: cannot find function, tuple struct or tuple variant `Vec_new` in this scope"
  }
 ]
