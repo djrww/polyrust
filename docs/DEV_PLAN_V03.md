@@ -15,6 +15,11 @@
 形式化背書的證書；代價 = poly(n)·2^{O(c)}，c 為真歧義選擇點——先做到「判定快、證書真、口徑誠實」，
 再擴子集與性能。**
 
+> **v0.4 戰略決議（2026-09-19，方向已確認）**：前端接入 **Charon + PolyIR** 分層
+> （rustc 語義地真值、parser 維護成本歸零、TCB 擴大誠實入賬、GB 複雜度靠 fuel 保險絲不變）——
+> 完整論證同藍圖見 [CHARON_POLYIR_BLUEPRINT.md](CHARON_POLYIR_BLUEPRINT.md)。
+> 受影響項：v1 parser 擴闊作廢；P1-D2/D3 輸入改餵 PolyIR；差分基建擴三路（v1/v3/v4）。
+
 三條戰備紅線（🔒，寫入開發規約）：
 1. 任何判定不得偽造證書或偽造判定（verified=false 如實上報；UNKNOWN 不得降格為 SAT/UNSAT）。
 2. 全量規約 Gröbner 基按_Eager（審計/證據）_ 與 _Lazy（默認判定）_ 分層；不得讓急於全基回流默認路徑（PR 需附 benchmark）。
