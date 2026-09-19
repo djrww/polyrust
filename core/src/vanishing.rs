@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! 多值變量的消失多項式（vanishing polynomial）編碼 + 引理 L0′。
 //!
 //! # 動機（見 docs/THEOREMS.md §2b、§6b）

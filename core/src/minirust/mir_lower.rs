@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! MIR 前端（第三條 lowering）：迷你 MIR → 消失多項式約束系統 + L0′ 檢查。
 //!
 //! # 定位（見 docs/THEOREMS.md §6b）

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! Chalk/rustc 判決橋：外部判決產物（JSON artifact）→ [`crate::certify::OracleBits`]。
 //!
 //! # 定位（見 docs/THEOREMS.md §6b「認證路徑」）

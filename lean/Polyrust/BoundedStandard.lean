@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 /- # ∏kᵢ 一般化終止界——從布爾（kᵢ≡2）到任意值域
 
 對應 docs/THEOREMS.md §6 註記與 §6b。T4 的 2ⁿ 界依賴域多項式

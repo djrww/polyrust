@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! 認證路徑（Certification path）：rustc／外部 oracle 負責判決，
 //! polyrust 負責**重建見證 σ 並以多項式時間直接求值驗證**。
 //!

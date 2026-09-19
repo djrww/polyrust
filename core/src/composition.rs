@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! 定理 T10（組合性）：模塊化編碼與組合終止界。
 //!
 //! 動機（見 docs/THEOREMS.md §6b）：過渡到真 rustc（MIR + Chalk）後，單一
