@@ -1,13 +1,14 @@
 # SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 # C0 Charon Spike —— 借 CI runner（16GB RAM）執行沙箱 2GB 做唔到嘅嘢：
 #   build pinned Charon → 跑全量 124 案例 → 發佈結果 + fixtures + 可執行 binary
-# 觸發：Actions 頁手動 Run（workflow_dispatch），或 push 到 c0-charon* 分支。
+# 觸發：Actions 頁手動 Run（workflow_dispatch）、push 到 c0-charon* 分支，
+# 或 push 到 v0.2.4（M0 主線：結果直接回寫該分支 m0/ 下，沙箱 git fetch 即取）。
 name: c0-charon-spike
 
 on:
   workflow_dispatch:
   push:
-    branches: [c0-charon*, c0-spike*]
+    branches: [c0-charon*, c0-spike*, v0.2.4]
 
 permissions:
   contents: write   # 建 release / commit results 回傳需要
@@ -71,6 +72,19 @@ jobs:
           files: dist/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 回寫結果到觸發分支（v0.2.4：m0/ 下，沙箱 git fetch 即取）
+        if: startsWith(github.ref, 'refs/heads/v0.2')
+        run: |
+          git config user.email "ci@polyrust.invalid"
+          git config user.name "ci-c0-spike"
+          mkdir -p m0
+          rm -rf m0/spike_out m0/charon_fixtures
+          cp -r spike_out m0/spike_out
+          cp -r charon_fixtures m0/charon_fixtures 2>/dev/null || true
+          git add m0
+          git commit -m "M0 spike results → ${{ github.ref_name }} ($(date -u +%Y-%m-%dT%H:%M:%SZ))" || echo "nothing to commit"
+          git push origin "HEAD:${{ github.ref_name }}"
 
       - name: 回寫結果到 c0-results 分支（public repo 沙箱可匿名 fetch）
         run: |
