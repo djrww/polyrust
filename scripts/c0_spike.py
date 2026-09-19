@@ -46,6 +46,8 @@ def llbc_stats(path: str):
     except Exception as e:
         return {"parse": f"llbc-not-json: {e}", "bytes": os.path.getsize(path)}
     missing = data.count('"Missing"') + len(re.findall(r'"error"\s*:', data))
+    if doc.get("has_errors"):  # Charon 自帶旗號：有 decl 抽取失敗 → 唔算全綠，至少升 ok_with_missing
+        missing = max(missing, 1)
     top = {}
     for k, v in doc.items():
         if isinstance(v, list):
@@ -75,8 +77,11 @@ def main():
             inp = os.path.join(td, "input.rs")
             open(inp, "w", encoding="utf-8").write(rs)
             try:
+                # 新 CLI（ca501af6+）：`charon rustc -- <rustc args>`，檔名亦屬 rustc 參數。
+                # 舊用法 `charon --crate-type=rlib file.rs` 會被 clap 拒絕（C0 首跑法證：152/152
+                # 全錯分為 rustc_reject）。
                 p = subprocess.run(
-                    [args.charon, "--crate-type=rlib", inp],
+                    [args.charon, "rustc", "--", inp, "--crate-type=rlib"],
                     cwd=td, capture_output=True, text=True, timeout=120,
                 )
             except subprocess.TimeoutExpired:
@@ -85,7 +90,9 @@ def main():
             err = p.stderr or ""
             llbcs = [f for f in os.listdir(td) if f.endswith(".llbc") or f.endswith(".ullbc")]
             if p.returncode != 0:
-                cls = "rustc_reject" if re.search(r"error(\[E\d+\])?:", err) else "charon_err"
+                # rustc 真拒絕必帶[E-code]；clap/CLI 錯（"error: unexpected argument"等）一律歸 charon_err，
+                # 唔會再誤分。rustc_reject 口徑 = UNSAT(E-code)。
+                cls = "rustc_reject" if re.search(r"error\[E\d+\]", err) else "charon_err"
                 rec = {"name": name, "cat": cat, "status": cls,
                        "first_err": (err.strip().splitlines() or ["?"])[0][:160]}
                 results.append(rec)
