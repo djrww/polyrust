@@ -202,6 +202,7 @@ fn pipeline_v2_to_json(name: &str, poly: &PolySource, p: &crate::pipeline_v2::Pi
     let borrow_conflicts: Vec<J> = p.borrow_conflicts.iter().map(|(a,b)| {
         J::obj(vec![("a", J::Int(*a as i64)), ("b", J::Int(*b as i64))])
     }).collect();
+    let diagnostics: Vec<J> = p.diagnostics.iter().map(|d| d.to_json()).collect();
     J::obj(vec![
         ("api_version", J::s("0.2")),
         ("mode", J::s("check-v2")),
@@ -243,6 +244,7 @@ fn pipeline_v2_to_json(name: &str, poly: &PolySource, p: &crate::pipeline_v2::Pi
         ("warnings", J::Arr(p.warnings.iter().map(|s| J::s(s)).collect())),
         ("borrowck_errors", J::Arr(p.borrowck_errors.iter().map(|s| J::s(s)).collect())),
         ("effect_errors", J::Arr(p.effect_errors.iter().map(|s| J::s(s)).collect())),
+        ("diagnostics", J::Arr(diagnostics)),
         ("lowering_report", J::s(&p.lowering_report)),
     ])
 }

@@ -46,6 +46,11 @@ pub mod solana_onchain;
 pub mod poly_cache;
 pub mod semantic_matrix;
 pub mod phase_a;
+pub mod diagnostic;
+pub mod phase_b;
+pub mod incremental_cache;
+pub mod qap_groth16;
+pub mod lsp;
 
 /// 正式運作：core 文件清單 — 零依賴實際使用
 pub fn core_file_list() -> Vec<(&'static str, &'static str, &'static str)> {
@@ -83,6 +88,11 @@ pub fn core_file_list() -> Vec<(&'static str, &'static str, &'static str)> {
         ("poly_cache.rs", "PolyCache 增量管線 hash→Groebner 緩存 — Phase A", "core/src/poly_cache.rs"),
         ("semantic_matrix.rs", "Semantic Matrix 100 例語義保持 — Phase A", "core/src/semantic_matrix.rs"),
         ("phase_a.rs", "Phase A 整合：增量+語義+QAP r1cs.json+CI — Phase A", "core/src/phase_a.rs"),
+        ("diagnostic.rs", "Diagnostic 精確 span + code + help — Phase B P0", "core/src/diagnostic.rs"),
+        ("phase_b.rs", "Phase B 整合：Diagnostic+AST80+增量+LSP+Groth16 — Phase B", "core/src/phase_b.rs"),
+        ("incremental_cache.rs", "Incremental Cache LRU + diff — Phase B", "core/src/incremental_cache.rs"),
+        ("qap_groth16.rs", "QAP Groth16 真實 arkworks/bellman + Solana verifier — Phase B", "core/src/qap_groth16.rs"),
+        ("lsp.rs", "LSP Diagnostic→LSP + Hover + CodeAction + VSCode skeleton — Phase B", "core/src/lsp.rs"),
         ("obligations.rs", "Obligations — 優化", "core/src/obligations.rs"),
         ("formal.rs", "Formal Lean 橋 — 優化", "core/src/formal.rs"),
     ]

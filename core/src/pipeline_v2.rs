@@ -63,6 +63,9 @@ pub struct PipelineV2Result {
     // 真實檢查：emit 文本與 valid_src，供 Lean 與 IDE
     pub emit_texts: Vec<String>,
     pub valid_srcs: Vec<String>,
+    // Phase B: 結構化診斷
+    #[allow(clippy::vec_box)]
+    pub diagnostics: Vec<crate::diagnostic::Diagnostic>,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -971,8 +974,10 @@ pub fn run_pipeline_v2_with_algo(
         ));
     }
 
-    // S10: 判定
+    // S10: 判定 + Phase B Diagnostic 結構化
     result.is_unsat = !result.errors.is_empty() || result.lifetime_has_cycle;
+    // Phase B: errors -> diagnostics 帶 span/code/help/lean_ref
+    result.diagnostics = crate::diagnostic::errors_to_diagnostics(_name, source, &result.errors);
 
     // S11: QAP 集成 — Phase3 補
     // Phase3 簡化：由於 product 約束 t_struct - Π t_field 在 one-hot 下會導致 witness 難構造，

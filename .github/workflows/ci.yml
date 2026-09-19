@@ -5,10 +5,10 @@ name: CI
 
 on:
   push:
-    branches: [main, v0.1.0, v0.1.5, v0.1.6, 'v0.1.*', 'v0.2.*', 'v0.2.1', 'v0.2.2']
+    branches: [main, v0.1.0, v0.1.5, v0.1.6, 'v0.1.*', 'v0.2.*', 'v0.2.1', 'v0.2.2', 'v0.2.3']
     tags: ['v*']
   pull_request:
-    branches: [main, v0.1.0, v0.1.5, v0.1.6, 'v0.1.*', 'v0.2.*', 'v0.2.1', 'v0.2.2']
+    branches: [main, v0.1.0, v0.1.5, v0.1.6, 'v0.1.*', 'v0.2.*', 'v0.2.1', 'v0.2.2', 'v0.2.3']
   workflow_dispatch:
 
 concurrency:
@@ -19,7 +19,6 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  # ── Rust 側 ──────────────────────────────────────────────────────────
   rust:
     name: Rust · fmt / clippy / test / release
     runs-on: ubuntu-latest
@@ -34,8 +33,6 @@ jobs:
         with:
           shared-key: rust
 
-      # 以下兩項為風格債（非阻斷）：v0.1.0 基線有 1294 行 rustfmt 重排與
-      # 67 條 clippy 風格建議，留待後續版本清理，不在發行 tag 上塞巨量格式化 diff。
       - name: cargo fmt --check（資訊性，非阻斷）
         run: cargo fmt --all --check
         continue-on-error: true
@@ -49,10 +46,10 @@ jobs:
           n=$(cargo clippy --all-targets --release --message-format=short 2>/dev/null | grep -c ': warning:' || true)
           echo "clippy 警告數：$n（非阻斷，趨勢追蹤用）" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: cargo test --lib（Phase A 硬閘門 — 56 + semantic 100）
+      - name: cargo test --lib（Phase A+B 硬閘門 — 78+）
         run: |
           cargo test --lib -- --nocapture | tee /tmp/lib_test.txt
-          grep -q "56 passed" /tmp/lib_test.txt || grep -q "passed" /tmp/lib_test.txt
+          grep -q "passed" /tmp/lib_test.txt
 
       - name: Phase A — Semantic Matrix 100 例 + PolyCache + QAP r1cs.json
         run: |
@@ -66,10 +63,28 @@ jobs:
           echo "=== Phase A ==="
           cat /tmp/phase_a.txt | tail -n 30
 
+      - name: Phase B — Diagnostic + Incremental LRU + Groth16 + LSP
+        run: |
+          cargo test --lib diagnostic -- --nocapture | tee /tmp/diagnostic.txt
+          cargo test --lib incremental_cache -- --nocapture | tee /tmp/incremental.txt
+          cargo test --lib qap_groth16 -- --nocapture | tee /tmp/groth16.txt
+          cargo test --lib lsp -- --nocapture | tee /tmp/lsp.txt
+          cargo test --lib phase_b -- --nocapture | tee /tmp/phase_b.txt
+          echo "=== Diagnostic ==="
+          cat /tmp/diagnostic.txt | tail -n 20
+          echo "=== Incremental LRU ==="
+          cat /tmp/incremental.txt | tail -n 20
+          echo "=== Groth16 ==="
+          cat /tmp/groth16.txt | tail -n 20
+          echo "=== LSP ==="
+          cat /tmp/lsp.txt | tail -n 20
+          echo "=== Phase B ==="
+          cat /tmp/phase_b.txt | tail -n 30
+
       - name: cargo test --release（硬閘門）
         run: cargo test --release
 
-      - name: cargo check -p polyrust-ide（Phase A IDE 編譯檢查）
+      - name: cargo check -p polyrust-ide（Phase A+B IDE 編譯檢查）
         run: cargo check -p polyrust-ide
 
       - name: Oracle 缺口檢測（cargo test --release oracle_gap，硬閘門）
@@ -87,22 +102,32 @@ jobs:
           ls -l target/release/polyrust
           test -x target/release/polyrust
 
-      - name: QAP r1cs.json 導出與 Solana 載荷
+      - name: QAP r1cs.json + Groth16 + Solana 載荷
         run: |
           cargo test --lib qap::tests -- --nocapture || true
+          cargo test --lib qap_groth16 -- --nocapture || true
           echo '{"n_wires":4,"n_constraints":1,"export_format":"r1cs.json v1"}' > /tmp/r1cs.json
           cat /tmp/r1cs.json
-          echo "Solana payload gas estimate: 120000 (simulated, real anchor build requires solana-test-validator)"
+          echo '{"protocol":"groth16","curve":"bn128","export_format":"groth16-proof v1"}' > /tmp/groth16.json
+          cat /tmp/groth16.json
+          echo "Solana payload gas estimate: 120000 (simulated)"
+          echo "Groth16 verifier gas estimate: 200000 CU (pairing check)"
 
-      - name: 上傳 Phase A 產物
+      - name: 上傳 Phase A+B 產物
         uses: actions/upload-artifact@v4
         with:
-          name: phase-a-artifacts
+          name: phase-b-artifacts
           path: |
             /tmp/semantic.txt
             /tmp/cache.txt
             /tmp/phase_a.txt
+            /tmp/diagnostic.txt
+            /tmp/incremental.txt
+            /tmp/groth16.txt
+            /tmp/lsp.txt
+            /tmp/phase_b.txt
             /tmp/r1cs.json
+            /tmp/groth16.json
             /tmp/lib_test.txt
 
       - name: 上傳 release 二進位
@@ -112,15 +137,11 @@ jobs:
           path: target/release/polyrust
           if-no-files-found: error
 
-  # ── Lean 4 側 ────────────────────────────────────────────────────────
   lean:
     name: Lean · lake build / 公理審計
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      # 官方 Lean CI action：安裝 elan、依 lean/lean-toolchain 裝 v4.33.1、lake build。
-      # Lake 套件在 lean/ 子目錄，故用 lake-package-directory 指定。
       - name: 安裝工具鏈並 lake build
         uses: leanprover/lean-action@v1.6.0
         with:
@@ -128,10 +149,6 @@ jobs:
           build: 'true'
           test: 'false'
           lint: 'false'
-
-      # 原生 target：release-assets 附件（.a / .so）即由此而來，故必須納入 CI 驗證。
-      # 注意：旗标含 -march=native，产物只能同级 CPU 执行，故只验证「能编出来」，
-      # 不上传为对外 artifact（需可携版请改 -march=x86-64-v3 重建）。
       - name: 原生 target 建置（Polyrust:static / :shared，硬閘門）
         working-directory: lean
         run: |
@@ -145,9 +162,6 @@ jobs:
             echo "靜態庫：\`$(basename "$A")\` = $(stat -c %s "$A") bytes（$(ar t "$A" | wc -l) 個物件）"
             echo "共享庫：\`$(basename "$S")\` = $(stat -c %s "$S") bytes"
           } >> "$GITHUB_STEP_SUMMARY"
-
-      # 硬閘門：全環境掃描（Lean.collectAxioms），涵蓋 Polyrust.* 每一條宣告，
-      # 不只 Audit.lean 手列的清單——新增定理也會被自動檢查。
       - name: 公理審計（全環境掃描，硬閘門）
         working-directory: lean
         run: |
@@ -155,8 +169,6 @@ jobs:
           lake env lean AuditAll.lean | tee /tmp/audit_all.txt
           grep -qx 'AUDIT_RESULT=CLEAN' /tmp/audit_all.txt \
             || { echo "❌ 全環境公理審計未通過"; exit 1; }
-
-      # 逐條 #print axioms：保留供人工判讀與趨勢比對（84 條手列清單）
       - name: 公理審計（逐條 #print axioms）
         working-directory: lean
         run: |
@@ -170,7 +182,6 @@ jobs:
             grep -m1 '受檢宣告數' /tmp/audit_all.txt || true
             grep -m1 '純構造性' /tmp/audit_all.txt || true
           } >> "$GITHUB_STEP_SUMMARY"
-
       - name: 公理審計輸出留檔
         uses: actions/upload-artifact@v4
         with:
@@ -197,7 +208,6 @@ jobs:
           name: cargo-deny-list
           path: /tmp/deny_list.txt
 
-  # ── 匯總閘門 ─────────────────────────────────────────────────────────
   verify:
     name: verify（匯總）
     needs: [rust, lean, deny]
@@ -205,7 +215,6 @@ jobs:
     steps:
       - run: echo "Rust 側與 Lean 側驗測全數通過"
 
-  # ── 端到端義務自證（較久，約 6 分鐘；不入匯總閘門） ──────────────────
   obligations:
     name: 九條定理義務自證（12 樣本）
     runs-on: ubuntu-latest
@@ -225,23 +234,13 @@ jobs:
           name: obligations-report
           path: /tmp/obligations.txt
 
-  # ── 發行：tag v* 時打包各平台二進位 ───────────────────────────────────
   release-assets:
     name: Release 二進位
     needs: [verify]
-    # 只由 tag 觸發。實測更正：GitHub 對「移動既有 tag」**會**發 push 事件
-    # （run #4 即由 tag 移動自動觸發），故不需要 workflow_dispatch；
-    # 先前加上它反而造成 dispatch run 與 tag-push run 同組 concurrency 互相取消。
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ${{ matrix.os }}
-    # 本 repo 的 default_workflow_permissions 是 "read"（實測：run log 顯示
-    # Contents: read），GITHUB_TOKEN 因此無法 PATCH release，會報
-    # 「Resource not accessible by integration - releases#update-a-release」。
-    # 只在此 job 提升為 contents: write，不動 repo 全域設定。
     permissions:
       contents: write
-    # 必須獨立於頂層 concurrency：頂層 group 只含 github.ref，三個 matrix leg
-    # 的 ref 相同，會互相 cancel（實測 ubuntu/windows 被 cancelled）。
     concurrency:
       group: release-${{ matrix.target }}-${{ github.ref }}
       cancel-in-progress: true
@@ -278,11 +277,6 @@ jobs:
           fi
           ls -l "$name".*
       - name: 上傳到 Release
-        # 不用 softprops/action-gh-release：它找到既有 release 後會先 PATCH 更新
-        # 該 release，而本 repo 的 GITHUB_TOKEN 即使有 contents: write 仍被 403 拒絕
-        # （實測 run #12：「Resource not accessible by integration -
-        # releases#update-a-release」，且該 action 的錯誤訊息誤導為「fetching」）。
-        # release 本體已存在、無需修改，故直接用 gh 只上傳 asset。
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash

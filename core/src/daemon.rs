@@ -601,6 +601,7 @@ fn main() {
             groebner_basis_size: 0,
             emit_texts: vec![],
             valid_srcs: vec![],
+            diagnostics: vec![],
         };
         let repaired = auto_repair_unsat(poly, &v2);
         assert!(repaired.is_some());

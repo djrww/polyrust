@@ -1554,6 +1554,7 @@ mod tests {
             lowering_report: "test".to_string(),
             emit_texts: vec![],
             valid_srcs: vec![],
+            diagnostics: vec![],
         };
         let risk = compute_risk_score(&v2, 0);
         assert!(risk < 40.0);
