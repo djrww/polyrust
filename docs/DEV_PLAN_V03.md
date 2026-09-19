@@ -31,7 +31,7 @@
 | ✅ C2a 移除偽造 QAP | 刪除 pipeline_v2「verified=false 強制改 true」邏輯，註釋存檔 | 69/69 測試綠（含 commercial_pipeline QAP 斷言，真實驗證自然通過） |
 | ✅ U1 UNKNOWN 首步 | 顯式 `@fuel` 不足 + 無 `@invariant` → `verdict=UNKNOWN` + `unknown_reason`（保守：不誤報） | loop_unknown.poly `SAT(誤標)`→**UNKNOWN**；loop_sat 維持 SAT 無回歸 |
 | ✅ L1 LRAT 核 | `core/src/lrat.rs`：RUP-only 逐步複核器（std-only、無 unsafe）+ drat/DIMACS 導出 + 6 測試 | 正/反/邊界用例全過 |
-| ✅ T1 矩陣 ratchet | 語義矩陣門檻 70%→**94% 基線** + 已知失敗白名單 6 項（附原因）；新失敗=回歸紅 | 94/100 鎖定，白名單外零失敗 |
+| ✅ T1 矩陣 ratchet | 語義矩陣門檻 70%→**94%**（P0-C1 後再收緊至 **96%**）+ 白名單 ratchet；新失敗=回歸紅 | 96/100 鎖定，白名單 4 項（async×2, io_with_pure_call, enterprise_ide） |
 | ✅ G1 CI 閘門縫 | `grep passed`（恆真）→ 斷言 `test result: ok` 且無 `FAILED` | workflow 已修 |
 | ✅ D1 口徑修正 | README/EVIDENCE 測試數 17/67 → **63**（現 69，含 lrat） | grep 無舊數字 |
 | 🟡 W1 警告清理 | `cargo fix` 套用 21 項：lib 警告 35→14 | 餘 14（多為 dead_code，列 P2） |
@@ -42,9 +42,9 @@
 
 | # | 缺口 | 具體任務 | 驗收標準 |
 |---|---|---|---|
-| P0-C1 | **v3 管線借用檢查弱化**（mut_borrow_exclusive、ref_deref 預期 UNSAT 判 SAT——正是 v1 招牌能力的回歸） | v1↔v3 **差分測試**納 CI：同一批樣本兩管線判定必須一致；定位 v3 borrowck 編碼缺項並修齊；修好即從 KNOWN_FAILURES 刪行 | 差分測試綠；白名單 -2 行；矩陣 ≥96% |
+| P0-C1 ✅ | ~~v3 借用檢查弱化~~（2026-09-19 結案） | v1↔v3 **差分測試**（`core/src/differential.rs`）已納 CI-ratchet：100 案例，白名單 1（io_effect=v1 過嚴）+ v1 適用域 86；rustc 地真值查明：mut_borrow_exclusive 舊期望屬錯標（rustc 合法、v1 SAT）→ 矩陣改 SAT；ref_deref 為真缺口 → `check_deref_depth`（E0614 語義）補強。曾試行 Rule B 經差分**證偽回退** | 差分綠、矩陣 94→**96/100**、端到端 ref_deref=UNSAT+診斷、exclusive=SAT ✓ |
 | P0-C2 | **LRAT 接入 CDCL**（S1 後半）：lrat.rs 已備核，未接線 | cdcl.rs 學習子勺記錄為證明軌；UNSAT 時輸出 `proof.drat` 並以 lrat.rs 自檢；Lean `Polyrust.RupKernel` 可靠性定理（接受⇒CNF 無解） | 12 個 UNSAT 樣本全產證自檢過；AuditAll 仍 CLEAN；`1∈G` 證書退為 --audit 模式 |
-| P0-C3 | **授權統一**（LICENSE=AGPL+商用 vs Cargo.toml=`AGPL OR MIT OR Apache` vs LICENSE.MIT 並存；聯絡為 *.example 假地址） | 決定單一策略（建議：core 放寬 MIT/Apache 以擴大採用，frontends/商用件 AGPL+Commercial；或全 AGPL+Commercial）；統一 Cargo.toml `license`、SPDX 檔頭掃描腳本（CI 檢查）、deny.toml exceptions、真實郵箱、LICENSE.COMMERCIAL 由 Draft 轉正式 | `cargo deny check` 零 warn；檔頭掃描 CI 綠；COMMERCIAL_NOTICE 無佔位符 |
+| P0-C3 ✅ | ~~授權不統一~~（2026-09-19 結案） | **決策：全產品 AGPL-3.0 + 商業雙授權**——唔做 permissive core。「core 咪最值錢既地方，core 畀人任用，其他嘢唔值錢」— 用戶原話；全部 142 源檔 SPDX `(AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)`、`license-scan.sh` CI 硬閘門、LICENSE.MIT 刪除、LICENSE.COMMERCIAL 轉 v1.0（聯絡 TBA）、Cargo.toml `license="AGPL-3.0-only"`、README 授權段 | license-scan 綠；無 *.example 殘留 ✓ **手尾：首次商業發佈前補真實聯絡（LICENSE.COMMERCIAL/COMMERCIAL_NOTICE.md 兩處 TBA）** |
 | P0-C4 | **Lazy 模式的 Lean 精化證明** | `Polyrust.LazyGb.lean`：lazy 判定 ≡ eager 判定（T3/T6 已具，補管線層精化） | 定理入庫、AuditAll CLEAN |
 | P0-C5 | **bounded-SAT 標記全鏈路**（U1 只覆蓋顯式 fuel） | 凡判定在 fuel/depth 有界模型內給出，JSON 必帶 `bounded:{kind,fuel}`；默認 fuel=3 路徑也納入 UNKNOWN 誠實三值；CI 閘門語義文件化（UNKNOWN=非通過） | v2/v3 JSON 契約 v0.3；文檔與測試齊 |
 
