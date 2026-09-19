@@ -127,23 +127,23 @@ Stats: structs=2 enums=1 fns=3 traits=0 impls=3 mods=0 consts=0 statics=0 types=
 
 ## Supplemented MIR
 Lowered MIR {
-  products: 2 (["PasswordGenerator", "PasswordConfig"])
+  products: 2 (["PasswordConfig", "PasswordGenerator"])
   sums: 1 (["Strength"])
   generated: 0 items
   mod_map: 0 entries
   universe N=11
   program items: 8
-  product PasswordGenerator: 1 fields
-    - config: PasswordConfig
   product PasswordConfig: 5 fields
     - length: i32
     - use_upper: bool
     - use_lower: bool
     - use_digits: bool
     - use_symbols: bool
+  product PasswordGenerator: 1 fields
+    - config: PasswordConfig
   sum Strength: 3 variants
   stats: Lowered: 2 products, 1 sums, 0 generated, 0 mod_map, universe N=11
-Products: ["PasswordGenerator", "PasswordConfig"]
+Products: ["PasswordConfig", "PasswordGenerator"]
 Sums: ["Strength"]
 
 }

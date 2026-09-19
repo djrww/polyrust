@@ -56,6 +56,9 @@ pub mod qap_groth16;
 pub mod lsp;
 pub mod charon_llbc;
 pub mod polyir;
+pub mod llbc_body;
+pub mod llbc_lower;
+pub mod differential_v4;
 
 /// 正式運作：core 文件清單 — 零依賴實際使用
 pub fn core_file_list() -> Vec<(&'static str, &'static str, &'static str)> {

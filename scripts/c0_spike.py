@@ -15,8 +15,11 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def sanitize(src: str) -> str:
-    """去掉 polyrust DSL 註釋行（`# ...`）——rustc 視 `#` 為屬性開頭，原樣餵入必 syntax error。"""
-    lines = [ln for ln in src.splitlines() if not ln.lstrip().startswith("#")]
+    """剝 DSL 註解行（`# @intent / # @fuel / # @invariant ...`）——rustc 視 `#` 為屬性開頭；
+    `#` 行餵入必 syntax error。**保留 `#[...]` 屬性行**（derive 等）——首跑法證：
+    一刀切剝所有 `#` 行會殺死 `#[derive(PartialEq)]`，令 enum_color 假 UNSAT(E0369)。"""
+    lines = [ln for ln in src.splitlines()
+             if not (ln.lstrip().startswith("#") and not ln.lstrip().startswith("#["))]
     return "\n".join(lines) + "\n"
 
 

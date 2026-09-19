@@ -34,19 +34,19 @@ Complete: true
 
 ## MIR Layer (Original)
 Lowered MIR {
-  products: 2 (["Patch", "VNode"])
+  products: 2 (["VNode", "Patch"])
   sums: 0 ([])
   generated: 0 items
   mod_map: 0 entries
   universe N=11
   program items: 8
-  product Patch: 1 fields
-    - is_create: bool
   product VNode: 2 fields
     - tag: String
     - children: Vec<VNode>
+  product Patch: 1 fields
+    - is_create: bool
   stats: Lowered: 2 products, 0 sums, 0 generated, 0 mod_map, universe N=11
-Products: ["Patch", "VNode"]
+Products: ["VNode", "Patch"]
 Sums: []
 
 }
@@ -108,19 +108,19 @@ Stats: structs=2 enums=0 fns=5 traits=0 impls=2 mods=0 consts=0 statics=0 types=
 
 ## Supplemented MIR
 Lowered MIR {
-  products: 2 (["VNode", "Patch"])
+  products: 2 (["Patch", "VNode"])
   sums: 0 ([])
   generated: 0 items
   mod_map: 0 entries
   universe N=11
   program items: 8
+  product Patch: 1 fields
+    - is_create: bool
   product VNode: 2 fields
     - tag: String
     - children: Vec<VNode>
-  product Patch: 1 fields
-    - is_create: bool
   stats: Lowered: 2 products, 0 sums, 0 generated, 0 mod_map, universe N=11
-Products: ["VNode", "Patch"]
+Products: ["Patch", "VNode"]
 Sums: []
 
 }
