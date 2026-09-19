@@ -49,6 +49,10 @@ pub struct V4Outcome {
     pub paths: usize,
     pub bounded_markers: Vec<String>,
     pub gb_stats: String,
+    /// C4 panic-freedom 檢查面：每個 Assert 嘅 check 類型（Overflow/BoundsCheck/…）
+    pub assert_obligations: Vec<String>,
+    /// C4 合約處理報告行
+    pub contract_report: Vec<String>,
 }
 
 /// C3 判定參數（註解通道）
@@ -62,11 +66,13 @@ pub struct V4Opts {
     pub has_invariant: bool,
     /// call inline fuel（C4 預設 2）
     pub call_fuel: usize,
+    /// C4 合約（`# @require/@ensure`）；premise 按 ClauseKind 三級套用
+    pub contract: Option<crate::contract::V4Contract>,
 }
 
 impl Default for V4Opts {
     fn default() -> Self {
-        V4Opts { loop_fuel: 3, require_full_loops: false, has_invariant: false, call_fuel: 2 }
+        V4Opts { loop_fuel: 3, require_full_loops: false, has_invariant: false, call_fuel: 2, contract: None }
     }
 }
 
@@ -110,6 +116,8 @@ struct Lower<'m> {
     spawned: usize,
     final_states: Vec<PathState>,
     opts: V4Opts,
+    assert_obligations: Vec<String>,
+    contract_report: Vec<String>,
 }
 
 const MAX_PATHS: usize = 256;
@@ -286,7 +294,12 @@ impl<'m> Lower<'m> {
                     let expr = self.lower_rvalue(&mut st, rv)?;
                     self.assign(&mut st, *dst, expr);
                 }
-                StmtKind::Assert(_) => self.mark("assert-abstracted".into()),
+                StmtKind::Assert(a) => {
+                    self.mark("assert-abstracted".into());
+                    if !self.assert_obligations.contains(&a.check) {
+                        self.assert_obligations.push(a.check.clone());
+                    }
+                }
 kind @ (StmtKind::Break(d) | StmtKind::Continue(d)) => {
                     let d = *d;
                     let len = loops.len();
@@ -535,8 +548,52 @@ pub fn analyze_module_with(root: &LlbcRoot, opts: V4Opts) -> Result<V4Outcome, S
         final_states: Vec::new(),
         opts,
         consts: &crate_consts,
+        assert_obligations: Vec::new(),
+        contract_report: Vec::new(),
     };
-    lw.cont(PathState { ssa: HashMap::new(), polys: Vec::new() }, &body.top.statements, 0, 0, &mut Vec::new())?;
+    // C4：參數提前建變數（合約 premise 綁定需要）+ 合約 premise 套用（三級）
+    let mut st0 = PathState { ssa: HashMap::new(), polys: Vec::new() };
+    let mut param_var: HashMap<String, usize> = HashMap::new();
+    for pi in 1..=body.arg_count {
+        let ty = body.param_tys.get(pi - 1).copied().unwrap_or(ScalarTy::Opaque);
+        let v = lw.fresh_var(ty);
+        st0.ssa.insert((pi, None), v);
+        if let Some(nm) = body.param_names.get(pi - 1) {
+            if !nm.is_empty() {
+                param_var.insert(nm.clone(), v);
+            }
+        }
+    }
+    if let Some(contract) = lw.opts.contract.clone() {
+        use crate::contract::ClauseKind;
+        for cl in &contract.requires {
+            match &cl.kind {
+                ClauseKind::ExactEq => {
+                    let (name, val) = cl.eq.clone().unwrap();
+                    if let Some(v) = param_var.get(&name) {
+                        let p = lw.var_poly(*v).sub(&lw.const_poly(val));
+                        st0.polys.push(p);
+                        lw.contract_report.push(format!("require ExactEq: {} == {}", name, val));
+                    } else {
+                        lw.contract_report.push(format!("require ExactEq（參數 {name} 未綁 → 棄）"));
+                    }
+                }
+                ClauseKind::CmpAbstract => {
+                    let v = lw.fresh_var(ScalarTy::Bool);
+                    let p = lw.var_poly(v).sub(&lw.const_poly(1));
+                    st0.polys.push(p);
+                    lw.contract_report.push(format!("require CmpAbstract（bool 鎖定 b=1）: {}", cl.text));
+                }
+                ClauseKind::Opaque => {
+                    lw.contract_report.push(format!("require Opaque（marker only）: {}", cl.text));
+                }
+            }
+        }
+        for cl in &contract.ensures {
+            lw.contract_report.push(format!("ensure 收集（未 enforce，屬性證明屬後續里程碑）: {}", cl.text));
+        }
+    }
+    lw.cont(st0, &body.top.statements, 0, 0, &mut Vec::new())?;
 
     if lw.final_states.is_empty() {
         return Ok(V4Outcome {
@@ -547,6 +604,8 @@ pub fn analyze_module_with(root: &LlbcRoot, opts: V4Opts) -> Result<V4Outcome, S
             paths: 0,
             bounded_markers: lw.markers,
             gb_stats: "-".into(),
+            assert_obligations: lw.assert_obligations,
+            contract_report: lw.contract_report,
         });
     }
 
@@ -603,6 +662,8 @@ pub fn analyze_module_with(root: &LlbcRoot, opts: V4Opts) -> Result<V4Outcome, S
         paths: lw.final_states.len(),
         bounded_markers: lw.markers,
         gb_stats: stats_txt,
+        assert_obligations: lw.assert_obligations,
+        contract_report: lw.contract_report,
     })
 }
 

@@ -351,6 +351,8 @@ pub enum BodyKind {
     Missing,
     /// 外部/trait 聲明無 body（string 變體）
     Opaque,
+    /// 編譯器 intrinsic（derive 合成；無 LLBC body）
+    Intrinsic,
 }
 
 /// 抽一個 fun_decl 嘅最細可用投影（body 內容屬 C2/C3 活動範圍，呢度保留原 raw JSON）。
@@ -498,6 +500,8 @@ impl LlbcRoot {
                     "Structured" => BodyKind::Structured,
                     "Error" => BodyKind::Error,
                     "Missing" => BodyKind::Missing,
+                    // C4 法證：derive 編譯器 intrinsic（copy/clone/discriminant 等合成 body 無 LLBC）
+                    "Intrinsic" => BodyKind::Intrinsic,
                     other => {
                         return Err(LlbcError {
                             offset: 0,

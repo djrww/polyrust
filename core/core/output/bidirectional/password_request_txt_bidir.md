@@ -223,7 +223,7 @@ Cargo check:
 ```
 stdout: 
 stderr:     Checking password_request_txt v0.1.0 (/tmp/polyrust_native/cargo_check_password_request_txt)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.02s
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.04s
 
 ```
 
@@ -236,7 +236,7 @@ test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 
 
 stderr:    Compiling password_request_txt v0.1.0 (/tmp/polyrust_native/cargo_check_password_request_txt)
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s
      Running unittests src/main.rs (/tmp/polyrust_native/cargo_check_password_request_txt/target/debug/deps/password_request_txt-1bcfac4a1abc9065)
 
 ```

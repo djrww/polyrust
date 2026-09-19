@@ -181,6 +181,8 @@ pub struct FunBody {
     pub n_locals: usize,
     pub ret_ty: ScalarTy,
     pub param_tys: Vec<ScalarTy>,
+    /// 參數名（locals 1..=arg_count；编译期名可能係 None）——C4 合約 ExactEq 依賴
+    pub param_names: Vec<String>,
     pub local_tys: Vec<ScalarTy>,
     pub top: Block,
 }
@@ -400,10 +402,12 @@ fn parse_stmt_kind(v: &Value, ctx: &str, consts: &ConstTable) -> Result<StmtKind
         let inner = a.get("assert").ok_or_else(|| LlbcError { offset: 0, msg: format!("{ctx}.Assert: missing assert") })?;
         let cond = unwrap_value_oper(inner.get("cond").ok_or_else(|| LlbcError { offset: 0, msg: format!("{ctx}.Assert: missing cond") })?, &format!("{ctx}.Assert.cond"), consts)?;
         let expected = inner.get("expected").and_then(|b| b.as_bool()).unwrap_or(true);
-        let check = inner
-            .get("check_kind")
-            .map(|c| c.dump())
-            .unwrap_or_else(|| "?".into());
+        let check = match inner.get("check_kind") {
+            Some(Value::Str(s)) => s.clone(),
+            Some(Value::Obj(o)) if o.len() == 1 => o[0].0.clone(),
+            Some(other) => other.dump().chars().take(40).collect(),
+            None => "?".into(),
+        };
         return Ok(StmtKind::Assert(AssertInfo { cond, expected, check }));
     }
     if let Some(c) = v.get("Call") {
@@ -455,6 +459,10 @@ fn parse_stmt_kind(v: &Value, ctx: &str, consts: &ConstTable) -> Result<StmtKind
     if let Some(_dr) = v.get("Drop") {
         // object Drop（析構膠水）→ 約束層面 no-op（資源語義 C4）
         return Ok(StmtKind::NopLike("Drop(obj)".into()));
+    }
+    if v.get("PlaceMention").is_some() {
+        // fake-read（borrow/雷區標記）→ no-op
+        return Ok(StmtKind::NopLike("PlaceMention".into()));
     }
     if let Some(n) = v.get("Break").and_then(|x| x.as_num()).and_then(|n| n.parse::<usize>().ok()) {
         return Ok(StmtKind::Break(n));
@@ -535,10 +543,13 @@ pub fn parse_fun_body_with_consts(
     let arg_count = body.get("locals").and_then(|l| l.get("arg_count")).and_then(|x| x.as_num()).and_then(|n| n.parse::<usize>().ok())
         .ok_or_else(|| LlbcError { offset: 0, msg: format!("{ctx}: arg_count missing") })?;
     let mut local_tys = Vec::with_capacity(locals_arr.len());
+    let mut local_names: Vec<String> = Vec::with_capacity(locals_arr.len());
     for l in locals_arr {
         let tref = l.get("ty").ok_or_else(|| LlbcError { offset: 0, msg: format!("{ctx}: local ty missing") })?;
         local_tys.push(resolve(tref));
+        local_names.push(l.get("name").and_then(|n| n.as_str()).unwrap_or("").to_string());
     }
+    let param_names: Vec<String> = local_names.iter().skip(1).take(arg_count).cloned().collect();
     // 準確 scalar 訊息取自 signature（inline literal）；locals 表 Deduplicated 內建型 → Opaque（預設唔鎖定）
     let mut ret_ty = local_tys.first().copied().unwrap_or(ScalarTy::Opaque);
     let mut param_tys: Vec<ScalarTy> = local_tys.iter().skip(1).take(arg_count).copied().collect();
@@ -564,6 +575,7 @@ pub fn parse_fun_body_with_consts(
         n_locals: locals_arr.len(),
         ret_ty,
         param_tys,
+        param_names,
         local_tys,
         top,
     })

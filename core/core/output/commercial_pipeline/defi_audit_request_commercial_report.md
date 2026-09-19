@@ -5,7 +5,7 @@
 - Fully complete (4 layers): true
 - Functional passed: Some(true)
 - Risk: 26.0 | QAP: false
-- Duration: 885ms
+- Duration: 1077ms
 
 ## AST — N=7 fns=4 complete=true
 
