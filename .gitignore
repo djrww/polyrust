@@ -5,3 +5,7 @@ build/
 *.olean
 *.ilean
 *.trace
+
+# v0.3 hardening: 生成物與事故目錄
+/--help/
+/core/core/
