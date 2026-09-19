@@ -13,7 +13,7 @@ use crate::json::J;
 use crate::native_bidirectional::{poly_to_ast_tree, ast_to_mir_layer, rust_to_native_toolchain, NativeToolchainResult, AstTreeAnalysis, MirLayerAnalysis};
 use crate::pipeline_v3::{PipelineV3Config, PipelineV3Result, run_pipeline_v3_with_config};
 use crate::txt_feedback::{txt_file_to_poly_closed_loop, TxtFeedbackResult, create_sample_txt_files};
-use crate::solana_onchain::{SolanaQapPayload, run_solana_onchain_pipeline, payload_from_v3_result};
+use crate::solana_onchain::{run_solana_onchain_pipeline, payload_from_v3_result};
 
 #[derive(Clone, Debug)]
 pub struct CommercialPipelineConfig {
@@ -194,7 +194,7 @@ pub fn run_commercial_pipeline_from_file(path: &Path, config: &CommercialPipelin
         if raw_content.contains("```poly") {
             // extract first poly block
             if let Some(start) = raw_content.find("```poly") {
-                if let Some(end) = raw_content[start..].find("```\n") {
+                if let Some(_end) = raw_content[start..].find("```\n") {
                     // Actually find closing ```
                     let after_start = &raw_content[start + "```poly".len()..];
                     if let Some(close) = after_start.find("```") {

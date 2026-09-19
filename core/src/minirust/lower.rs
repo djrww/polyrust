@@ -4,7 +4,7 @@
 
 use std::collections::HashMap;
 
-use super::ast_v2::{EnumDefV2, FnDefV2, ImplDefV2, ItemV2, ProgramV2, StructDefV2, UnionDefV2, TraitDefV2, VariantV2};
+use super::ast_v2::{EnumDefV2, FnDefV2, ImplDefV2, ItemV2, ProgramV2, StructDefV2, TraitDefV2, VariantV2};
 use super::universe::{TypeV2, ExtType, Universe};
 
 /// Lowering 上下文

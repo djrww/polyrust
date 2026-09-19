@@ -468,7 +468,7 @@ fn main() {
         files
     }
 
-    fn gen_password_multi_files(&self, tr: &TransformResult) -> Vec<GeneratedFile> {
+    fn gen_password_multi_files(&self, _tr: &TransformResult) -> Vec<GeneratedFile> {
         let mut files = Vec::new();
         let mk = |path: &str, content: String, items: usize| GeneratedFile { path: path.to_string(), bytes: content.len(), lines: content.lines().count(), items_count: items, content };
         files.push(mk("src/charset.rs", r##"#[derive(Debug, Clone)] pub enum Charset { Lowercase, Uppercase, Numbers, Symbols, All }
@@ -498,7 +498,7 @@ pub use generator::*;
         files
     }
 
-    fn gen_app_launch_multi_files(&self, tr: &TransformResult) -> Vec<GeneratedFile> {
+    fn gen_app_launch_multi_files(&self, _tr: &TransformResult) -> Vec<GeneratedFile> {
         let mut files = Vec::new();
         let mk = |path: &str, content: String, items: usize| GeneratedFile { path: path.to_string(), bytes: content.len(), lines: content.lines().count(), items_count: items, content };
         files.push(mk("src/types.rs", r##"use std::collections::HashMap;

@@ -316,7 +316,7 @@ fn main() {
         ];
         for (name, src, codegen) in demos {
             hr(&format!("{}：{}", name, src.lines().nth(1).unwrap_or("").trim()));
-            match pipeline::run_pipeline(name, src, codegen) {
+            match pipeline::run_pipeline_eager(name, src, codegen) {
                 Ok(r) => report(&r, true),
                 Err(e) => println!("管線錯誤：{}", e),
             }
@@ -406,7 +406,7 @@ fn main() {
             "C" => (DEMO_C, false),
             _ => (DEMO_A, true),
         };
-        match pipeline::run_pipeline("demo", src, cg) {
+        match pipeline::run_pipeline_eager("demo", src, cg) {
             Ok(r) => {
                 println!("{}", r.generated_code.clone().unwrap_or_else(|| "(no code)".to_string()));
             }

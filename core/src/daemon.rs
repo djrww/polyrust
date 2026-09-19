@@ -455,7 +455,7 @@ pub fn run_daemon(config: DaemonConfig) -> Vec<DaemonCycleResult> {
                     // 如果功能测试失败，尝试自动修复并重跑
                     if !passed && config.auto_repair {
                         // 尝试从 v2 结果修复 (取最后一次迭代)
-                        if let Some(last_iter) = v3_result.iterations.last() {
+                        if let Some(_last_iter) = v3_result.iterations.last() {
                             // 构造简化修复信息
                             let borrow_conflicts = if functional_output.contains("borrow") { vec![(0,1)] } else { vec![] };
                             let lifetime_has_cycle = functional_output.contains("borrow");
@@ -561,6 +561,7 @@ fn main() {
     fn test_auto_repair_v2() {
         let poly = "fn test() { let r1 = &mut x; let r2 = &mut x; }";
         let v2 = PipelineV2Result {
+            bounded_unknown: None,
             n_vars: 10,
             n_polys: 5,
             n_clauses: 0,

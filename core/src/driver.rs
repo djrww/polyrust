@@ -79,6 +79,7 @@ pub(crate) fn pipeline_to_json(name: &str, poly: &PolySource, p: &PipelineResult
             ("gb_s_polys", J::Int(p.gb_stats.s_polys as i64)),
             ("gb_basis_adds", J::Int(p.gb_stats.basis_adds as i64)),
             ("reduced_basis_size", J::Int(p.reduced_basis.len() as i64)),
+            ("gb_mode", J::s(if p.gb_basis_deferred { "lazy (basis deferred; --eager-gb 或 POLY_EAGER_GB=1 求全基)" } else { "eager" })),
             ("r1cs_constraints", J::Int(p.r1cs_constraints as i64)),
             ("r1cs_wires", J::Int(p.r1cs_wires as i64)),
             ("qap_max_degree", J::Int(p.qap_max_degree as i64)),
@@ -110,7 +111,8 @@ pub fn error_json(name: &str, poly: Option<&PolySource>, mode: &str, msg: &str) 
 }
 
 fn verdict_v2(p: &crate::pipeline_v2::PipelineV2Result) -> &'static str {
-    if p.is_unsat { "UNSAT" } else { "SAT" }
+    // v0.3 hardening：誠實三值——fuel 不足/有界模型 → UNKNOWN（此前此類案例被誤標 SAT）
+    if p.is_unsat { "UNSAT" } else if p.bounded_unknown.is_some() { "UNKNOWN" } else { "SAT" }
 }
 fn verdict_v3(p: &crate::pipeline_v3::PipelineV3Result) -> &'static str {
     if p.final_is_unsat { "UNSAT" } else { "SAT" }
@@ -211,6 +213,7 @@ fn pipeline_v2_to_json(name: &str, poly: &PolySource, p: &crate::pipeline_v2::Pi
         ("metadata", J::Obj(metadata)),
         ("status", J::s("ok")),
         ("verdict", J::s(verdict_v2(p))),
+        ("unknown_reason", J::opt_str(p.bounded_unknown.as_deref())),
         ("features_used", J::Arr(p.features_used.iter().map(|s| J::s(s)).collect())),
         ("type_universe_size", J::Int(p.type_universe_size as i64)),
         ("per_node_bits", J::Arr(per_node_bits)),
@@ -319,6 +322,8 @@ pub fn check_text_json_with_algo(name: &str, text: &str, base: Option<&Path>, al
     };
     let r = if let Some(a) = algo {
         run_pipeline_with_algo(name, &poly.source, true, Some(a))
+    } else if std::env::var("POLY_EAGER_GB").is_ok() {
+        crate::pipeline::run_pipeline_eager(name, &poly.source, true)
     } else {
         run_pipeline(name, &poly.source, true)
     };
@@ -380,11 +385,15 @@ pub fn cmd_check(args: &[String], json: bool) -> i32 {
         Ok(p) => p,
         Err(e) => { eprintln!("error: {}", e); return 1; }
     };
-    let res = if let Some(a) = algo { run_pipeline_with_algo(&name, &poly.source, true, Some(a)) } else { run_pipeline(&name, &poly.source, true) };
+    let eager_flag = args.iter().any(|a| a == "--eager-gb") || std::env::var("POLY_EAGER_GB").is_ok();
+    let res = if let Some(a) = algo { run_pipeline_with_algo(&name, &poly.source, true, Some(a)) }
+        else if eager_flag { crate::pipeline::run_pipeline_eager(&name, &poly.source, true) }
+        else { run_pipeline(&name, &poly.source, true) };
     match res {
         Ok(p) => {
             print_check_human(&name, &poly, &p);
             if let Some(a) = algo { println!("  Groebner algo: {}", a.as_str()); }
+            if p.gb_basis_deferred { println!("  gb: lazy 模式（全基已推遲；--eager-gb 或 POLY_EAGER_GB=1 求全基與統計）"); }
             0
         }
         Err(e) => { eprintln!("error: {}", e); 1 }
@@ -394,7 +403,8 @@ pub fn cmd_check(args: &[String], json: bool) -> i32 {
 fn print_check_human(name: &str, poly: &PolySource, p: &PipelineResult) {
     if let Some(i) = &poly.intent { println!("intent: {}", i); }
     println!("source: {}", name);
-    println!("verdict: {} typechecks: {} agrees: {}", verdict(p), p.checker_ok, p.agrees);
+    println!("verdict: {} typechecks: {} agrees: {}{}", verdict(p), p.checker_ok, p.agrees,
+        if p.gb_basis_deferred { " [gb:lazy]" } else { "" });
     println!("  vars {} polys {} clauses {} rounds {}", p.n_vars, p.n_polys, p.n_clauses, p.cdcl_rounds);
     println!("  qap constraints {} wires {} verified {:?}", p.r1cs_constraints, p.r1cs_wires, p.qap_verified);
     if !p.node_types.is_empty() {
@@ -609,7 +619,7 @@ pub fn cmd_exhaust(args: &[String], json: bool) -> i32 {
 }
 
 pub fn dsl_text_json(name: &str, text: &str) -> (J, bool) {
-    use crate::poly_dsl::{poly_dsl_function_list, transform_rust_source, PolyDSLContext};
+    use crate::poly_dsl::{poly_dsl_function_list, transform_rust_source};
     // try parse as Rust source -> poly DSL
     let tr = transform_rust_source(name, text);
     let list = poly_dsl_function_list();
@@ -663,12 +673,12 @@ pub fn dsl_project_text_json(name: &str, text: &str) -> (J, bool) {
             if !buffer_lines.is_empty() {
                 let src = buffer_lines.join("\n");
                 let tr_tmp = crate::poly_dsl::transform_rust_source(&current_path, &src);
-                if let Some(f) = tr_tmp.files.first() {
+                if let Some(_f) = tr_tmp.files.first() {
                     // we need to re-parse items: simplified, we just push the file result via transformer later
                 }
                 // For project transformer, we parse items via same logic as transform_rust_source but aggregated
                 // Quick: create RustFile with items from src parsing
-                let proj_tmp = crate::poly_dsl::transform_rust_source(&current_path, &src);
+                let _proj_tmp = crate::poly_dsl::transform_rust_source(&current_path, &src);
                 // We don't have direct items, so we reconstruct via transformer
                 buffer_lines.clear();
             }
@@ -1457,7 +1467,7 @@ pub fn cmd_audit(args: &[String], json: bool) -> i32 {
 
 pub fn cmd_closed_loop(args: &[String], json: bool) -> i32 {
     use crate::llm_closed_loop::{full_nl_to_rust_closed_loop, nl_to_poly_with_llm, llm_repair_poly_with_error, sample_nl_prompts};
-    use std::path::PathBuf;
+    
     
     let sub = args.get(2).map(|s| s.as_str()).unwrap_or("run");
     let mut max_iter = 3usize;
@@ -2116,7 +2126,7 @@ pub fn cmd_commercial_pipeline(args: &[String], json: bool) -> i32 {
             let config = CommercialPipelineConfig::default();
             if json {
                 let mut results = Vec::new();
-                for (name, path) in rust_files.iter().chain(poly_files.iter()) {
+                for (_name, path) in rust_files.iter().chain(poly_files.iter()) {
                     let p = Path::new(path);
                     if p.exists() {
                         if let Ok(r) = run_commercial_pipeline_from_file(p, &config) {

@@ -8,7 +8,7 @@ use crate::groebner::{field_polys, normal_form, reduced_groebner, solve_boolean,
 use crate::minirust::ast::Program;
 use crate::minirust::macros::Expander;
 use crate::minirust::parse::Parser;
-use crate::pipeline::{clause_to_poly, run_pipeline, PipelineResult};
+use crate::pipeline::{clause_to_poly, run_pipeline_eager as run_pipeline, PipelineResult};
 use crate::poly::{Order, Poly};
 use std::collections::HashMap;
 

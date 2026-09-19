@@ -2,7 +2,6 @@
 //! 零第三方，std only
 
 use std::path::{Path, PathBuf};
-use std::collections::HashMap;
 use crate::pipeline_v3::{run_pipeline_v3_with_config, PipelineV3Config, PipelineV3Result};
 use crate::daemon::{run_functional_test, rust_to_nl_feedback};
 use crate::llm_closed_loop::{nl_to_poly_with_llm, llm_repair_poly_with_error};
@@ -84,7 +83,7 @@ pub fn analyze_missing(poly: &str, original_nl: &str) -> MissingAnalysis {
     }
     
     // 語義檢查 (形式化語義) — 修正: && 不是借用，需檢查 &mut 或 & + 字母
-    let has_borrow = poly.contains("&mut") || (poly.contains('&') && (poly.contains("&'") || poly.contains("&mut") || poly.contains("&self") || poly.contains("&str") || poly.contains("&String") || poly.contains("&i32") || poly.contains("&bool") || poly.contains("&T") || poly.contains("&mut ") || poly.contains("& ")));
+    let _has_borrow = poly.contains("&mut") || (poly.contains('&') && (poly.contains("&'") || poly.contains("&mut") || poly.contains("&self") || poly.contains("&str") || poly.contains("&String") || poly.contains("&i32") || poly.contains("&bool") || poly.contains("&T") || poly.contains("&mut ") || poly.contains("& ")));
     // 更精確: 檢查是否包含借用模式而非 &&
     let mut has_real_borrow = false;
     for (i, c) in poly.chars().enumerate() {
@@ -245,7 +244,7 @@ pub fn supplement_missing(poly: &str, analysis: &MissingAnalysis, original_nl: &
     }
     
     // 補語意 (根據 NL 意圖)
-    let nl_lower = original_nl.to_lowercase();
+    let _nl_lower = original_nl.to_lowercase();
     for missing in &analysis.missing_meaning {
         if missing.contains("FileTree") || missing.contains("IDE") {
             supplemented.push_str("\n# LLM 補語意: IDE 需 FileTree/TextBuffer\npub struct FileNode { pub path: String }\nimpl FileNode { pub fn new(p: &str) -> Self { Self { path: p.to_string() } } }\npub struct FileTree { pub nodes: Vec<FileNode> }\nimpl FileTree { pub fn new() -> Self { Self { nodes: Vec::new() } } pub fn file_count(&self) -> usize { self.nodes.len() } }\n");

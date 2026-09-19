@@ -189,6 +189,23 @@ pub fn select_groebner_algo_auto(fs: &[Poly], nvars: usize) -> GroebnerAlgo {
     GroebnerAlgo::Classic
 }
 
+/// Gröbner 基計算模式（v0.3 hardening 新增）。
+///
+/// * `Eager`：CDCL(T) 迴圈後**再算一次全量規約 Gröbner 基**——證書/審計/證據用途
+///   （obligations、demo、exhaust 走此路，輸出與 v0.2.2 逐位一致）。
+/// * `Lazy`：跳過最終全基，判定直接採 CDCL(T) 迴圈結果。正確性由現有定理保證：
+///   - SAT 側：迴圈最後一輪理論檢查已給出布林根 ⇒ 1∉G（T6），判定 SAT；
+///   - UNSAT 側：CDCL 判定子句骨不可滿足 ⇒ 子句多項式自身生成單位理想（T3 對偶），判定 UNSAT。
+///   `reduced_basis` 留空、`gb_stats` 歸零，並置 `gb_basis_deferred=true`。
+///
+/// 動機（2026-09-19 實測，`PL_DBG=1`）：sqr.poly（170 vars）中 S6 全基獨佔 21.5s/23.4s（92%），
+/// 跳過後 check 降至 ~2s，判定與 QAP/codegen/rustc 結果不變。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GbBasisMode {
+    Eager,
+    Lazy,
+}
+
 pub fn reduced_groebner_with_algo(fs: &[Poly], ord: Order, algo: GroebnerAlgo) -> (Vec<Poly>, GroebnerStats) {
     match algo {
         GroebnerAlgo::Classic => reduced_groebner(fs, ord, Strategy::Normal, true),
@@ -263,6 +280,9 @@ pub struct PipelineResult {
     pub generated_file: Option<String>,
     pub rustc_compiles: Option<bool>,
     pub expansion_log: Vec<String>,
+    /// v0.3 hardening：Lazy 模式下為 true——最終全量規約基被推遲（未計算），
+    /// 判定採 CDCL(T) 迴圈結果（見 GbBasisMode）。需要基與統計時用 `run_pipeline_eager`。
+    pub gb_basis_deferred: bool,
 }
 
 pub fn clause_to_poly(clause: &[cdcl::Lit], nvars: usize) -> Poly {
@@ -279,8 +299,13 @@ pub fn clause_to_poly(clause: &[cdcl::Lit], nvars: usize) -> Poly {
     p
 }
 
-#[allow(unused_assignments)]
 pub fn run_pipeline_with_algo(name: &str, source: &str, do_codegen: bool, algo: Option<GroebnerAlgo>) -> Result<PipelineResult, String> {
+    // 相容包裝：顯式指定算法 = 證據/審計意圖 ⇒ 走 Eager（與 v0.2.2 行為一致）。
+    run_pipeline_with_mode(name, source, do_codegen, algo, GbBasisMode::Eager)
+}
+
+#[allow(unused_assignments)]
+pub fn run_pipeline_with_mode(name: &str, source: &str, do_codegen: bool, algo: Option<GroebnerAlgo>, gb_mode: GbBasisMode) -> Result<PipelineResult, String> {
     let mut res = PipelineResult::default();
     let mut t0 = std::time::Instant::now();
     macro_rules! stage { ($m:expr) => {
@@ -322,6 +347,7 @@ pub fn run_pipeline_with_algo(name: &str, source: &str, do_codegen: bool, algo: 
     let mut cdcl_stats_acc = CdclStats::default();
     let mut learned_total: Vec<Vec<cdcl::Lit>> = vec![];
     let mut rounds = 0usize;
+    let mut cdcl_failed = false; // v0.3 hardening：Lazy 模式判定所需的 CDCL 骨架失敗標記
     loop {
         rounds += 1;
         if rounds >= 200 { return Err("CDCL(T) 200 rounds not converge".to_string()); }
@@ -337,7 +363,7 @@ pub fn run_pipeline_with_algo(name: &str, source: &str, do_codegen: bool, algo: 
         cdcl_stats_acc.conflicts += solver.stats().conflicts;
         cdcl_stats_acc.learned += solver.stats().learned;
         for lc in solver.learned_clauses() { if !learned_total.contains(&lc) { learned_total.push(lc.clone()); } }
-        if !ok { break; }
+        if !ok { cdcl_failed = true; break; }
         let model = solver.model().unwrap();
         let mut subst = sys.polys.clone();
         for (vi, &cv) in clause_vars.iter().enumerate() {
@@ -373,11 +399,38 @@ pub fn run_pipeline_with_algo(name: &str, source: &str, do_codegen: bool, algo: 
         let blocks = estimate_blocks(&merged);
         eprintln!("[{}] Groebner algo: {} (nvars={}, npolys={}, sparsity={:.1}%, blocks={})", name, chosen_algo.as_str(), sys.nvars, merged.len(), sparsity, blocks);
     }
-    let (red, gstats) = reduced_groebner_with_algo(&merged, Order::GrevLex, chosen_algo);
-    stage!("S6 GB");
+    let (red, gstats) = match gb_mode {
+        GbBasisMode::Eager => {
+            let r = reduced_groebner_with_algo(&merged, Order::GrevLex, chosen_algo);
+            stage!("S6 GB");
+            r
+        }
+        GbBasisMode::Lazy => {
+            // v0.3 hardening：跳過最終全量規約基（SAT 實測省 ~92% 總耗時）。
+            // 判定：CDCL(T) 迴圈結果——cdcl_failed=true ⇒ 子句多項式生成 1（T3）；否則
+            // 最後一輪理論檢查已保證存在布林根 ⇒ 1∉G（T6）。基與統計留待 Eager 模式補算。
+            res.gb_basis_deferred = true;
+            (
+                Vec::new(),
+                GroebnerStats {
+                    generators: 0,
+                    pairs_considered: 0,
+                    crit1_skips: 0,
+                    crit2_skips: 0,
+                    s_polys: 0,
+                    reductions_to_zero: 0,
+                    basis_adds: 0,
+                    basis_final: 0,
+                },
+            )
+        }
+    };
     res.gb_stats = gstats;
     res.reduced_basis = red.clone();
-    res.is_unsat = red.len() == 1 && red[0].is_constant().map_or(false, |c| c.is_one());
+    res.is_unsat = match gb_mode {
+        GbBasisMode::Eager => red.len() == 1 && red[0].is_constant().map_or(false, |c| c.is_one()),
+        GbBasisMode::Lazy => cdcl_failed,
+    };
 
     if !res.is_unsat {
         stage!("S7 start");
@@ -417,7 +470,8 @@ pub fn run_pipeline_with_algo(name: &str, source: &str, do_codegen: bool, algo: 
                 arm_choice: res.arm_choice.clone(),
             };
             let cfg = CodeGenConfig::default();
-            let header = format!("program {} SAT vars {} constraints {} basis {} qap {}", name, sys.nvars, merged.len(), red.len(), if res.qap_verified==Some(true){"pass"}else{"fail"});
+            let basis_desc = if res.gb_basis_deferred { "skipped(lazy)".to_string() } else { red.len().to_string() };
+            let header = format!("program {} SAT vars {} constraints {} basis {} qap {}", name, sys.nvars, merged.len(), basis_desc, if res.qap_verified==Some(true){"pass"}else{"fail"});
             let code = crate::codegen::generate_rust(&p, &exp, &deriv, &cfg, &header);
             let path = format!("output/generated/{}.rs", name);
             std::fs::create_dir_all("output/generated").ok();
@@ -436,7 +490,14 @@ pub fn run_pipeline_with_algo(name: &str, source: &str, do_codegen: bool, algo: 
 }
 
 pub fn run_pipeline(name: &str, source: &str, do_codegen: bool) -> Result<PipelineResult, String> {
-    run_pipeline_with_algo(name, source, do_codegen, None)
+    // v0.3 hardening：常用入口默認 **Lazy**（判定不變，SAT 實測快 ~12×）。
+    // 需要全量規約基（證書/審計/obligations/demo/證據）請用 `run_pipeline_eager`。
+    run_pipeline_with_mode(name, source, do_codegen, None, GbBasisMode::Lazy)
+}
+
+/// 全量規約基模式（與 v0.2.2 行為逐位一致）：obligations/demo/exhaust/證據檔專用。
+pub fn run_pipeline_eager(name: &str, source: &str, do_codegen: bool) -> Result<PipelineResult, String> {
+    run_pipeline_with_mode(name, source, do_codegen, None, GbBasisMode::Eager)
 }
 
 /// 實際使用：pipeline.rs 文件清單 — 優化 with_capacity

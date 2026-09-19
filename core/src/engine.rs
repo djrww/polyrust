@@ -7,7 +7,7 @@
 //! 解析失敗則保持 `surface-errors`，JSON 必須標明 engine，禁止冒充命題 P。
 
 use crate::minirust::parse::Parser;
-use crate::pipeline::{run_pipeline, PipelineResult};
+use crate::pipeline::{run_pipeline_eager as run_pipeline, PipelineResult};
 
 /// 哪一個判定器簽發了 `is_unsat`。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

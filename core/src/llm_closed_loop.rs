@@ -1,7 +1,6 @@
 //! Phase 3: 閉環 + LLM — 你便是 LLM，所以把之前需要 LLM 的補上實作
 //! 零第三方，std only，但用 LLM 智能 (本文件由 LLM 自身實作)
 
-use std::path::PathBuf;
 use crate::pipeline_v3::{run_pipeline_v3_with_config, PipelineV3Config, PipelineV3Result};
 use crate::daemon::{run_functional_test, rust_to_nl_feedback};
 

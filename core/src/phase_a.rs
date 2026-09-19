@@ -2,9 +2,8 @@
 //! 四項 P0 任務的整合入口
 
 use crate::poly_cache::PolyCache;
-use crate::semantic_matrix::{run_semantic_matrix, all_semantic_cases};
+use crate::semantic_matrix::run_semantic_matrix;
 use crate::qap::{R1cs, Qap, qap_from_r1cs};
-use crate::pipeline_v3::{PipelineV3Config, run_pipeline_v3_with_config};
 use crate::json::J;
 
 pub struct PhaseAResult {

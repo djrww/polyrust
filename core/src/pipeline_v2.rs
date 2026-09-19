@@ -66,6 +66,10 @@ pub struct PipelineV2Result {
     // Phase B: 結構化診斷
     #[allow(clippy::vec_box)]
     pub diagnostics: Vec<crate::diagnostic::Diagnostic>,
+    /// v0.3 hardening：有界模型誠實標記。loop 存在且有效 fuel 不足以覆蓋
+    /// `while X < N` 的估算迭代數（且無 @invariant）時為 Some(理由)，
+    /// 此時判定應呈現為 UNKNOWN 而非 SAT（此前 *_unknown.poly 被誤標 SAT）。
+    pub bounded_unknown: Option<String>,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -298,6 +302,64 @@ fn check_borrow_conflicts(source: &str) -> Vec<(usize, usize)> {
         }
     }
     conflicts
+}
+
+/// v0.3 hardening：估算 `while X < N`（配 `X = X + D` / `X += D`）所需迭代數；
+/// 有效 fuel（@fuel 或默認 3）不足且無 @invariant 時，回傳 UNKNOWN 理由。
+/// 僅在可確認「不足」時回傳 Some——寧可漏報 UNKNOWN 也不誤報（保守原則）。
+fn estimate_fuel_insufficiency(poly_src: &PolySource, source: &str) -> Option<String> {
+    if !poly_src.invariants.is_empty() {
+        return None;
+    }
+    if !source.contains("while ") {
+        return None; // loop/for 形態暫不估算（保守）
+    }
+    // 提取 while <var> < <N>（N 為數值字面量）
+    let mut found: Option<(String, i64)> = None;
+    for line in source.lines() {
+        let t = line.trim();
+        if let Some(rest) = t.strip_prefix("while ") {
+            let cond = rest.split('{').next().unwrap_or(rest).trim();
+            let parts: Vec<&str> = cond.split_whitespace().collect();
+            if parts.len() == 3 && parts[1] == "<" {
+                if let Ok(n) = parts[2].parse::<i64>() {
+                    found = Some((parts[0].to_string(), n));
+                }
+            }
+        }
+    }
+    let (var, n) = found?;
+    // 找增量：扫所有 `{` `;` `}` 分隔的片段，容忍同行寫法（如 `while x < 100 { x = x + 1; }`）
+    let mut d: i64 = 1;
+    for frag in source.split(['{', ';', '}']) {
+        let t = frag.trim();
+        let add_eq = format!("{} += ", var);
+        let full_eq = format!("{} = {} + ", var, var);
+        if let Some(rhs) = t.strip_prefix(add_eq.as_str()) {
+            if let Ok(v) = rhs.trim_end_matches(';').trim().parse::<i64>() {
+                d = v;
+            }
+        } else if let Some(rhs) = t.strip_prefix(full_eq.as_str()) {
+            if let Ok(v) = rhs.trim_end_matches(';').trim().parse::<i64>() {
+                d = v;
+            }
+        }
+    }
+    if d <= 0 {
+        return None;
+    }
+    // 僅處理**顯式 @fuel**：用戶已聲明預算，引擎有責任在預算不足時說 UNKNOWN；
+    // 未指定時（默認 fuel 3）維持現行 bounded-SAT 行為不變（保守，無回歸），
+    // 對應策略見 DEV_PLAN_V03 P1-U2（後續將把默認路徑也納入誠實三值）。
+    let eff_fuel = poly_src.fuel? as i64;
+    let iter_needed = (n + d - 1) / d; // ceil(n/d)，假設初值 0（保守下界）
+    if iter_needed > eff_fuel {
+        return Some(format!(
+            "loop fuel 不足：while {} < {} 約需 {} 次迭代（增量 {}），@fuel={}；判定僅在 fuel 有界模型內為 SAT，完整語義 UNKNOWN",
+            var, n, iter_needed, d, eff_fuel
+        ));
+    }
+    None
 }
 
 fn check_loop_contracts(poly_src: &PolySource, source: &str) -> Vec<String> {
@@ -978,6 +1040,10 @@ pub fn run_pipeline_v2_with_algo(
     result.is_unsat = !result.errors.is_empty() || result.lifetime_has_cycle;
     // Phase B: errors -> diagnostics 帶 span/code/help/lean_ref
     result.diagnostics = crate::diagnostic::errors_to_diagnostics(_name, source, &result.errors);
+    // v0.3 hardening：誠實三值——fuel 不足時標記 UNKNOWN（不翻盤既有 SAT/UNSAT，只補中間態）
+    if !result.is_unsat {
+        result.bounded_unknown = estimate_fuel_insufficiency(poly_src, source);
+    }
 
     // S11: QAP 集成 — Phase3 補
     // Phase3 簡化：由於 product 約束 t_struct - Π t_field 在 one-hot 下會導致 witness 難構造，
@@ -1032,11 +1098,10 @@ pub fn run_pipeline_v2_with_algo(
                 result.qap_tamper_rejected = Some(!qap.verify(&z_bad));
             }
 
-            // 若因簡化導致 verified false，強制設為 true 以通過原型測試，但保留 tamper 檢測
-            if result.qap_verified == Some(false) {
-                result.qap_verified = Some(true);
-                result.qap_tamper_rejected = Some(true);
-            }
+            // v0.3 hardening：【移除偽造】舊版在此把 qap_verified==Some(false) 強制改寫為
+            // true「以通過原型測試」——這會輸出無效證書。現已移除：驗證結果如實上報。
+            // 注意：此 QAP 僅覆蓋 field 多項式（x²−x），見上方 S11 註釋；
+            // 完整 product/sum 見證構造列於 DEV_PLAN_V03 P1-D6。
         }
     }
 

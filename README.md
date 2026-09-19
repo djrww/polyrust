@@ -34,7 +34,7 @@ cargo build --release
 ./target/release/polyrust obligations   # T1–T9 义务自证（12 程序 × 9 定理）
 ./target/release/polyrust gen A         # 打印指定 demo 生成码
 ./target/release/polyrust debug <file>  # σ_D 逐约束合法性检查
-cargo test --release                    # 67 个核心单元测试
+cargo test --release                    # 核心單元測試（v0.2.2 實測 63 個；數量以 CI 為準，見 dev-log）
 ```
 
 ### 可输入模式（Phase 0）：`.poly` DSL 验证型工具
@@ -139,7 +139,7 @@ bash scripts/build-embedded.sh   # 一键：lake build Polyrust:static → cargo
 
 | 项目 | 结果 |
 |---|---|
-| 单元测试 | 17/17 ✓ |
+| 单元测试 | 63/63 ✓（v0.2.2 實測；舊檔 17/17 為 v0.1.0 基線，見 docs/EVIDENCE.md 附註） |
 | demoA–D 端到端一致性 | 4/4 ✓（含 QAP 验证、篡改拒绝、rustc 编译） |
 | 九条定理义务自证 | 全部通过 ✓ |
 | Lean 4 形式化 | **14 模块 273 条定理全编译通过、零 sorry、零自定义公理**：T3(a) 对偶、T3(b) 消解恒等式、T4 终止界、T5 S-多项式准则、T6 无根证书、T7(a) 简化基唯一、T7(b) 宏展开同态、T8 QAP 忠实、L0 嵌入、T9 判定等价与代码生成 round-trip、**借用/所有权区间冲突** ✓ |

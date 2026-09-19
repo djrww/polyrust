@@ -194,18 +194,64 @@ mod tests {
         assert_eq!(cases.len(), 100, "should have 100 cases");
     }
 
+    /// v0.3 hardening：已知失敗白名單（baseline ratchet）。
+    /// 規則：只允許從本表移除（修好即刪行並同步下調上限），
+    /// 絕不新增——新失敗 = 回歸，CI 紅。每行附原因與跟蹤。
+    const KNOWN_FAILURES: &[(&str, &str)] = &[
+        ("mut_borrow_exclusive", "v3 借用互斥編碼弱化：預期 UNSAT 判成 SAT — P0，見 DEV_PLAN_V03 P0-C1"),
+        ("ref_deref", "v3 借用檢查弱化：預期 UNSAT 判成 SAT — P0，同上"),
+        ("async_simple", "async 狀態機生成碼語義標記缺失（expected_contains 不符）— P1"),
+        ("async_spawn", "async spawn 判定偏差 — P1"),
+        ("io_with_pure_call", "I/O 效應 × pure 誤拒（false UNSAT）— P1"),
+        ("enterprise_ide", "商用大例誤拒（false UNSAT）— P1"),
+    ];
+
     #[test]
     fn test_semantic_matrix_pass_rate() {
         let (passed, failed, details) = run_semantic_matrix();
         let total = passed + failed;
         let rate = passed as f64 / total as f64 * 100.0;
         println!("Semantic Matrix: {}/{} passed ({:.1}%)", passed, total, rate);
-        for d in details.iter().take(10) {
+        for d in &details {
             println!("{}", d);
         }
-        // Phase A target >90%
-        // 初始容忍 70%，逐步提升至 90%
-        assert!(rate >= 70.0, "pass rate {:.1}% < 70% (target 90%)", rate);
+        // Phase A target >90%（2026-09-19 基線 94.0%）
+        assert!(rate >= 94.0, "pass rate {:.1}% 低於 2026-09-19 基線 94%（回歸）", rate);
+
+        // baseline ratchet：失敗集合必須 ⊆ 已知白名單（新失敗即回歸，直接紅）
+        let failing: Vec<String> = details
+            .iter()
+            .filter(|d| d.starts_with("FAIL "))
+            .map(|d| {
+                d.trim_start_matches("FAIL ")
+                    .split(':')
+                    .next()
+                    .unwrap_or("")
+                    .trim()
+                    .to_string()
+            })
+            .collect();
+        for f in &failing {
+            assert!(
+                KNOWN_FAILURES.iter().any(|(k, _)| k == f),
+                "語義矩陣出現**新**失敗案例（回歸）：{}（不在已知白名單；若屬修復後態請更新 KNOWN_FAILURES）",
+                f
+            );
+        }
+        // 反向：白名單內已修好的案例應從表中移除（提示，不硬擋）
+        let fixed: Vec<&str> = KNOWN_FAILURES
+            .iter()
+            .map(|(k, r)| (*k, *r))
+            .filter(|(k, _)| !failing.iter().any(|f| f.as_str() == *k))
+            .map(|(k, r)| {
+                println!("✅ 已修復（請從 KNOWN_FAILURES 移除）：{} — 原記錄：{}", k, r);
+                k
+            })
+            .collect();
+        println!(
+            "ratchet: {} 失敗（白名單 {} 項，其中 {} 項已實際修好待移除）",
+            failing.len(), KNOWN_FAILURES.len(), fixed.len()
+        );
     }
 
     #[test]

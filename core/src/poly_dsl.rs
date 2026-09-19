@@ -1336,7 +1336,7 @@ pub fn transform_rust_source(source_name: &str, rust_source: &str) -> TransformR
         files: vec![RustFile { path: format!("{}.rs", source_name), items }],
     };
     let mut transformer = RustProjectTransformer::new();
-    let mut result = transformer.transform_project(&project);
+    let result = transformer.transform_project(&project);
 
     // Additionally, directly invoke DSL functions based on keyword heuristics to maximize coverage
     // This ensures 90% Rust semantic coverage for any reasonably complex Rust file
@@ -1445,7 +1445,7 @@ pub fn transform_rust_source(source_name: &str, rust_source: &str) -> TransformR
     }
 
     // recompute result with enhanced ctx
-    let mut new_transformer = RustProjectTransformer { ctx, type_map: transformer.type_map };
+    let new_transformer = RustProjectTransformer { ctx, type_map: transformer.type_map };
     // we already have result, but we need to update with new ctx stats
     let mut final_result = result;
     final_result.nvars = new_transformer.ctx.nvars;

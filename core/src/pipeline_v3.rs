@@ -1514,6 +1514,7 @@ mod tests {
     #[test]
     fn test_risk_scoring() {
         let mut v2 = crate::pipeline_v2::PipelineV2Result {
+            bounded_unknown: None,
             is_unsat: false,
             n_vars: 100,
             n_polys: 200,

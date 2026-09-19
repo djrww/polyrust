@@ -27,6 +27,7 @@ pub mod groebner_f4f5;
 pub mod json;
 pub mod llm;
 pub mod llm_closed_loop;
+pub mod lrat;
 pub mod txt_feedback;
 pub mod native_bidirectional;
 pub mod minirust;

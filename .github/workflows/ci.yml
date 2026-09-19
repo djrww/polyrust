@@ -46,10 +46,13 @@ jobs:
           n=$(cargo clippy --all-targets --release --message-format=short 2>/dev/null | grep -c ': warning:' || true)
           echo "clippy 警告數：$n（非阻斷，趨勢追蹤用）" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: cargo test --lib（Phase A+B 硬閘門 — 78+）
+      # v0.3 hardening：修補弱化縫（Phase B 曾改為 78+ 但仍用弱 grep "passed"，恆真）。
+      # 斷言「test result: ok」且 0 failed — 閘門口徑與測試數脫鈎，A+B+v0.3 全適用。
+      - name: cargo test --lib（硬閘門 — Phase A+B+v0.3 全量）
         run: |
           cargo test --lib -- --nocapture | tee /tmp/lib_test.txt
-          grep -q "passed" /tmp/lib_test.txt
+          grep -q "test result: ok" /tmp/lib_test.txt
+          ! grep -qE "test result: FAILED" /tmp/lib_test.txt
 
       - name: Phase A — Semantic Matrix 100 例 + PolyCache + QAP r1cs.json
         run: |

@@ -12,10 +12,9 @@
 //! 4. MIR層：products, sums, universe, constraints, lowering
 
 use std::path::{Path, PathBuf};
-use std::collections::HashMap;
 
 use crate::minirust::ast::{ProgramV2, ItemV2, AstStats, collect_stats_v2};
-use crate::minirust::lower::{lower_program, lower_program_with_stats, Lowered};
+use crate::minirust::lower::lower_program_with_stats;
 use crate::pipeline_v3::{run_pipeline_v3_with_config, PipelineV3Config, PipelineV3Result};
 use crate::pipeline_v3_auto::rust_to_poly_for_feedback;
 use crate::daemon::{run_functional_test, rust_to_nl_feedback};
