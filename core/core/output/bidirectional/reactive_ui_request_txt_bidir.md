@@ -34,19 +34,19 @@ Complete: true
 
 ## MIR Layer (Original)
 Lowered MIR {
-  products: 2 (["VNode", "Patch"])
+  products: 2 (["Patch", "VNode"])
   sums: 0 ([])
   generated: 0 items
   mod_map: 0 entries
   universe N=11
   program items: 8
+  product Patch: 1 fields
+    - is_create: bool
   product VNode: 2 fields
     - tag: String
     - children: Vec<VNode>
-  product Patch: 1 fields
-    - is_create: bool
   stats: Lowered: 2 products, 0 sums, 0 generated, 0 mod_map, universe N=11
-Products: ["VNode", "Patch"]
+Products: ["Patch", "VNode"]
 Sums: []
 
 }
@@ -200,7 +200,7 @@ Cargo check:
 ```
 stdout: 
 stderr:     Checking reactive_ui_request_txt v0.1.0 (/tmp/polyrust_native/cargo_check_reactive_ui_request_txt)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.03s
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.02s
 
 ```
 

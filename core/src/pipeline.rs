@@ -1,4 +1,5 @@
 use crate::cdcl::{self, CdclStats};
+use crate::composition;
 use crate::codegen::{roundtrip_check, CodeGenConfig};
 use crate::frac::Frac;
 use crate::fp::Fp;
@@ -237,6 +238,52 @@ pub fn reduced_groebner_with_algo(fs: &[Poly], ord: Order, algo: GroebnerAlgo) -
     }
 }
 
+/// T10 分解運行的輕量摘要（供 PipelineResult 帶出與義務 T10 報表用）。
+#[derive(Clone, Debug, Default)]
+pub struct DecompSummary {
+    pub n_components: usize,
+    pub unused_vars: usize,
+    pub total_extensions: usize,
+    pub bound_decomposed: Option<u128>,
+    pub union_basis_is_gb: bool,
+    pub any_unsat: bool,
+    pub max_component_bits: usize,
+    /// 各組件 (局部變量數, 基擴充次數)。
+    pub per_component: Vec<(usize, usize)>,
+}
+
+impl DecompSummary {
+    pub fn of(rep: &composition::DecompReport) -> DecompSummary {
+        DecompSummary {
+            n_components: rep.components.len(),
+            unused_vars: rep.unused_vars,
+            total_extensions: rep.total_extensions,
+            bound_decomposed: rep.bound_decomposed,
+            union_basis_is_gb: rep.union_basis_is_gb,
+            any_unsat: rep.any_unsat,
+            max_component_bits: rep.components.iter().map(|c| c.nvars_local).max().unwrap_or(0),
+            per_component: rep
+                .components
+                .iter()
+                .map(|c| (c.nvars_local, c.stats.basis_adds))
+                .collect(),
+        }
+    }
+
+    /// 單行報表："comps=2 Σext=5/32 GB✓ unsat=false"
+    pub fn summary_line(&self) -> String {
+        let gb = if self.union_basis_is_gb { "✓" } else { "✗" };
+        let b = match self.bound_decomposed {
+            Some(b) => b.to_string(),
+            None => "overflow".into(),
+        };
+        format!(
+            "comps={} Σext={}/{} GB{} unsat={}",
+            self.n_components, self.total_extensions, b, gb, self.any_unsat
+        )
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct PipelineResult {
     pub n_vars: usize,
@@ -263,6 +310,8 @@ pub struct PipelineResult {
     pub generated_file: Option<String>,
     pub rustc_compiles: Option<bool>,
     pub expansion_log: Vec<String>,
+    /// T10 分解運行摘要（僅當 PL_DECOMPOSE 或 ext(decompose=true)）。
+    pub decomp: Option<DecompSummary>,
 }
 
 pub fn clause_to_poly(clause: &[cdcl::Lit], nvars: usize) -> Poly {
@@ -281,6 +330,13 @@ pub fn clause_to_poly(clause: &[cdcl::Lit], nvars: usize) -> Poly {
 
 #[allow(unused_assignments)]
 pub fn run_pipeline_with_algo(name: &str, source: &str, do_codegen: bool, algo: Option<GroebnerAlgo>) -> Result<PipelineResult, String> {
+    let decompose = std::env::var("PL_DECOMPOSE").is_ok();
+    run_pipeline_with_algo_ext(name, source, do_codegen, algo, decompose)
+}
+
+/// 可控分解開關版本：`decompose=true` 時額外跑 T10 分解路徑並填 `res.decomp`
+/// （不改變主路徑判定；主路徑與分解路徑的 UNSAT 判定一致性由義務 T10 鎖定）。
+pub fn run_pipeline_with_algo_ext(name: &str, source: &str, do_codegen: bool, algo: Option<GroebnerAlgo>, decompose: bool) -> Result<PipelineResult, String> {
     let mut res = PipelineResult::default();
     let mut t0 = std::time::Instant::now();
     macro_rules! stage { ($m:expr) => {
@@ -378,6 +434,12 @@ pub fn run_pipeline_with_algo(name: &str, source: &str, do_codegen: bool, algo: 
     res.gb_stats = gstats;
     res.reduced_basis = red.clone();
     res.is_unsat = red.len() == 1 && red[0].is_constant().map_or(false, |c| c.is_one());
+
+    if decompose {
+        let rep = composition::run_decomposed(&merged, sys.nvars, Order::GrevLex, Strategy::Normal);
+        res.decomp = Some(DecompSummary::of(&rep));
+        stage!("S6 GB(decomposed)");
+    }
 
     if !res.is_unsat {
         stage!("S7 start");

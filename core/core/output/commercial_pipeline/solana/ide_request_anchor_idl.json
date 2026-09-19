@@ -75,8 +75,8 @@
     "r1cs_wires": 129,
     "type_universe": 18,
     "groebner_algo": "f4f5",
-    "certificate": "QAP-CERT-ide_request-622-1789810028",
-    "timestamp": 1789810029,
+    "certificate": "QAP-CERT-ide_request-622-1789848266",
+    "timestamp": 1789848267,
     "lean_proofs": [
       "Polyrust.QAP.qap_verified_implies_sat",
       "Polyrust.IncrementalIteration.f4f5_iter_converges",

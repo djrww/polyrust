@@ -1,6 +1,6 @@
 # Polyrust V3 商业审计报告 — reactive_ui_request
 
-**版本**: v3.0-commercial | **时间**: 1789810036 | **迭代**: 3
+**版本**: v3.0-commercial | **时间**: 1789848274 | **迭代**: 3
 
 **判定**: SAT ✅ | **风险**: 15.5 (low) | **ISO**: QM (Quality Management)
 
@@ -27,16 +27,16 @@
 
 | 标准 | 通过 | 说明 |
 |---|---|---|
-| Lean_Formal | ✅ |  |
-| TypeSafety | ✅ |  |
-| ISO26262_QM | ✅ |  |
-| ISO26262_ASIL_D | ✅ |  |
 | ISO26262_ASIL_A | ✅ |  |
-| UnsafeAudited | ✅ |  |
-| MemorySafety | ✅ |  |
-| ISO26262_ASIL_B | ✅ |  |
-| QAP_Verified | ✅ |  |
+| Lean_Formal | ✅ |  |
 | ZeroDependency | ✅ |  |
+| MemorySafety | ✅ |  |
+| ISO26262_QM | ✅ |  |
+| UnsafeAudited | ✅ |  |
+| ISO26262_ASIL_D | ✅ |  |
+| ISO26262_ASIL_B | ✅ |  |
+| TypeSafety | ✅ |  |
+| QAP_Verified | ✅ |  |
 
 ## Lean 形式化证明引用
 
@@ -54,9 +54,9 @@
 
 | 轮 | 判定 | vars | polys | 算法 | 风险 | 耗时ms | 收敛 |
 |---|---|---|---|---|---|---|---|
-| 1 | SAT | 166 | 100 | f4f5 | 9.5 | 133 |  |
-| 2 | SAT | 208 | 124 | f4f5 | 11.5 | 219 |  |
-| 3 | SAT | 208 | 124 | f4f5 | 13.5 | 184 | ✓ |
+| 1 | SAT | 166 | 100 | f4f5 | 9.5 | 118 |  |
+| 2 | SAT | 208 | 124 | f4f5 | 11.5 | 180 |  |
+| 3 | SAT | 208 | 124 | f4f5 | 13.5 | 176 | ✓ |
 
 ## 修复建议
 

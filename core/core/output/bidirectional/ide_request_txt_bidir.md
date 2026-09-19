@@ -56,35 +56,35 @@ Complete: true
 
 ## MIR Layer (Original)
 Lowered MIR {
-  products: 8 (["RustAnalyzer", "Editor", "Position", "FileTree", "EnterpriseIDE", "Range", "FileNode", "TextBuffer"])
+  products: 8 (["FileNode", "TextBuffer", "EnterpriseIDE", "Range", "FileTree", "Editor", "Position", "RustAnalyzer"])
   sums: 0 ([])
   generated: 0 items
   mod_map: 0 entries
   universe N=18
   program items: 14
-  product RustAnalyzer: 1 fields
-    - cache: i32
-  product Editor: 2 fields
-    - buffer: TextBuffer
-    - cursor: i32
-  product Position: 2 fields
-    - line: i32
-    - col: i32
-  product FileTree: 1 fields
-    - nodes: Vec<FileNode>
+  product FileNode: 2 fields
+    - path: String
+    - content: String
+  product TextBuffer: 1 fields
+    - text: String
   product EnterpriseIDE: 2 fields
     - files: FileTree
     - editors: Vec<Editor>
   product Range: 2 fields
     - start: Position
     - end: Position
-  product FileNode: 2 fields
-    - path: String
-    - content: String
-  product TextBuffer: 1 fields
-    - text: String
+  product FileTree: 1 fields
+    - nodes: Vec<FileNode>
+  product Editor: 2 fields
+    - buffer: TextBuffer
+    - cursor: i32
+  product Position: 2 fields
+    - line: i32
+    - col: i32
+  product RustAnalyzer: 1 fields
+    - cache: i32
   stats: Lowered: 8 products, 0 sums, 0 generated, 0 mod_map, universe N=18
-Products: ["RustAnalyzer", "Editor", "Position", "FileTree", "EnterpriseIDE", "Range", "FileNode", "TextBuffer"]
+Products: ["FileNode", "TextBuffer", "EnterpriseIDE", "Range", "FileTree", "Editor", "Position", "RustAnalyzer"]
 Sums: []
 
 }
@@ -169,35 +169,35 @@ Stats: structs=8 enums=0 fns=1 traits=0 impls=6 mods=0 consts=0 statics=0 types=
 
 ## Supplemented MIR
 Lowered MIR {
-  products: 8 (["Position", "FileNode", "RustAnalyzer", "Editor", "TextBuffer", "FileTree", "Range", "EnterpriseIDE"])
+  products: 8 (["FileTree", "Position", "EnterpriseIDE", "RustAnalyzer", "TextBuffer", "FileNode", "Editor", "Range"])
   sums: 0 ([])
   generated: 0 items
   mod_map: 0 entries
   universe N=18
   program items: 14
+  product FileTree: 1 fields
+    - nodes: Vec<FileNode>
   product Position: 2 fields
     - line: i32
     - col: i32
-  product FileNode: 2 fields
-    - path: String
-    - content: String
-  product RustAnalyzer: 1 fields
-    - cache: i32
-  product Editor: 2 fields
-    - buffer: TextBuffer
-    - cursor: i32
-  product TextBuffer: 1 fields
-    - text: String
-  product FileTree: 1 fields
-    - nodes: Vec<FileNode>
-  product Range: 2 fields
-    - start: Position
-    - end: Position
   product EnterpriseIDE: 2 fields
     - files: FileTree
     - editors: Vec<Editor>
+  product RustAnalyzer: 1 fields
+    - cache: i32
+  product TextBuffer: 1 fields
+    - text: String
+  product FileNode: 2 fields
+    - path: String
+    - content: String
+  product Editor: 2 fields
+    - buffer: TextBuffer
+    - cursor: i32
+  product Range: 2 fields
+    - start: Position
+    - end: Position
   stats: Lowered: 8 products, 0 sums, 0 generated, 0 mod_map, universe N=18
-Products: ["Position", "FileNode", "RustAnalyzer", "Editor", "TextBuffer", "FileTree", "Range", "EnterpriseIDE"]
+Products: ["FileTree", "Position", "EnterpriseIDE", "RustAnalyzer", "TextBuffer", "FileNode", "Editor", "Range"]
 Sums: []
 
 }
@@ -290,7 +290,7 @@ test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 
 
 stderr:    Compiling ide_request_txt v0.1.0 (/tmp/polyrust_native/cargo_check_ide_request_txt)
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s
      Running unittests src/main.rs (/tmp/polyrust_native/cargo_check_ide_request_txt/target/debug/deps/ide_request_txt-47a4deeba4d3c45f)
 
 ```

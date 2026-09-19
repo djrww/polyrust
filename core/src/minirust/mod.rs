@@ -25,6 +25,7 @@ pub mod borrowck;
 pub mod contracts;
 pub mod effects;
 pub mod lifetime;
+pub mod mir_lower; // MIR 前端第三條 lowering：消失多項式 + L0′
 pub mod trait_impl;
 pub mod stdlib;
 pub mod async_qap;

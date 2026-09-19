@@ -97,6 +97,68 @@ R1CS：約束 i 為 ⟨a_i, z⟩·⟨b_i, z⟩ = ⟨c_i, z⟩，z = (1, 公共�
 
 **義務**：12 個樣本的實測擴充次數（0–645 次）全部 ≤ 2^n（n = 各系統變量數）。
 
+## 6b. 定理 T10（組合性）與 ∏kᵢ 一般化（2026-09-20，為 rustc/Chalk 過渡而設）
+
+**背景.** 過渡到真 rustc（MIR + Chalk）後，單一系統的位元變量數 n 急劇膨脹，
+T4 的 2ⁿ 界雖然仍成立但已無實用意義。布爾系統可解性是 NP-難，2ⁿ 的最壞結構
+無法改進；正確的解法是**改組件粒度**——令 2ⁿ 只施加於細到不會痛的組件。
+
+**T10（組合終止界）陳述.** 若系統按變量共現分解為 m 個變量集兩兩不相交的
+組件 C₁,…,C_m（nᵢ = |Cᵢ|），則：
+1. **加法界**：各組件獨立跑 Buchberger 的擴充次數總和 ≤ Σᵢ 2^{nᵢ} ≤ m·2^K
+   （K = max nᵢ）。組件位元數有常數上界 ⇒ 總界**線性於程式規模**。
+2. **並基正確性**：各組件約化基之並是全體的 Gröbner 基——跨組件首項支撐
+   不相交 ⇒ 互素 ⇒ S-多項式由第一準則（T5(a)）必然歸零；實作另以逐對
+   S-多項式直接計算驗證（`composition.rs::verify_union_basis`）。
+3. **合併無損**：若不分解而整體求解，標準集宇宙是不相交宇宙之積，
+   界 2^{n₁}·2^{n₂} = 2^{n₁+n₂}（與 T4 完全一致）。
+
+**機械化.** `Polyrust.Composition`：`standard_iff_factor`（標準分解引理）、
+`buchberger_extension_bound_product_pow`（合併界 = 2^{n₁+n₂}）、
+`composed_extensions_bound`（加法界 Σ2^{nᵢ} ≤ 2^{Σnᵢ}）。
+Rust 側 `core/src/composition.rs`：並查集分解 → 逐組件求解 → 並基驗證
+（UNSAT 局部化於肇事組件；未用變量零成本）。
+
+**∏kᵢ 一般化（T4′）陳述.** 若理想對每個變量 xᵢ 含次數 kᵢ 的單變量多項式
+（如值域 {v₁,…,v_k} 的消失多項式 ∏_j (x−v_j)，kᵢ = |值域|），則標準單項式
+逐維有界（αᵢ < kᵢ）、總數 ≤ ∏ᵢ kᵢ，Buchberger 擴充次數 ≤ ∏ᵢ kᵢ。
+**T4 是 kᵢ ≡ 2 的特例**（域多項式 xᵢ²−xᵢ 即值域 {0,1} 的消失多項式）。
+多值變量（候選型別集、Chalk 解空間）以消失多項式編碼時，每變量界由
+one-hot 的 2^k 降為 k，整體界由 2ⁿ 降為 ∏kᵢ。
+
+**機械化.** `Polyrust.BoundedStandard`：`standard_implies_boundedF`
+（指數逐維有界）、`allBounded_length`（混合進制枚舉，長度 = ∏ kᵢ）、
+`buchberger_extension_bound_general`、`general_bound_specializes_to_2n`
+（kᵢ ≡ 2 ⇒ 精確回到 T4 的 2ⁿ）。Rust 側 `core/src/vanishing.rs`：消失多項式
+構造/求值、引理 L0′——|f(σ)| ≤ T·C·V^d < p 時 𝔽_p 歸零判定與整數一致
+（原 L0 是 V=1 特例；值域大時須重驗此界，否則拒絕編碼）。
+
+**認證路徑（工程配套）.** `core/src/certify.rs`：由 rustc/Chalk 判決產物
+**重建** σ（one-hot 組補全；只補全、不求解），然後對全部生成元＋域多項式
+逐個直接求值驗證——多項式時間，與 2ⁿ 無關；竄改/非布爾見證一律拒絕。
+「指數級求解」路徑保留給獨立覆核；日常流程走「重建＋驗證」。
+
+**義務**：新增 36 個測試全綠（組合 6／認證 7／消失 9／Chalk 橋 6／MIR 前端 8）；
+組合界、UNSAT 局部化、L0′ 特例還原（V=1 ⇒ 2²⁸ < p）皆有斷言鎖定。
+
+**工程接線（2026-09-20 三步完成）.**
+1. **管線開關**：`pipeline.rs::run_pipeline_with_algo_ext(..., decompose)`／環境變數
+   `PL_DECOMPOSE`——分解路徑與主路徑並行量測，`PipelineResult.decomp` 帶出
+   `DecompSummary`（組件數/Σ擴充/組合界/並基驗證）。**義務 T10**（`obligation_t10`）
+   在 12 個樣本上鎖定：並基為 Gröbner 基、每組件 ≤ 2^{nᵢ}、總和 ≤ Σ2^{nᵢ}、
+   UNSAT 判定與整體一致（實測見證：P7 comps=2 Σext=139；P10 comps=4 Σext=127）。
+2. **Chalk/rustc 橋**：`core/src/chalk_bridge.rs`——判決產物 JSON
+   （`polyrust-oracle/1`：node_types/arm_choices/borrows）→ 零依賴解析 →
+   `BitLayout`（從約束系統提取）→ `OracleBits` → 認證。未知節點/越界索引/
+   one-hot 破壞一律拒絕。本地閉環測試：σ → artifact → 橋 → 認證 ✓（P6/P7）；
+   竄改型別選擇必被拒（P11，全部規則無條件 ⇒ deterministic）。
+3. **MIR 前端**：`core/src/minirust/mir_lower.rs`——第三條 lowering：
+   迷你 MIR（SSA 賦值鏈）→ 抽象解釋推導值域（集合運算，≤64 封頂）→
+   **消失多項式編碼**（每 local 一個 𝔽_p 變量，值域 k 貢獻界 k 而非 2^k）→
+   L0′ 門檻（大值域×高次冪鏈直接 Err，測試：40000² 鏈 V≈2.6e18 ⇒ 界 ≈2e37 ≫ p
+   被拒；65536 鏈保真可解）。分解求解走 `DomainMode::Provided`
+   （域約束用系統內消失多項式，不可再加布爾域 x²−x）。
+
 ## 7. 定理 T5（S-多項式消去準則）
 
 **陳述.** 設 f, g ∈ G，μ = LM(f), ν = LM(g)，γ = lcm(μ, ν)。
@@ -183,6 +245,9 @@ cargo build --release
 docs 之外，倉庫的 [`lean/`](../lean) 目錄提供上述證明骨幹的 **Lean 4 機械化**
 （無 Mathlib 依賴，自包含；`lake build` 從零約 10 秒，Lean 4.33.1 固定於
 `lean-toolchain`）：**408 條定理/引理（另含實例化 `example`）、6,502 行、
+（**2026-09-20 增補**：新增 `Composition.lean`——T10 組合性，20 條定理、290 行；
+`BoundedStandard.lean`——∏kᵢ 一般化，10 條定理、216 行。全環境 Enumerate 實測
+定理總數 2,221（純構造 920），`AuditAll` 重跑仍 `AUDIT_RESULT=CLEAN`。）
 零 `sorry`、零自訂公理**（`AuditAll`：受檢宣告 1787、純構造 970；
 `bash scripts/lean-audit.sh` 逐定理 `#print axioms` 可複驗）。
 

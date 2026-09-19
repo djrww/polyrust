@@ -181,7 +181,7 @@ Cargo check:
 ```
 stdout: 
 stderr:     Checking embedded_request_txt v0.1.0 (/tmp/polyrust_native/cargo_check_embedded_request_txt)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.03s
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.02s
 
 ```
 

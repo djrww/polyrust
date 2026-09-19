@@ -46,6 +46,10 @@ pub mod solana_onchain;
 pub mod poly_cache;
 pub mod semantic_matrix;
 pub mod phase_a;
+pub mod chalk_bridge;
+pub mod certify;
+pub mod composition;
+pub mod vanishing;
 
 /// 正式運作：core 文件清單 — 零依賴實際使用
 pub fn core_file_list() -> Vec<(&'static str, &'static str, &'static str)> {
@@ -83,6 +87,10 @@ pub fn core_file_list() -> Vec<(&'static str, &'static str, &'static str)> {
         ("poly_cache.rs", "PolyCache 增量管線 hash→Groebner 緩存 — Phase A", "core/src/poly_cache.rs"),
         ("semantic_matrix.rs", "Semantic Matrix 100 例語義保持 — Phase A", "core/src/semantic_matrix.rs"),
         ("phase_a.rs", "Phase A 整合：增量+語義+QAP r1cs.json+CI — Phase A", "core/src/phase_a.rs"),
+        ("composition.rs", "T10 組合性：模塊化分解 + Σ2^{nᵢ} 組合界 + 並基驗證", "core/src/composition.rs"),
+        ("certify.rs", "認證路徑：外部 oracle σ 重建 + 多項式時間直接求值驗證", "core/src/certify.rs"),
+        ("chalk_bridge.rs", "Chalk/rustc 判決橋：oracle artifact JSON → OracleBits", "core/src/chalk_bridge.rs"),
+        ("vanishing.rs", "消失多項式多值編碼 + 引理 L0′ + ∏kᵢ 一般化界", "core/src/vanishing.rs"),
         ("obligations.rs", "Obligations — 優化", "core/src/obligations.rs"),
         ("formal.rs", "Formal Lean 橋 — 優化", "core/src/formal.rs"),
     ]

@@ -43,6 +43,7 @@ rustc/cargo **1.98.1**；無外部依賴（Lean 側無 Mathlib、Rust 側無 cra
 | **T7** 規範性與宏展開 | PASS ✓ | 策略/順序無關 ⇒ 唯一約化基；P7/P8 選臂可解 ✓、錯臂 1 ∈ G ✓ |
 | **T8** QAP 忠實性 | PASS ✓ | 7 個 SAT 樣本 QAP 通過；竄改見證全數被拒 |
 | **T9** 端到端 | PASS ✓ | 7 個 SAT 樣本：判定 ✓ round-trip ✓ **rustc ✓** |
+| **T10** 組合性＋∏kᵢ＋認證路徑 | PASS ✓ | 新增 36 測試全綠（組合 6／認證 7／消失 9／Chalk 橋 6／MIR 前端 8）；**義務 T10**：12 樣本分解求解並基全驗證、UNSAT 判定與整體一致 |
 
 單元測試：`17 passed; 0 failed`。四個 demo：
 
@@ -127,6 +128,7 @@ Lean 那一欄是**所有同型程序**的證明。
 | T7(b) 宏展開 | P7/P8 選臂可解、錯臂 1∈G | `checkCtx_expand`、`wrong_arm_untypable`、`wrong_arm_no_root` |
 | T8 QAP | 7 SAT 樣本 QAP 通過；竄改被拒 | `qap_duality`、`div_linear`、`vanishing_prod_dvd` |
 | T9 端到端 | 7 樣本 round-trip ✓ **rustc ✓**；判定 ⟺ 檢查器 | `typable_iff_root`、`untypable_iff_no_root`、`parse_gen`、`t9_borrow_decision` |
+| T10 組合性/∏kᵢ | 分解→逐組件→並基驗證（UNSAT 局部化）；σ 重建+直接求值認證；L0′ 值域界；管線 `PL_DECOMPOSE`；Chalk 橋 `polyrust-oracle/1` 閉環；MIR 消失多項式 lowering | `composed_extensions_bound`、`standard_iff_factor`、`buchberger_extension_bound_general`、`general_bound_specializes_to_2n`；Rust：`obligation_t10`、`chalk_bridge`、`mir_lower` |
 
 ---
 

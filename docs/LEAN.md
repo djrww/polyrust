@@ -84,8 +84,10 @@ bash ../scripts/lean-audit.sh   # 可信度審計：sorry 掃描 + #print axioms
 | `Polyrust/Derived.lean` | 236 | 41 | 5 | 衍生 | pair/sum 可定型推論、pairBitSum 乘積、isMonoAt 區域化、borrow 1∈理想、watch 多步守恆、P5/P6 差異 |
 | `Polyrust/Completion.lean` | 299 | 44 | 3 | 雙向完備 | clauseSat↔polyZero 雙向、false↔1、borrow_sat↔clean、typable↔root、watch iff、parse/gen 雙向、one-hot 唯一性雙向、field poly 雙向 |
 | `Polyrust/IncrementalIteration.lean` | 636 | 85 | 85 | 增量迭代 | parseFuel 單調/穩定/收斂、gen 迭代、sizeT 單調、check 分解、Typable/IsRoot 單調、borrowSystem 單調、F4/F5 迭代收斂、fuel 迭代、端到端迭代 |
+| `Polyrust/Composition.lean` | 290 | 23 | 20 | **T10 組合性** | `standard_iff_factor`；`buchberger_extension_bound_product(_pow)`；`composed_extensions_bound`：Σ2^{nᵢ} ≤ 2^{Σnᵢ}，組件常數大小 ⇒ 總界線性於規模 |
+| `Polyrust/BoundedStandard.lean` | 216 | 16 | 10 | **∏kᵢ 一般化** | `standard_implies_boundedF`；`allBounded_length` = ∏kᵢ；`buchberger_extension_bound_general`；`general_bound_specializes_to_2n`（T4 即 kᵢ≡2 特例） |
 | `Audit.lean` | 160 | — | — | 工具 | 主定理 `#print axioms` |
-| `AuditAll.lean` | 75 | 3074 受檢 | 1769 純構造 | 工具 | 全庫掃描，零 sorry、零自訂公理，`AUDIT_RESULT=CLEAN` |
+| `AuditAll.lean` | 75 | 3984 受檢 | 920 純構造定理 | 工具 | 全庫掃描，零 sorry、零自訂公理，`AUDIT_RESULT=CLEAN`（2026-09-20 重跑） |
 
 ---
 
