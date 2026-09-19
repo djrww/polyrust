@@ -1,0 +1,4 @@
+# @intent: lifetime SAT
+# @lifetime 'a: 'b
+fn longest<'a>(x: &'a str, y: &'a str) -> &'a str { x }
+fn main() { let s = longest("a", "b"); }

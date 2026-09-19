@@ -1,0 +1,17 @@
+# @intent: pat_range SAT — Range 模式 0..10, 0..=10, ..10, 0..
+# FullPat::Range 已在 parse_pat.rs 實現，支持 inclusive 標記
+fn main() {
+  let x = 5;
+  let y = match x {
+    0..10 => 1,
+    0..=10 => 2,
+    ..10 => 3,
+    0.. => 4,
+    _ => 0,
+  };
+  let c = 'a';
+  let d = match c {
+    'a'..='z' => 1,
+    _ => 0,
+  };
+}

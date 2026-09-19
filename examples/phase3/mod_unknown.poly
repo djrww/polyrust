@@ -1,0 +1,4 @@
+# @intent: mod UNKNOWN — 複雜路徑解析
+mod a { pub mod b { pub struct C { pub x: i32 } } }
+mod d { use crate::a::b::C; pub fn make() -> C { C { x: 1 } } }
+fn main() { let c = d::make(); }

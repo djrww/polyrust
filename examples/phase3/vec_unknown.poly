@@ -1,0 +1,6 @@
+# @intent: HashMap UNKNOWN — key 唯一性需證明
+fn main() {
+  let m: HashMap<String,i32> = HashMap_new();
+  HashMap_insert(&mut m, String_from("a"), 1);
+  HashMap_insert(&mut m, String_from("a"), 2);
+}

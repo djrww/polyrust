@@ -1,0 +1,22 @@
+# @intent: Solana DeFi audit core — LLM generated for Web3 audit commercial
+# @import: basic
+# @unsafe-allowed: solana-audit
+# @lifetime: 'a: 'b
+# @fuel: 50
+# @qap: onchain-export
+# @commercial-risk: high
+# @lean-proof: Polyrust.IncrementalIteration.f4f5_iter_converges
+
+fn check_balance(balance: i32, amount: i32) -> bool { balance >= amount }
+fn transfer(balance: i32, amount: i32) -> i32 { if check_balance(balance, amount) { balance - amount } else { balance } }
+fn fee_calc(amount: i32) -> i32 { amount * 3 / 100 }
+
+fn main() {
+    let bal = 1000;
+    assert!(check_balance(bal, 100));
+    let new_bal = transfer(bal, 100);
+    assert_eq!(new_bal, 900);
+    let fee = fee_calc(100);
+    assert_eq!(fee, 3);
+    println!("Web3 audit — check_balance transfer fee_calc tests passed");
+}

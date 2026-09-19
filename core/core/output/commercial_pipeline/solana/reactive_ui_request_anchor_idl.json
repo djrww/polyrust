@@ -1,0 +1,86 @@
+{
+  "version": "0.1.0",
+  "name": "polyrust_qap_verifier",
+  "instructions": [
+    {
+      "name": "verifyQap",
+      "accounts": [
+        { "name": "auditAuthority", "isMut": false, "isSigner": true },
+        { "name": "qapCertificateAccount", "isMut": true, "isSigner": false },
+        { "name": "systemProgram", "isMut": false, "isSigner": false }
+      ],
+      "args": [
+        { "name": "r1csConstraints", "type": "u64" },
+        { "name": "r1csWires", "type": "u64" },
+        { "name": "riskScore", "type": "u64" },
+        { "name": "qapVerified", "type": "bool" },
+        { "name": "timestamp", "type": "i64" },
+        { "name": "certificateHash", "type": { "array": ["u8", 32] } }
+      ]
+    },
+    {
+      "name": "auditContract",
+      "accounts": [
+        { "name": "auditAuthority", "isMut": false, "isSigner": true },
+        { "name": "contractAccount", "isMut": true, "isSigner": false }
+      ],
+      "args": [
+        { "name": "sourceName", "type": "string" },
+        { "name": "riskScore", "type": "f64" },
+        { "name": "qapVerified", "type": "bool" }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "QapCertificate",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "sourceName", "type": "string" },
+          { "name": "r1csConstraints", "type": "u64" },
+          { "name": "r1csWires", "type": "u64" },
+          { "name": "riskScore", "type": "u64" },
+          { "name": "qapVerified", "type": "bool" },
+          { "name": "qapTamperRejected", "type": "bool" },
+          { "name": "groebnerAlgo", "type": "string" },
+          { "name": "typeUniverse", "type": "u64" },
+          { "name": "timestamp", "type": "i64" },
+          { "name": "certificateHash", "type": { "array": ["u8", 32] } },
+          { "name": "leanProofs", "type": { "vec": "string" } }
+        ]
+      }
+    },
+    {
+      "name": "AuditRecord",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "source", "type": "string" },
+          { "name": "riskScore", "type": "f64" },
+          { "name": "riskLevel", "type": "string" },
+          { "name": "qapVerified", "type": "bool" },
+          { "name": "iso26262Level", "type": "string" },
+          { "name": "businessValue", "type": "string" },
+          { "name": "lossAvoided", "type": "string" }
+        ]
+      }
+    }
+  ],
+  "metadata": {
+    "source": "reactive_ui_request",
+    "risk_score": 15.5,
+    "qap_verified": true,
+    "r1cs_constraints": 208,
+    "r1cs_wires": 124,
+    "type_universe": 11,
+    "groebner_algo": "f4f5",
+    "certificate": "QAP-CERT-reactive_ui_request-418-1789810036",
+    "timestamp": 1789810037,
+    "lean_proofs": [
+      "Polyrust.QAP.qap_verified_implies_sat",
+      "Polyrust.IncrementalIteration.f4f5_iter_converges",
+      "Polyrust.Bidirectional7Files.seven_files_all_pass"
+    ]
+  }
+}

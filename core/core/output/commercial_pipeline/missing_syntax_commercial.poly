@@ -1,0 +1,16 @@
+# @qap: onchain-export — LLM 補語義: 商業化需 QAP
+# @intent: 一個簡單函數 — LLM generated generic
+# @import: basic
+# @fuel: 50
+# @lean-proof: Polyrust.IncrementalIteration.f4f5_iter_converges
+
+fn process(x: i32) -> i32 { x * 2 }
+fn validate(v: i32) -> bool { v >= 0 }
+
+fn main() {
+    let data = 42;
+    let processed = process(data);
+    assert_eq!(processed, 84);
+    assert!(validate(processed));
+    println!("Generic — process validate tests passed for NL: {}", "一個簡單函數");
+}

@@ -1,0 +1,17 @@
+# @intent: closure SAT — |x| x+1, ||, |x,y|, move
+# FullExpr::Closure 已在 parse_expr.rs 實現，支持 async/move/mut
+fn main() {
+  let f = |x| x + 1;
+  let g = || 42;
+  let h = |x, y| x + y;
+  let mv = move |x| x + 1;
+  let a = f(5);
+  let b = g();
+  let c = h(2, 3);
+  let d = mv(10);
+  let v = vec![1,2,3];
+  let sum: i32 = 0;
+  # 模擬 map(|x| x*2) — 閉包作為參數
+  let inc = |x: i32| -> i32 { x + 1 };
+  let res = inc(5);
+}

@@ -1,0 +1,10 @@
+# @intent: try SAT — x? 操作符
+fn may_fail(x: i32) -> Result<i32, String> {
+  if x > 0 { Ok(x) } else { Err(String::from("fail")) }
+}
+fn main() {
+  let r = may_fail(5);
+  let v = r?;
+  let r2 = may_fail(v);
+  let v2 = r2?;
+}

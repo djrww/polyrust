@@ -1,0 +1,2 @@
+# @intent: unsafe UNSAT — raw ptr 無 unsafe 塊
+fn main() { let p: *mut i32 = 0 as *mut i32; let x = unsafe { *p = 5; 0 }; }

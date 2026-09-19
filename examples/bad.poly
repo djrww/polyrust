@@ -1,0 +1,6 @@
+# @intent: 型別錯誤示例——bad! 宏生成 1 + true
+
+macro_rules! bad { ($e:expr) => { $e + true } }
+fn main() {
+    let b = bad!(1);
+}

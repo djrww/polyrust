@@ -1,0 +1,16 @@
+# @intent: String 內建庫 — Phase3，視為 Vec<u8> 特化 + UTF-8 保證
+# @pure true
+
+# String 不透明，編碼同 Vec
+fn String_new() -> String { 0 }
+fn String_from(s: &str) -> String { 0 }
+fn String_len(self: &String) -> i32 { 0 }
+fn String_is_empty(self: &String) -> bool { false }
+fn String_push_str(self: &mut String, s: &str) -> () { () }
+fn String_push(self: &mut String, c: char) -> () { () }
+fn String_clear(self: &mut String) -> () { () }
+fn String_as_str(self: &String) -> &str { "" }
+
+# Vec<u8> 與 String 轉換（@trusted）
+fn String_into_bytes(self: String) -> Vec<u8> { Vec_new() }
+fn String_from_utf8(v: Vec<u8>) -> Result<String, String> { Result_Ok(String_new()) }

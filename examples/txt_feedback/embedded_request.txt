@@ -1,0 +1,1 @@
+嵌入式 ECU 控制，實現 sensor_read 讀傳感器和 control_loop 控制循環，帶安全檢查 safety_check

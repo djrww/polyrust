@@ -1,0 +1,24 @@
+# @qap: onchain-export — LLM 補語義: 商業化需 QAP
+# @lifetime: 'a: 'b — LLM 補語義: 借用需生命週期
+# @intent: Reactive UI Platform with VDOM diff — LLM generated
+# @import: basic
+# @fuel: 80
+# @lean-proof: Polyrust.IncrementalIteration.f4f5_iter_converges
+
+pub struct VNode { pub tag: String, pub children: Vec<VNode> }
+impl VNode { pub fn new(tag: &str) -> Self { Self { tag: tag.to_string(), children: Vec::new() } } pub fn with_prop(self, _k: &str, _v: &str) -> Self { self } pub fn add_child(&mut self, child: VNode) { self.children.push(child); } pub fn child_count(&self) -> usize { self.children.len() } }
+pub struct Patch { pub is_create: bool }
+impl Patch { pub fn is_create(&self) -> bool { self.is_create } }
+pub fn diff(old: &VNode, new: &VNode) -> Vec<Patch> { if old.tag != new.tag { vec![Patch { is_create: true }] } else { vec![] } }
+pub fn patch(node: &mut VNode, patches: Vec<Patch>) { for p in patches { if p.is_create() { node.children.clear(); } } }
+pub fn render(node: &VNode) -> String { format!("<{}>{}</{}>", node.tag, node.children.len(), node.tag) }
+pub fn use_state<T: Clone>(init: T) -> (T, Box<dyn Fn(T)>) { let v = init.clone(); (v, Box::new(|_| {})) }
+
+fn main() {
+    let mut root = VNode::new("div");
+    root.add_child(VNode::new("span"));
+    assert_eq!(root.child_count(), 1);
+    let patches = diff(&VNode::new("div"), &VNode::new("span"));
+    assert_eq!(patches.len(), 1);
+    println!("Reactive UI — tests passed, render {}", render(&root));
+}

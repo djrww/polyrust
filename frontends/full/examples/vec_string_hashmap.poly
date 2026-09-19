@@ -1,0 +1,9 @@
+# @intent: Vec/String/HashMap 泛型容器
+fn main() {
+  let v: Vec<i32> = Vec::new();
+  v.push(1);
+  v.push(2);
+  let s: String = String::from("hello");
+  let m: HashMap<String,i32> = HashMap::new();
+  m.insert(s, 42);
+}

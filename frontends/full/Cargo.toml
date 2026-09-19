@@ -1,0 +1,38 @@
+[package]
+name = "polyrust-full"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+description = "polyrust 全特性前端：struct/enum/impl/trait、Vec/String/HashMap、loop/match、mod、async、I/O、unsafe、lifetime"
+
+[[bin]]
+name = "polyrust-full"
+path = "src/main.rs"
+
+[features]
+default = ["json", "syn", "cors"]
+# json 支持（axum Json 提取器）— 輕量模式也保留，否則無法編譯
+# 同時啟用 query/form/matched-path/original-uri 以保持兼容
+json = ["axum/json", "axum/query", "axum/form", "axum/matched-path", "axum/original-uri", "dep:serde_json", "serde_json/std"]
+# syn 解析器（重依賴）：僅 full 前端需要，light 模式可關閉以減輕 ~14 個傳遞依賴
+syn = ["dep:syn", "dep:quote"]
+# cors 中間件（可選，light 模式可關閉）
+cors = ["dep:tower-http"]
+# 輕量模式：僅 json + 基礎 HTTP + 手寫解析器，無 syn/cors，編譯更快，依賴從 134 → 120
+light = ["json"]
+
+[dependencies]
+polyrust-core = { path = "../../core" }
+axum = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true, optional = true }
+# 可選重依賴：通過 features 控制，減輕默認依賴樹
+tower-http = { workspace = true, optional = true }
+syn = { workspace = true, optional = true }
+quote = { workspace = true, optional = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+tokio = { workspace = true }

@@ -1,0 +1,29 @@
+# @intent: Solana DeFi [深化迭代1 depth2] [深化迭代2 depth2] [深化迭代1 depth2]
+fn main() { let mut bal = 1000; let r = &mut bal; *r = 900; }
+
+# @deepening: iteration=1 depth=2
+# @commercial-risk: auto-evaluated iter1
+# @lean-proof: Polyrust.IncrementalIteration.f4f5_iter_converges
+# @qap: onchain-export-enabled
+
+# @deepen-async: 引入 Future 状态机
+# @fuel: 100 (深化)
+
+fn deepened_check_1(x: i32) -> i32 { x + 2 }
+fn deepened_borrow_1(y: i32) -> i32 { let mut a = y; let r = &mut a; *r + 1 }
+
+# @deepening: iteration=2 depth=2
+# @commercial-risk: auto-evaluated iter2
+# @lean-proof: Polyrust.IncrementalIteration.f4f5_iter_converges
+# @qap: onchain-export-enabled
+
+# @deepen-async: 引入 Future 状态机
+# @fuel: 100 (深化)
+
+# @deepening: iteration=1 depth=2
+# @commercial-risk: auto-evaluated iter1
+# @lean-proof: Polyrust.IncrementalIteration.f4f5_iter_converges
+# @qap: onchain-export-enabled
+
+# @deepen-async: 引入 Future 状态机
+# @fuel: 100 (深化)

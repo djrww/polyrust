@@ -1,0 +1,8 @@
+# @intent: unsafe UNKNOWN — 複雜 raw ptr 鏈
+# @unsafe-allowed
+fn main() {
+  let mut x = 5;
+  let p: *mut i32 = &mut x as *mut i32;
+  unsafe { *p = 10; }
+  let y = x;
+}

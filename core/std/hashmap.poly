@@ -1,0 +1,15 @@
+# @intent: HashMap<K,V> 內建庫 — Phase3，視為 Vec<(K,V)> + hash 函數
+# @pure true
+
+# HashMap 不透明，編碼為 Vec<(K,V)> + 約束 k1 != k2
+fn HashMap_new<K,V>() -> HashMap<K,V> { 0 }
+fn HashMap_with_capacity<K,V>(cap: i32) -> HashMap<K,V> { 0 }
+fn HashMap_insert<K,V>(self: &mut HashMap<K,V>, k: K, v: V) -> Option<V> { 0 }
+fn HashMap_get<K,V>(self: &HashMap<K,V>, k: &K) -> Option<&V> { 0 }
+fn HashMap_remove<K,V>(self: &mut HashMap<K,V>, k: &K) -> Option<V> { 0 }
+fn HashMap_len<K,V>(self: &HashMap<K,V>) -> i32 { 0 }
+fn HashMap_is_empty<K,V>(self: &HashMap<K,V>) -> bool { false }
+fn HashMap_clear<K,V>(self: &mut HashMap<K,V>) -> () { () }
+fn HashMap_contains_key<K,V>(self: &HashMap<K,V>, k: &K) -> bool { false }
+
+# 約束：k1 != k2 保證 key 唯一，多項式 (k1 - k2) * inv =1

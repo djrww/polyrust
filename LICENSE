@@ -1,0 +1,128 @@
+PolyRust — Dual Licensing (AGPL-3.0 + Commercial)
+
+Copyright (C) 2024-2026 PolyRust Team <https://github.com/djrww/polyrust>
+All rights reserved.
+
+================================================================================
+DUAL LICENSE STRUCTURE
+================================================================================
+
+This project is released under a dual licensing model. You may choose either
+license according to your use case:
+
+  1) Open Source License — GNU Affero General Public License v3.0 (AGPL-3.0)
+     File: LICENSE.AGPL-3.0
+     SPDX: AGPL-3.0-only / AGPL-3.0-or-later
+
+  2) Commercial License — Proprietary, for closed-source / SaaS / enterprise
+     File: COMMERCIAL_NOTICE.md (summary) + separate commercial agreement
+     SPDX: LicenseRef-PolyRust-Commercial
+
+You must comply with the terms of the license you choose. You may not combine
+permissions from both licenses.
+
+--------------------------------------------------------------------------------
+Option 1: AGPL-3.0 (Open Source)
+--------------------------------------------------------------------------------
+
+Use this if you are building open source software, research, education, or
+personal projects and you are willing to comply with AGPL-3.0 obligations.
+
+Key obligations under AGPL-3.0 (see LICENSE.AGPL-3.0 for full text):
+
+  - If you modify PolyRust and allow users to interact with it over a network
+    (e.g., SaaS, web service, API), you MUST make the complete Corresponding
+    Source of your modified version available to those users, including all
+    changes, via a network server at no charge (Section 13).
+  - You must preserve copyright notices and license notices.
+  - You must license the entire derived work under AGPL-3.0.
+  - No warranty, no liability (Sections 15-16).
+
+This is the same license used by many copyleft network projects. It ensures
+that improvements remain open.
+
+Core promise still holds: `core/` crate has zero third-party dependencies
+(std-only). All third-party dependencies are isolated in `frontends/*`.
+
+--------------------------------------------------------------------------------
+Option 2: Commercial License (Proprietary)
+--------------------------------------------------------------------------------
+
+Use this if you cannot comply with AGPL-3.0, for example:
+
+  - You want to embed PolyRust in a closed-source product
+  - You run PolyRust as a service without releasing source
+  - You need warranty, indemnity, or enterprise support
+  - You need to avoid AGPL-3.0 network copyleft
+
+Commercial license grants you:
+
+  - Right to use, modify, and distribute without AGPL-3.0 source disclosure
+  - Right to run as SaaS / on-prem without network source offer
+  - Optional SLA, support, and custom features
+  - Patent grant (negotiable)
+
+See COMMERCIAL_NOTICE.md for summary of rights and responsibilities, and how
+to obtain a commercial license.
+
+Contact: commercial@polyrust.example (replace with real contact) or open an
+issue titled "[Commercial License Request]" in the repository.
+
+--------------------------------------------------------------------------------
+Why Dual License?
+--------------------------------------------------------------------------------
+
+  - AGPL-3.0 guarantees that the community benefits from improvements, especially
+    for network server use (the core of PolyRust's QAP / Groebner / CDCL pipeline).
+  - Commercial license allows sustainable funding for Lean formal proofs,
+    F4/F5 optimization, and audit report generation, while letting enterprises
+    use PolyRust in proprietary contexts.
+
+  This model is used by MongoDB (SSPL/Commercial), Elastic (Elastic/Commercial),
+  and many formal verification tools.
+
+--------------------------------------------------------------------------------
+Third-Party Dependencies
+--------------------------------------------------------------------------------
+
+  - `core/` — zero third-party, std-only, fully covered by this dual license.
+  - `frontends/*` — may depend on third-party crates (axum, tokio, syn, ureq,
+    etc.) under their own licenses (MIT/Apache-2.0). Those dependencies are NOT
+    covered by PolyRust's commercial license; you must comply with their licenses.
+
+--------------------------------------------------------------------------------
+How to Apply
+--------------------------------------------------------------------------------
+
+  At the top of each source file, include:
+
+    // PolyRust — Dual Licensed: AGPL-3.0 OR Commercial
+    // Copyright (C) 2024-2026 PolyRust Team
+    // See LICENSE and COMMERCIAL_NOTICE.md
+
+  Or for Lean:
+
+    /- PolyRust — Dual Licensed: AGPL-3.0 OR Commercial -/
+
+  The full AGPL-3.0 text is in LICENSE.AGPL-3.0.
+
+--------------------------------------------------------------------------------
+Disclaimer
+--------------------------------------------------------------------------------
+
+  THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND. See
+  LICENSE.AGPL-3.0 Sections 15-16 and COMMERCIAL_NOTICE.md for commercial
+  warranty terms (if any).
+
+================================================================================
+Previous License Note
+================================================================================
+
+  Prior to v0.2.2, workspace used "MIT OR Apache-2.0". From v0.2.2 onward,
+  the project moves to AGPL-3.0 + Commercial dual licensing to better protect
+  network copyleft and enable sustainable commercial use.
+
+  If you received a version under MIT/Apache-2.0, that version remains under
+  those terms. New contributions after 2024-12-01 are under AGPL-3.0 + Commercial.
+
+For questions, open an issue or contact the maintainers.

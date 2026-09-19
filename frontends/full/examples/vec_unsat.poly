@@ -1,0 +1,5 @@
+# @intent: Vec UNSAT — push 類型不匹配
+fn main() {
+  let v: Vec<i32> = Vec_new();
+  Vec_push(&mut v, true);
+}

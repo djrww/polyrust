@@ -1,0 +1,2 @@
+# @intent: 布林輔助
+fn negate(b: bool) -> bool { !b }

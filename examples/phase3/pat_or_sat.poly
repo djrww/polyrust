@@ -1,0 +1,17 @@
+# @intent: pat_or SAT — Or 模式 a|b|c
+# FullPat::Or 已在 parse_pat.rs 實現，手寫遞歸下降支持 a|b|c
+enum Option<T> { Some(T), None }
+fn main() {
+  let opt = Option::Some(5);
+  let y = match opt {
+    Some(1) | Some(2) | Some(3) => 1,
+    Some(x) | None => 0,
+    _ => 0,
+  };
+  let x = 2;
+  let z = match x {
+    1 | 2 => 10,
+    3 | 4 | 5 => 20,
+    _ => 0,
+  };
+}

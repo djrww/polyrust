@@ -1,0 +1,7 @@
+/target
+/output
+.lake/
+build/
+*.olean
+*.ilean
+*.trace

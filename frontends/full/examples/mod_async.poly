@@ -1,0 +1,12 @@
+# @intent: mod tree + async/await
+mod geometry {
+  pub struct Point { pub x: i32, pub y: i32 }
+  pub fn distance(p: &Point) -> i32 { p.x * p.x + p.y * p.y }
+}
+async fn fetch() -> i32 { 42 }
+fn main() {
+  let p = geometry::Point { x: 3, y: 4 };
+  let d = geometry::distance(&p);
+  let fut = fetch();
+  let val = fut.await;
+}

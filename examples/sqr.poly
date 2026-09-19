@@ -1,0 +1,10 @@
+# @intent: 計算平方，並用宏重複使用表達式（表達式會展開兩次）
+# @author: llm
+
+fn sqr(x: i32) -> i32 { x * x }
+macro_rules! sqr { ($e:expr) => { $e * $e } }
+fn main() {
+    let a = 5;
+    let b = sqr!(a + 1);
+    let c = sqr(3) + sqr!(2);
+}

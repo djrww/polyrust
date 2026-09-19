@@ -1,0 +1,80 @@
+# @intent: 全語法覆蓋 — 用於 AST 覆蓋率測試
+# @type-universe: Vec<i32>, HashMap<String,i32>, Option<i32>, Result<i32,String>
+use std::collections::HashMap;
+use crate::geometry::Point;
+
+#[derive(Debug, Clone)]
+pub mod geometry {
+    pub struct Point { pub x: i32, pub y: i32 }
+    pub struct TupleStruct(i32, String);
+    pub struct UnitStruct;
+    pub enum Option<T> { Some(T), None }
+    pub enum Result<T,E> { Ok(T), Err(E) }
+    pub enum Direction { North, South, East, West }
+    pub trait Display { fn fmt(&self) -> String; }
+    pub trait Clone { fn clone(&self) -> Self; }
+    impl Point {
+        pub fn new(x: i32, y: i32) -> Point { Point { x, y } }
+        pub fn len(&self) -> i32 { self.x }
+    }
+    impl Display for Point { fn fmt(&self) -> String { String::from("Point") } }
+}
+
+pub const MAX: i32 = 100;
+pub static MUT_S: i32 = 0;
+pub type MyResult = Result<i32, String>;
+pub type MyTuple = (i32, bool, String);
+pub type MyArray = [i32; 3];
+pub type MySlice = [i32];
+pub type MyFnPtr = fn(i32) -> bool;
+pub type MyTraitObj = dyn geometry::Display;
+pub type MyImplTrait = impl geometry::Display;
+pub type MyNever = !;
+pub type MyRef<'a> = &'a i32;
+pub type MyRawPtr = *mut i32;
+pub type MyRawConst = *const i32;
+
+fn generic_fn<T, U>(x: T, y: U) -> T where T: Clone, U: geometry::Display { x.clone() }
+fn lifetime_fn<'a, 'b: 'a>(x: &'a i32, y: &'b i32) -> &'a i32 { x }
+fn tuple_fn() -> (i32, bool) { (1, true) }
+fn array_fn() -> [i32; 3] { [1,2,3] }
+fn slice_fn(s: &[i32]) -> &[i32] { s }
+fn never_fn() -> ! { panic!("never") }
+fn inferred_fn() { let x: _ = 5; }
+
+fn main() {
+    // let
+    let x: i32 = 5;
+    let mut y: i32 = 10;
+    let (a, b): (i32, bool) = (1, true);
+    let Point { x, y }: geometry::Point = geometry::Point { x: 1, y: 2 };
+    let arr: [i32; 3] = [1,2,3];
+    let slice: &[i32] = &arr;
+    let tup: (i32, String) = (1, String::from("hi"));
+
+    // if / match / loop / while / for
+    if x > 0 { y = y + 1; } else { y = y - 1; }
+    let opt = geometry::Option::Some(5);
+    let val = match opt { geometry::Option::Some(v) => v, geometry::Option::None => 0, _ => 0 };
+    loop { if y > 100 { break; } y = y + 1; continue; }
+    while y < 200 { y = y + 1; }
+    for i in 0..5 { y = y + i; }
+    for i in arr { y = y + i; }
+
+    // closure / async / await / unsafe / return / try / range / macro
+    let closure = |x: i32| x + 1;
+    let closure2 = move || 42;
+    let async_block = async { 42 };
+    let f = async { 42 }.await;
+    let res: Result<i32, String> = Ok(5);
+    let val2 = res?;
+    let range = 0..10;
+    let range2 = 0..=10;
+    let v: Vec<i32> = Vec::new();
+    v.push(1);
+    let m: HashMap<String,i32> = HashMap::new();
+    let s: String = String::from("hello");
+    println!("{} {} {:?}", y, s, m);
+    unsafe { let p: *mut i32 = &mut y as *mut i32; *p = 10; }
+    return;
+}

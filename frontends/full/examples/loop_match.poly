@@ -1,0 +1,17 @@
+# @intent: loop + while + for + match
+# @fuel 5
+# @invariant: x >= 0
+enum Option<T> { Some(T), None }
+fn main() {
+  let mut x = 0;
+  let mut y = 0;
+  while x < 10 {
+    y = y + x;
+    x = x + 1;
+  }
+  let opt = Option::Some(y);
+  let val = match opt {
+    Option::Some(v) => v,
+    Option::None => 0,
+  };
+}

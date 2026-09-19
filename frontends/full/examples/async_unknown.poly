@@ -1,0 +1,4 @@
+# @intent: async UNKNOWN — 多重 await 狀態機
+async fn fetch() -> i32 { 42 }
+async fn fetch2() -> i32 { 100 }
+fn main() { let x = fetch().await + fetch2().await; }

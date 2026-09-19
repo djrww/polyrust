@@ -1,0 +1,4 @@
+# @intent: trait UNKNOWN — 未實現 Display
+struct Point { x: i32, y: i32 }
+trait Display { fn fmt(&self) -> String; }
+fn main() { let p = Point { x: 1, y: 2 }; let s = p.fmt(); }

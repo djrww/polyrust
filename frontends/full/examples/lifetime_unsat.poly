@@ -1,0 +1,4 @@
+# @intent: lifetime UNSAT — 環
+# @lifetime 'a: 'b
+# @lifetime 'b: 'a
+fn main() {}

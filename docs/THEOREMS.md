@@ -1,0 +1,311 @@
+# polyrust — 九條定理與數學證明
+
+**命題 P（總命題）.** *Rust 宏程序的型別檢查與借用檢查可完整編碼為布爾多項式方程組上的代數問題；該編碼可靠且完備，可由 CDCL 布爾求解、Buchberger 演算法（Gröbner 基）判定與二次算術程式（QAP）見證三方聯合求解，並能從代數見證合成可再解析、可被 rustc 編譯、語義保持的 Rust 代碼。*
+
+九條定理 T1–T9 聯合蘊含命題 P（見 §11）。每條定理附**機械化證明義務**（`./target/release/polyrust obligations` 逐一自證，12 個程序樣本 × 9 義務，2026-09-10 全部通過）與**數學證明**（本文）。係數域為質域 𝔽_p，p = 2⁶¹ − 1（見引理 L0）。
+
+---
+
+## 1. 形式設定
+
+### 1.1 Mini-Rust 語法與判斷
+
+```
+e ::= x | n | e₁ + e₂ | e₁ == e₂ | !e | let x = e₁; e₂ | if e₁ {e₂} else {e₃}
+    | &mut e | *e | f(e) | sqr!(e) 之外的一般宏 m!(e)（多臂、型別導向）
+程式 P ::= 宣告序列（let / fn）+ 主表達式 e_main
+```
+
+型別 τ ∈ Ty = { i32, bool, (), &mut i32 }。判斷形如 Γ ⊢ e : τ；宏 `m!(e)` 的每個臂 k 是模板 T_k(e)，推導時**存在量化**臂選擇（exists-arm 語義）：`m!(e) : τ` 可推導 ⟺ 某臂 k 使 T_k(e) : τ 可推導。借用檢查：對每個 `&mut` 借用記活躍位元，衝突對（同一變數的兩個互斥借用）以子句 ¬b_i ∨ ¬b_j 表達。
+
+### 1.2 代數編碼（約束生成 gen_constraints）
+
+對每個語法節點 v 配一組**型別位元** { t_{v,τ} }_{τ∈Ty}，並施加：
+
+- **one-hot**：Σ_τ t_{v,τ} = 1
+- **域多項式** B = { x² − x ： 所有位元變量 x }（布爾性）
+- **規則方程**：每條型別規則翻成在位元 0/1 賦值下「規則前提成立 ⟺ 方程歸零」的多項式。例：
+  - `e₁ + e₂ : i32`：t_{e₁,i32}·t_{e₂,i32} = t_{v,i32}（連同 one-hot 傳播）
+  - 绑定 `let x = e₁; e₂`：t_{x,τ} − t_{e₁,τ} = 0
+  - 函式 f 的參數節點：型別位元強制等於簽名（係數位元 = 1）
+- **宏選臂**：每個宏調用配**臂位元** { a_k }，Σ_k a_k = 1；臂 k 的子樹約束全部乘以 a_k（未選臂 ⇒ 約束自動消失）；選臂與子樹型別由 tie 方程 a_k·(t_{v,τ} − t_{T_k,τ}) = 0 耦合
+- **借用衝突**：子句多項式（見 T3）
+
+記 F(e) 為全部生成元，n 為位元變量總數，V_{0/1}(S) = { σ ∈ {0,1}ⁿ ： f(σ)=0 ∀f ∈ S }。
+
+### 1.3 CDCL(T) 迴圈
+
+管線交替：（i）把 F(e) 的布爾結構與衝突子句 Φ 餵 CDCL 求布爾模型；（ii）把 CDCL 學習子句用多項式編碼併入 F，做 Buchberger 理論一致性檢查（1 ∈ G？）；（iii）由 Gröbner 基求解見證 σ。子句全程以**系統變量索引**保存，僅在餵 CDCL 時映射為緊湊索引。
+
+### 1.4 QAP 算術化
+
+R1CS：約束 i 為 ⟨a_i, z⟩·⟨b_i, z⟩ = ⟨c_i, z⟩，z = (1, 公共輸入, 見證導線)。QAP 由 Lagrange 插值構造（見 T8）。
+
+---
+
+## 2. 引理 L0（𝔽_p 嵌入引理 —— 係數域選擇的正確性）
+
+**陳述.** 設多項式系 S 具有小整數係數（|c| < 2¹⁶）、次數 ≤ 6、項數 < 2¹²（本專案 gen_constraints 的全部輸出均如此）。則
+
+**(a)** 對任意 σ ∈ {0,1}ⁿ 與 f ∈ S：|f(σ)| < 2³⁰ < p，故 **f(σ) ≡ 0 (mod p) ⟺ f(σ) = 0（整數意義）**；
+**(b)** 若 1 ∈ ⟨S ∪ B⟩_{𝔽_p}，則 S 在 ℚ 上無 0/1 解。
+
+**證明.** (a) 三角不等式：|f(σ)| ≤ 項數·|c|·(次數上界前的單項式值 1) < 2¹²·2¹⁶ = 2²⁸ < p。整數 f(σ) 落在 (−p, p) 中，模 p 為零當且僅當其為零。∎
+(b) 設 σ ∈ {0,1}ⁿ 在 ℚ 上滿足 S。求值映射 ev_σ : ℤ[x] → ℤ ↦ 𝔽_p 是環同態且與 (a) 一致：f(σ) = 0 ⇒ f̄(σ̄) = 0 in 𝔽_p，故 σ̄ 是 S̄ ∪ B̄ 在 𝔽_p 上的公共根。但 1 ∈ ⟨S̄ ∪ B̄⟩ 蘊含對任意公共根有 1 = Σ h_i·f̄_i(σ̄) = 0，矛盾。（此即強 Nullstellensatz 的係數理想論證，不需要根式封閉。）∎
+
+**推論.** 管線在 𝔽_p 上的兩種判定與 ℚ 上一致：UNSAT 側直接由 (b)；SAT 側找到 σ 後**逐多項式直接求值驗證**（整數意義精確），由 (a) 即 ℚ 意義的解。∎
+
+**義務**：內建於 T2/T6/T9 的直接求值檢查；demo 的「竄改見證（位元 1→2）正確拒絕」是反向壓力測試。
+
+> 工程註記：曾以 ℚ（i128 有理數）實作，make_monic 的分數傳播在 ~10² 個基擴充後分母複利爆炸至 2¹²⁸ 溢出，無法既正確又終止；𝔽_p 係數恆有界於 [0, p)，這是布爾代數求解與 SNARK 系統的標準選擇。
+
+---
+
+## 3. 定理 T1（編碼可靠性）
+
+**陳述.** Γ ⊢ e : τ 且借用安全 ⟹ 對應推導 D 的位元賦值 σ_D ∈ V_{0/1}(F(e) ∪ B ∪ Φ)。
+
+**證明.** 對 D 歸納。每條型別規則的位元在 σ_D 下恰好觸發其規則方程：加法規則使 t_{e₁,i32} = t_{e₂,i32} = t_{v,i32} = 1，代入規則方程 1·1 − 1 = 0 ✓；one-hot 與域多項式因 σ_D 每節點恰置一個位元 ✓；宏節點：D 選臂 k ⇒ a_k = 1、其餘為 0，未選臂的約束乘以 a = 0 自動滿足，選臂子樹由歸納假設 ✓；未出現在 D 中的節點（如未選臂內部節點）其全部約束都被對應臂位元 a = 0 吸收（義務實現中對其補任意 one-hot 完成賦值）。借用子句：借用安全 ⇒ 無衝突對同時活躍 ⇒ 子句滿足 ⇒ 子句多項式歸零。CDCL 學習子句由 T3 引理保證在理想內，不破壞可解性。∎
+
+**義務**：對 7 個良構樣本逐一生成 σ_D（含未覆蓋節點補全），直接對全部生成元與域多項式求值，全部歸零。
+
+## 4. 定理 T2（編碼完備性）
+
+**陳述.** σ ∈ V_{0/1}(F(e) ∪ B ∪ Φ) ⟹ 存在推導 D 使 Γ ⊢ e : τ（且 σ 解碼 D 的臂選擇與型別）。
+
+**證明.** 由 σ 解碼 τ(v) = 唯一為 1 的型別位元。對 e 結構歸納：規則方程是**蘊含式編碼**——例如 t_{v,i32}·(t_{e₁,i32} − 1) = 0 在 0/1 賦值下強制「v 是 i32 ⇒ e₁ 是 i32」；one-hot 保證每節點有型別；宏臂位元 Σ a_k = 1 恰選一臂，選中臂的子樹約束（乘以 a = 1）由歸納假設得子推導；函数參數位元被強制為簽名型別。衝突子句多項式為零 ⇒ 無衝突借用對同活躍 ⇒ 借用圖無環 ⇒ 安全。故解碼出的臂選擇與型別構成合法推導。∎
+
+**義務**：對每個樣本，管線求得的 σ 逐節點解碼，與獨立型別檢查器的推導（臂選擇、main 型別）完全一致。
+
+## 5. 定理 T3（子句–多項式對偶）
+
+**陳述.** 子句 C = (ℓ₁ ∨ … ∨ ℓ_k) 編碼為 P_C = ∏ᵢ (1 − x̃ᵢ)，其中 x̃ᵢ = xᵢ（正文字）或 1 − xᵢ（負文字）。則
+
+**(a)** Φ 可滿足 ⟺ V_{0/1}(P_Φ ∪ B) ≠ ∅（P_Φ = { P_C : C ∈ Φ }）；
+**(b)** CDCL 學習子句 C 的多項式 P_C ∈ ⟨P_Φ ∪ B⟩。
+
+**證明.** (a) σ 滿足 C ⟺ 某文字為 1 ⟺ P_C(σ) = 0；域多項式限制 σ 於 {0,1}ⁿ。故 V_{0/1}(P_Φ ∪ B) = Mod(Φ)。∎
+(b) 布爾理想 ⟨x₁²−x₁,…,x_n²−x_n⟩ 是根式理想（商環由 CRT 同構於乘積域 ∏_{{0,1}ⁿ} 𝔽_p）。CDCL 的學習子句 C 被 Φ 邏輯蘊涵，故 P_C 在 V_{0/1}(P_Φ ∪ B) 上處處為零；根式理想上「在簇上為零 ⟺ 屬於理想」（Nullstellensatz），得 P_C ∈ ⟨P_Φ ∪ B⟩。∎
+
+**義務**：三個 SAT/UNSAT 樣本上 CDCL 與 GB 判定一致；全部學習子句的 P_C 對約化 Gröbner 基求範式皆為 0；鴿籠 PHP(4,3) UNSAT 且學習子句皆被蘊涵。
+
+## 6. 定理 T4（Buchberger 終止性）
+
+**陳述.** 若輸入含域多項式 B，則 Buchberger 演算法的基擴充次數 ≤ 2ⁿ，故必終止。
+
+**證明.** 域多項式使 in(I) ⊇ ⟨x₁², …, x_n²⟩。某單項式 x^α 有 αᵢ ≥ 2 ⟹ 被 xᵢ² 整除 ⟹ 屬於 in(I)；故**標準單項式**（不在 in(I) 中者）全部無平方，至多 2ⁿ 個。每次基擴充加入的新首項不屬於舊 in(I)——否則該 S-餘式會被完全歸約——即它此前是標準單項式；且加入後它退出標準集。標準單項式集單調遞減、基數 ≤ 2ⁿ，故擴充 ≤ 2ⁿ 次。∎
+
+**義務**：12 個樣本的實測擴充次數（0–645 次）全部 ≤ 2^n（n = 各系統變量數）。
+
+## 7. 定理 T5（S-多項式消去準則）
+
+**陳述.** 設 f, g ∈ G，μ = LM(f), ν = LM(g)，γ = lcm(μ, ν)。
+
+**(a) 第一準則（互素）**：gcd(μ, ν) = 1 ⟹ S(f, g) →_{f,g} 0；
+**(b) 第二準則（鏈）**：若 ∃h ∈ G，LM(h) | γ 且 S(f,h) →_G 0、S(g,h) →_G 0，則 S(f,g) →_G 0；
+**(c)** 兩準則不改變（約化）Gröbner 基。
+
+**證明.** (a) S = (γ/μ)f − (γ/ν)g 的每個非首項單項式或被 μ 或被 ν 整除；逐項歸約兩步內歸零（經典二段論證，Cox–Little–O'Shea, *Ideals, Varieties, Algorithms* §2.9 定理 3；本處首項係數經 monic 化，論證不變）。∎
+(b) S(f,g) 可分解為 S(f,h) 與 S(g,h) 的組合係數線性組合，係數由 LM(h) | γ 保證單項式整除；兩者均歸零 ⟹ 組合歸零（Gebauer–Möller 1988 的標準合衝論證；本實作以 `closed` 集合記錄已歸零配對，且歸約僅針對當前基的子集——子集上的歸約序列在擴充基中仍然有效）。∎
+(c) 準則只跳過**必然歸零**的 S-多項式，剩餘配對仍構成完全的 Buchberger 條件，產出的基仍是 Gröbner 基；由 T7 約化基唯一，故結果相同。∎
+
+**義務**：(i) 套件全部樣本的約化基抽檢 40 對/樣本，S-多項式對基歸範式全為 0；(ii) 三樣本上 Normal/FIFO 兩種配對選取策略（皆帶準則）結果相同；(iii) 三個小型合成系統帶/不帶準則結果相同；(iv) 消除率統計（套件總計消除 712,549 對 vs 實算 37,823 個 S-多項式，消除率 95%）。
+
+## 8. 定理 T6（Gröbner 判定定理）
+
+**陳述.** 1 ∈ G(F(e) ∪ B ∪ Φ) ⟺ e 不可定型（或借用不安全）。
+
+**證明.** (⟸) 若 e 可定型，由 T1 得 σ_D ∈ V_{0/1}(·)，公共根存在 ⟹ 1 ∉ 理想（求值同態把 1 映到 1 ≠ 0）。(⟹) 若 1 ∈ 理想，由 L0(b) 無 0/1 解，由 T2 逆否命題無推導，e 不可定型。∎
+
+**義務**：12 個樣本（6 良構 SAT、6 不良構 UNSAT）全部「1 ∈ G ⟺ 檢查器拒絕」，且 UNSAT 樣本的約化基確為 {1}，Nullstellensatz 見證直接可讀出。
+
+## 9. 定理 T7（規範性與宏展開不變性）
+
+**陳述.** (a) 固定單項式序，理想的約化 Gröbner 基唯一；(b) 宏展開是求值同態：展開後程序的可解性不變——選臂 a_k = 1 的系統可解，強制錯臂 a_wrong = 1 的系統 1 ∈ G。
+
+**證明.** (a) 經典：in(I) 唯一決定約化基的首項集；每個基元素是唯一的極小生成元，且其對其餘基元素的完全歸約形式唯一（CLO §2.7 定理 5）。∎
+(b) 展開即把臂模板 T_k 的語法變量替換為調用點節點——這正是多項式環的求值同態 φ（模板變量 ↦ 節點變量）。選臂系統 = φ 逐臂實例化 + 臂位元閘控；a_k = 1 時其餘臂約束消失，系統同構於展開程序約束 ⇒ 可解性相同。錯臂強制：型別錯配的模板在 tie 方程與規則方程聯立下產生 1（實測 demo P7/P8：錯臂系統約化基 = {1}）。∎
+
+**義務**：(a) 反序生成元 + FIFO 策略與原系統約化基逐元素相同；(b) P7-pick-int / P8-pick-bool 選臂可解 ✓、錯臂 1 ∈ G ✓。
+
+## 10. 定理 T8（QAP 忠實性）
+
+**陳述.** 取互異 t₁,…,t_m ∈ 𝔽_p（m < p），Z(t) = ∏ᵢ(t − tᵢ)，ℓ_i 為 Lagrange 基（deg ≤ m−1，ℓ_i(t_j) = δ_{ij}）。令 A = Σᵢ ⟨a_i,z⟩ℓ_i，B、C 同理。則
+
+**(a)** deg A, B, C ≤ m − 1；
+**(b)** Z | (A·B − C) ⟺ z 滿足全部 m 條 R1CS 約束。
+
+**證明.** (a) ℓ_i 次數 ≤ m−1，線性組合不增次。∎
+(b) (⟸) 若第 j 條約束成立：A(t_j)·B(t_j) − C(t_j) = ⟨a_j,z⟩⟨b_j,z⟩ − ⟨c_j,z⟩ = 0。m 個互異一次因式 (t − t_j) 兩兩互素且都整除 A·B − C，故其積 Z 整除之。(⟹) Z | (A·B − C) 且 t_j 是 Z 的根 ⟹ A(t_j)B(t_j) = C(t_j) ⟹ 第 j 條約束成立。∎（導線多項式由中間導線之 z 值裝配，witness 一致性由構造保證。）
+
+**義務**：7 個 SAT 樣本（含 4 個 demo）QAP 驗證全部通過，且竄改見證（任意位元翻轉）全部被正確拒絕。
+
+## 11. 定理 T9（端到端正確性）與命題 P 的證明
+
+**陳述.** 管線判定 SAT ⟺ 獨立型別檢查器接受；且 SAT 時生成的 Rust 代碼（a）可被 Mini-Rust 解析器重解析（round-trip），（b）可被真實 rustc 編譯，（c）語義保持（同一推導的解碼）。
+
+**證明.** 判定等價 = T1 + T2 + T6 的組合（管線可解性 ⟺ 推導存在性 ⟺ 檢查器接受；檢查器為獨立實現的直接演繹，非管線的鏡像）。代碼生成從 σ_D 解碼型別註解與臂選擇：由 T2，σ 解碼為源程序的推導，生成碼是該推導的語法反映 ⇒ 型別語義相同（(c)）；生成碼限制在 Mini-Rust 文法的可判定子集（含 `let mut x: T = …` 註釋形式）⇒ 可重解析（(a)）；該子集同時是真 Rust 的子集 ⇒ rustc 編譯通過（(b)），實測 `rustc --edition 2021` 對全部 SAT 樣本編譯成功。∎
+
+**命題 P 的證明.** 由 T1、T2：編碼可靠且完備（⟺ 而非單向）；由 T3：布爾側（CDCL）與代數側（Gröbner）互相解釋，學習子句不破壞理想；由 T4、T5：Buchberger 必終止且準則安全（95% 消除率使其實用）；由 T6：代數判定 ⟺ 型別判定；由 T7：判定結果與規範形式不依賴策略，宏展開不改變可解性（形式化「宏的語義」）；由 T8：代數系統可算術化為 QAP 單多項式整除檢驗；由 L0：全部計算在 𝔽_p 上忠實；由 T9：端到端閉環至可編譯代碼。故命題 P 成立。∎
+
+---
+
+## 12. 機械化驗證總覽（2026-09-10 實測）
+
+| 項目 | 結果 |
+|---|---|
+| 單元測試（poly/qap/groebner/cdcl/fp/minirust） | 17/17 通過 |
+| demoA（sqr! 宏 + 函式）：SAT | 管線 ✓ 檢查器 ✓ QAP(581 約束/439 導線) ✓ rustc ✓ |
+| demoB（雙可變借用衝突）：UNSAT | 管線 ✓ 檢查器 ✓，1 ∈ G（76 生成元 → 基 {1}，2 輪 CDCL） |
+| demoC（宏陰影/借用混合）：UNSAT | 管線 ✓ 檢查器 ✓，1 ∈ G（210 生成元、5 子句、4 輪 CDCL、學習 2 條） |
+
+十二個程序樣本的逐項實測（含 T4 擴充次數、T6 判定、T9 round-trip/`rustc`）與
+Lean 定理的逐項對照，見 **[`docs/EVIDENCE.md`](EVIDENCE.md)**；原始輸出存於
+`docs/evidence/`，可用 `bash scripts/lean-evidence.sh` 重建。
+| demoD（型別導向選臂）：SAT | 管線 ✓ 檢查器 ✓ QAP(294/222) ✓ rustc ✓，CDCL 2 輪學習 1 條（排除錯臂） |
+| 九條義務 × 12 程序 | **全部通過**（`obligations` 子命令，約 6 分鐘） |
+| demo 全量耗時 | 10.7 秒（𝔽_p 化後；demoA 理論 GB 1.14s → 毫秒級） |
+
+重現：
+```bash
+cargo test --release          # 17 單元測試
+cargo build --release
+./target/release/polyrust demo          # 四個端到端 demo
+./target/release/polyrust obligations   # T1–T9 義務自證
+./target/release/polyrust gen A         # 打印指定 demo 生成碼
+./target/release/polyrust debug <file>  # σ_D 逐約束合法性檢查
+```
+
+---
+
+## 13. Lean 4 形式化（機械證明骨架）
+
+docs 之外，倉庫的 [`lean/`](../lean) 目錄提供上述證明骨幹的 **Lean 4 機械化**
+（無 Mathlib 依賴，自包含；`lake build` 從零約 10 秒，Lean 4.33.1 固定於
+`lean-toolchain`）：**408 條定理/引理（另含實例化 `example`）、6,502 行、
+零 `sorry`、零自訂公理**（`AuditAll`：受檢宣告 1787、純構造 970；
+`bash scripts/lean-audit.sh` 逐定理 `#print axioms` 可複驗）。
+
+完整對照（每個模組證了什麼、邊界在哪、錯了會怎樣）見
+**[`docs/LEAN.md`](LEAN.md)**。模組總覽：
+
+| Lean 模組 | 對應 | 機械化的定理（節選） |
+|---|---|---|
+| `Polyrust.Monomial` | 基礎層 | 單項式指數向量、ℓcm/整除/支撐/首項；純組合，零公理 |
+| `Polyrust.Tactics` | 工具 | `int_ring`：無 Mathlib 的整數多項式歸一化宏 |
+| `Polyrust.ClauseDuality` | T3(a) | `clause_duality`：σ ⊨ C ⟺ P_C(σ)=0；`field_poly_bit`；`cnf_duality` |
+| `Polyrust.ClauseAlgebra` | T3(b) | `resolution_identity`（逐點、無條件）；`learned_preserves_models`/`learned_preserves_polyZero`；`unsat_iff_no_polyZero` |
+| `Polyrust.WatchMove` | T3(b) 旁路：CDCL 傳播資料結構層 | `watch_move0/1_preserves_sat`（監視文字**交換**移動保持子句語義）；`watchMoves_preserve_sat`（**任意步數**迭代後語義必然如初）；`clauseSat_all_false`（衝突偵測健全性）；`watch_overwrite_unsound`（覆寫版反例——v0.1.4 @brute 抓到之缺陷的數學紀錄，零公理純計算） |
+| `Polyrust.UniPoly` | T8 | `eval_add/mul/sub`（環同態）；`div_linear`；`vanishing_prod_dvd`；`qap_duality` |
+| `Polyrust.Squarefree` | T4 | `standard_implies_squarefree`；`toBits/ofBits` 雙射；`squarefree_count`；`buchberger_extension_bound`（≤ 2ⁿ）；`no_infinite_sublist_chain` |
+| `Polyrust.Embedding` | L0 | `L0_mod_faithful`；`eval_abs_bound`；`L0_eval_faithful` |
+| `Polyrust.MicroInstance` | T1/T2/T6/T7 微實例 | 三系統 2^k 全枚舉（`T1_micro`、`T6_micro_unsat`、`T7_wrong_arm_unsat`） |
+| `Polyrust.SPoly` | T5 | `sPoly_mem_genIdeal`；`genIdeal_insert_sPoly`；`coprime_criterion`；`sPoly_chain_decomposition`+`chain_criterion`；`sPoly_self` |
+| `Polyrust.Canonical` | T7(a) | `reduced_unique`（簡化基**若存在則唯一**）；`reduced_zero_of_mem`；`lead_determines_element`；`pureNat` 非空性模型 |
+| `Polyrust.T6Certificate` | T6 | `inIdeal_no_root`/`one_mem_no_root`（1 ∈ 理想 ⟹ 無 0/1 根）；`interpolation`；`no_root_certificate`/`no_root_poly_certificate` |
+| `Polyrust.BoolNullstellensatz` | T6 補完：布爾 Nullstellensatz | `bool_nullstellensatz`：每點有模 `p` 可逆系統元素（顯式逆元見證）⟹ 多項式函數乘子組合成常數 1（模 `p`）；`bool_ns_no_root_of_certificate`（可靠方向，前提 `p ∤ 1`）；`mod_p_one_in_ideal`（逆元縮放）；`allBits_nodup`（`Squarefree`，補 `sum_delta` 前提） |
+| `Polyrust.T9EndToEnd` | T9 | `genC_sound`（T1）；`genC_complete`（T2）；`typable_iff_root`/`untypable_iff_no_root`（T6 判定等價）；`parse_gen`（round-trip）；`arm_gating*`（T7(b) 閘控） |
+| `Polyrust.T9Generalized` | T9 泛化 (a) | 型別宇宙參數化（`Lang`：`enumAll`/`nodup`/`complete`/`numTy`/`eqbTy`/`num_ne_eqb`）；`genC_soundG`（T1）、`genC_completeG`（T2）、`typable_iff_rootG`（T6/T9）對任意可枚舉宇宙成立（詳見 §14） |
+| `Polyrust.ProductReduction` | T9 泛化 (b) | 積型（引用 × 基本）：`typable_pair_iff`（AND）；`pairBitSum_eq_mul`（one-hot 乘積） |
+| `Polyrust.SumReduction` | T9 泛化 (c) | 和型（`bool`/`()` 變體）：`type_typable_sum_iff`（OR）；`sumBits_sum_eq_add`（位元相加） |
+| `Polyrust.OpAbstraction` | T9 泛化 (e) | 運算子規格化（`BinSpec`）：`genC_soundG2`（T1）、`genC_completeG2`（T2）、`typable_iff_rootG2`（T6/T9）對任意規格成立；9 種 `BinOp` 零新證明 |
+| `Polyrust.MacroExpansion` | T7(b) | `expand_comp`（展開是同態）；`checkCtx_det`；`checkCtx_expand`（正確臂）；`check_expand_demands`+`arm_demand`；`wrong_arm_untypable`/`wrong_arm_no_root`（錯臂 ⟺ 無 0/1 根） |
+| `Polyrust.BorrowOwnership` | T1/T2/T6 借用側 | `borrow_sat_iff_clean`（有根 ⟺ 無衝突）；`clashClause_duality`／`assignClause_duality`；`borrow_clash_one_mem`（1 ∈ 理想）；所有權三規則與 P5/P6 樣本模型；`t9_borrow_decision` |
+| `Audit.lean`／`AuditAll.lean` | 審計 | 主定理 `#print axioms`；全庫掃描（受檢 1722、純構造 960、0 sorry、0 自訂公理 ⇒ `AUDIT_RESULT=CLEAN`） |
+
+Rust 側的 `obligations` 子命令（§12）對 12 個程序樣本自證全部義務，
+Lean 側把證明的**數學骨幹**（對偶、終止性、嵌入保真、QAP 忠實性）
+從「樣本檢查」提升為「通用定理 + 機器檢查證明」。二者互補：
+義務自證覆蓋工程實現的每一步；Lean 定理覆蓋任意尺寸輸入的一般性。
+
+---
+
+## 14. T9 泛化（2026-09-14）：從「2 型別玩具證明」到「任意型別宇宙 + 任意運算子規格」
+
+**動機.** §13 的 `T9EndToEnd` 把型別宇宙寫死為 `{i32, bool}`、把運算子寫死為
+`add`／`eqb` 兩個建構子。這與真實 Rust（7 種基本型別、9 種 `BinOp`、一元
+`!`/`-`、引用型別）之間存在「樣本 ≠ 通用」的缺口。泛化分四步完成，全部
+機械化、零 Mathlib、零自訂公理（`AuditAll` CLEAN：**1722 宣告、960 純構造、
+0 sorry、0 非標準公理**）：
+
+| 步 | 模組（`lean/Polyrust/`） | 補的缺口 | 核心定理 |
+|---|---|---|---|
+| (a) 型別宇宙 | `T9Generalized.lean`（786 行、50 定理） | 2 型別 → 任意可枚舉宇宙 | `tycheck_exclusive`、`genC_soundG`（T1）、`genC_completeG`（T2）、`typable_iff_rootG`（T6/T9） |
+| (b) 積型 | `ProductReduction.lean`（208 行、12 定理） | 引用型別 `&`/`&mut` × 基本型別 = 複合型別 | `typable_pair_iff`（AND 語義）、`pairBitSum_eq_mul`（one-hot 乘積） |
+| (c) 和型 | `SumReduction.lean`（166 行、10 定理） | `bool` = `true \| false` 的變體和 | `type_typable_sum_iff`（OR 語義）、`sumBits_sum_eq_add`（位元相加） |
+| (e) 運算子 | `OpAbstraction.lean`（543 行、32 定理） | 9 種 `BinOp` = 規格實例 | `tycheckG_exclusive`、`genC_soundG2`（T1）、`genC_completeG2`（T2）、`typable_iff_rootG2`（T6/T9） |
+
+### 14.1 (a) 型別宇宙參數化
+
+型別宇宙從兩個寫死的建構子抽象為一個**可枚舉宇宙**：
+
+```
+structure Lang (Ty : Type) where
+  enumAll   : List Ty        -- 全枚舉
+  nodup     : enumAll.Nodup
+  complete  : ∀ t, t ∈ enumAll
+  numTy eqbTy : Ty           -- 數值／布爾代表元
+  num_ne_eqb  : numTy ≠ eqbTy
+```
+
+T9EndToEnd 的全部構造（`tycheck`、`oneHot`、約束表 `genC`、見證 `witness`）
+照抄但參數化為 `L : Lang Ty`；one-hot 從兩項相加推廣為 `List.sum`。
+關鍵在於 **T1／T2／T6 的證明對 `L` 完全參數化**：換一個更大的宇宙
+（例如加上 `Unit`、`Ref*`），定理自動成立，**零新證明**。
+
+### 14.2 (b) 積型歸約（引用型別）
+
+真實 Rust 的 `&i32`、`&mut i32`、`&bool`、`&mut bool` 是「引用修飾 ∘ 基本
+型別」的複合。形式化為積型：`pair e₁ e₂` 可定型於 `(τ₁, τ₂)` ⟺ 兩個分量
+分別可定型（`typable_pair_iff`，AND 語義），且積的 one-hot 位元 = 分量
+one-hot 位元之**乘積**（`pairBitSum_eq_mul`），從而约束編碼的可靠性／完備性
+直接歸約到分量層。
+
+### 14.3 (c) 和型歸約（變體型別）
+
+`bool` 本質是 `true | false` 的雙變體和、`()` 是單變體和。形式化為
+`inl e`／`inr e`：可定型語義為 **OR**（`type_typable_sum_iff`：`τ` 可定型
+`inl e` 或 `inr e` 之一），和的位元 = 變體位元之**加**（`sumBits_sum_eq_add`）。
+與 (b) 的乘積對偶，合起來覆蓋「複合型別 = 積 × 和」的兩種組合方式。
+
+### 14.4 (e) 運算子規則抽象
+
+最關鍵的一步：把運算子從**語法**（寫死的 `add`/`eqb` 建構子）降為**資料**：
+
+```
+structure BinSpec (Ty : Type) where
+  in1 in2 out : Ty           -- 輸入1 型別、輸入2 型別、輸出型別
+
+inductive ExprG (Ty : Type)
+  | num : Int → ExprG Ty
+  | binop : BinSpec Ty → ExprG Ty → ExprG Ty → ExprG Ty   -- 規格是標籤
+  | ite : …
+```
+
+規則方程用**輸出標記** `outMark s t = bit (decide (t = s.out))` 寫成：
+`binop s a b` 在型別 `t` 的位元 = `outMark s t · bit(a@s.in1) · bit(b@s.in2)`。
+由於單型性（`tycheckG_exclusive`）對**任意**規格 `s` 成立、不需要「規格互斥」
+的額外假設，Rust 的 9 種 `BinOp` 全部是同一個定理的實例：
+
+| `BinSpec` 實例 | 覆蓋的 `BinOp` | `in1 → in2 → out` |
+|---|---|---|
+| `arithSpec L` | Add / Sub / Mul | `numTy → numTy → numTy` |
+| `cmpSpec L` | Lt / Le / Ge / Eq / Ne | `numTy → numTy → eqbTy` |
+| `andSpec L` | And | `eqbTy → eqbTy → eqbTy` |
+
+三個實例化 `example`（§十）已在 Lean 中機械驗證，含負例
+（`1 + 2` 不會被定型為 `eqbTy`，由 `num_ne_eqb` 保證）。
+**新增一個運算子 = 新增一個 `BinSpec`，零新證明**——這正是擴展不變性，
+也因此原計劃的 (d)「逐運算子規則」沒有單獨做：它與 (e) 完全重複，多做只會多 bug。
+
+### 14.5 「Rust 7 型別 vs Lean 2 型別」缺口的歸檔
+
+| 缺口 | 由哪一步補齊 |
+|---|---|
+| 型別個數（2 → 任意） | (a) 可枚舉宇宙 |
+| 4 個引用型別 `&i32`/`&mut i32`/`&bool`/`&mut bool` | (b) 積型 |
+| `bool`（雙變體）、`()`（單變體） | (c) 和型 |
+| 9 種 `BinOp` + 一元 `!`/`-` | (e) `BinSpec` 實例 |
+
+**重現**：`cd lean && lake build`（21 jobs 全綠）；
+`lake env lean AuditAll.lean` 輸出 `AUDIT_RESULT=CLEAN`。

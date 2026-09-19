@@ -1,0 +1,142 @@
+PolyRust Commercial License — Template (Draft)
+
+Copyright (C) 2024-2026 PolyRust Team
+Contact: commercial@polyrust.example / legal@polyrust.example
+
+This is a TEMPLATE for commercial licensing. A final signed agreement is required.
+This file is for informational purposes and does NOT grant any commercial rights
+by itself. You must obtain a signed commercial agreement.
+
+--------------------------------------------------------------------------------
+1. Grant
+--------------------------------------------------------------------------------
+
+Subject to payment of fees and compliance with this notice, Licensor grants
+Licensee a non-exclusive, non-transferable (except with Licensor consent),
+worldwide license to:
+
+  a) Use PolyRust (including core/ zero-dep pipeline and frontends) in
+     binary and source form, to develop, run, and distribute Licensee's
+     proprietary applications (Closed-Source Products).
+
+  b) Run modified versions of PolyRust as a network service (SaaS, API, cloud)
+     WITHOUT obligation to provide Corresponding Source under AGPL-3.0 §13.
+
+  c) Modify core/ including unsafe_safety.rs, borrowck.rs, effects.rs,
+     constraints_v2.rs, pipeline_v3.rs, but must retain safety gates unless
+     otherwise agreed in writing. Removal of safety polynomials
+     (1-valid)*deref=0, (1-in_unsafe)*deref=0, safe - in_unsafe*precond=0
+     voids warranty and indemnity.
+
+  d) Distribute Closed-Source Products that embed PolyRust, without licensing
+     those products under AGPL-3.0.
+
+Third-party dependencies in frontends/* (axum, tokio, syn, ureq, etc.) remain
+under their own licenses (MIT/Apache-2.0). Licensee must comply with those.
+
+--------------------------------------------------------------------------------
+2. Restrictions
+--------------------------------------------------------------------------------
+
+Licensee shall NOT:
+
+  a) Redistribute PolyRust itself (source or binary) as a standalone product
+     competing with PolyRust, without written permission.
+
+  b) Remove or alter copyright notices, license headers, or Lean proof references
+     (all_unsafe_safe_implies_no_runtime_ub, f4_ideal_invariant, etc.).
+
+  c) Use PolyRust trademarks (PolyRust, polyrust, etc.) without written permission,
+     except for "Powered by PolyRust" attribution.
+
+  d) Sublicense PolyRust under AGPL-3.0 to third parties to circumvent commercial
+     fees.
+
+  e) Use PolyRust in safety-critical systems (e.g., avionics, automotive ASIL-D)
+     without additional safety attestation and written approval. See
+     pipeline_v3.rs compliance map.
+
+--------------------------------------------------------------------------------
+3. Fees and Support
+--------------------------------------------------------------------------------
+
+  Fees: As per Order Form. Indicative:
+    Startup (<10 employees): $2,000 / year
+    SME (<100): $10,000 / year
+    Enterprise: $50,000 / year + custom
+
+  Support: Optional SLA tiers:
+    - Standard: GitHub issues, 5 business day response
+    - Premium: Email + Slack, 1 business day, Lean proof traceability
+    - Enterprise: 24/7, on-site, custom F4/F5 tuning, audit report customization,
+      QAP on-chain enterprise signing.
+
+  Payment terms: Net 30, annual.
+
+--------------------------------------------------------------------------------
+4. Warranty and Liability (Commercial)
+--------------------------------------------------------------------------------
+
+  Unlike AGPL-3.0 §15-16 which disclaims all warranty, commercial license may
+  include limited warranty as per Order Form:
+
+  a) Licensor warrants that PolyRust as delivered will materially conform to
+     documentation for 90 days.
+
+  b) Licensor will use reasonable efforts to fix defects that cause QAP verification
+     to fail or safety gates to be bypassed.
+
+  c) EXCEPT AS EXPRESSLY PROVIDED, NO OTHER WARRANTY. IN NO EVENT SHALL LICENSOR
+     BE LIABLE FOR INDIRECT, CONSEQUENTIAL DAMAGES BEYOND FEES PAID IN LAST 12 MONTHS.
+
+  d) If Licensee removes safety gates (unsafe_safety.rs polynomials) or Lean
+     theorems (all_unsafe_safe_implies_no_runtime_ub), warranty voids.
+
+--------------------------------------------------------------------------------
+5. Audit and Compliance
+--------------------------------------------------------------------------------
+
+  Licensee shall:
+
+  a) Keep audit reports (audit_report.json, qap.json, per_node_bits) for at least
+     3 years.
+
+  b) Upon Licensor request (once per year, with 30 days notice), provide
+     certification of compliance and number of deployments.
+
+  c) For ISO 26262 / IEC 61508 / DO-178C use, retain evidence of
+     Lean proofs (IronLaw.lean) and Groebner basis invariance.
+
+--------------------------------------------------------------------------------
+6. Term and Termination
+--------------------------------------------------------------------------------
+
+  Term: As per Order Form, auto-renew unless terminated.
+
+  Termination for breach: If Licensee breaches, Licensor may terminate with
+  30 days notice to cure. Upon termination, Licensee must cease use of
+  PolyRust in Closed-Source Products and delete copies, except as needed for
+  compliance retention.
+
+  Termination does NOT affect AGPL-3.0 rights for versions obtained under AGPL-3.0.
+
+--------------------------------------------------------------------------------
+7. Governing Law
+--------------------------------------------------------------------------------
+
+  HKSAR law, arbitration by HKIAC, language English.
+
+--------------------------------------------------------------------------------
+8. How to Obtain
+--------------------------------------------------------------------------------
+
+  Email commercial@polyrust.example with:
+    - Company name, size, use case (SaaS / embedded / IDE / audit)
+    - Whether you modify core/ (QAP, Groebner, unsafe_safety)
+    - Estimated deployments / users
+    - Desired support tier
+
+  Or open GitHub issue "[Commercial License Request]".
+
+--------------------------------------------------------------------------------
+END OF TEMPLATE

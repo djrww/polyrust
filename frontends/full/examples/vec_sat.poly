@@ -1,0 +1,10 @@
+# @intent: Vec String HashMap SAT
+# @import: vec, string, hashmap
+# @type-universe: Vec<i32>, String, HashMap<String,i32>
+fn main() {
+  let v: Vec<i32> = Vec_new();
+  Vec_push(&mut v, 1);
+  let s = String_from("hi");
+  let m: HashMap<String,i32> = HashMap_new();
+  HashMap_insert(&mut m, s, 42);
+}

@@ -1,0 +1,20 @@
+# @intent: LLM 护栏自进化核心 (V3 持续迭代 - 风险驱动选型)
+# @import: basic
+# @fuel: 80
+# @lifetime: 'a: 'b
+# @commercial-risk: medium
+# @lean-proof: Polyrust.IncrementalIteration.borrowSystem_subset_mono
+
+# 模拟 LLM 生成的代码，含潜在 borrow 冲突，V3 会通过风险评分自动选择 F4F5 彻底验证
+fn process(x: i32) -> i32 { x * 2 }
+fn validate(v: i32) -> bool { v >= 0 }
+
+fn main() {
+    let mut data = 42;
+    let r1 = &mut data;
+    let processed = process(*r1);
+    *r1 = processed;
+    # 故意制造潜在风险，测试 V3 风险驱动选型
+    let check = validate(*r1);
+    let final_val = if check { *r1 } else { 0 };
+}

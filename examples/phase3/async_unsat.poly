@@ -1,0 +1,2 @@
+# @intent: async UNSAT — await 非 Future
+fn main() { let x = 5.await; }

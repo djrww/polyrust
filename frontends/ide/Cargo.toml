@@ -1,0 +1,36 @@
+[package]
+name = "polyrust-ide"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+description = "polyrust IDE 前端 — 商業友好授權的本地開發環境 (axum + tokio + lsp + file-watch)"
+
+[[bin]]
+name = "polyrust-ide"
+path = "src/main.rs"
+
+[features]
+default = ["json", "cors", "fs-watch"]
+json = ["axum/json", "axum/query", "dep:serde_json"]
+cors = ["dep:tower-http"]
+fs-watch = ["dep:notify"]
+lsp = ["dep:lsp-types"]
+rope = ["dep:ropey"]
+light = ["json", "cors"]
+
+[dependencies]
+polyrust-core = { path = "../../core" }
+axum = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true, optional = true }
+tower-http = { workspace = true, optional = true }
+notify = { version = "6", default-features = false, optional = true }
+lsp-types = { version = "0.94", default-features = false, features = ["proposed"], optional = true }
+ropey = { version = "1.6", default-features = false, optional = true }
+tower = { version = "0.4", default-features = false, features = ["util"] }
+
+[dev-dependencies]
+tokio = { workspace = true }
+serde_json = { workspace = true }

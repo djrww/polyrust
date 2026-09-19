@@ -1,0 +1,3 @@
+# @intent: I/O UNSAT — no-io 違反
+# @no-io
+fn main() { println("should fail"); }

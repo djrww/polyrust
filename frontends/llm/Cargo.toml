@@ -1,0 +1,26 @@
+[package]
+name = "polyrust-llm"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+description = "polyrust 的 LLM 前端：ureq 原生 TLS 傳輸的 Provider（不需系統 curl）"
+
+[[bin]]
+name = "polyrust-nl"
+path = "src/main.rs"
+
+[features]
+default = ["tls", "json"]
+tls = ["ureq/tls"]
+json = ["ureq/json"]
+# 輕量：無 TLS，無 JSON，僅 http，開發期編譯更快
+light = []
+
+[dependencies]
+polyrust-core = { path = "../../core" }
+ureq = { workspace = true }
+
+[dev-dependencies]
+# 開發期輕量：無 TLS，無 JSON
+ureq = { workspace = true }

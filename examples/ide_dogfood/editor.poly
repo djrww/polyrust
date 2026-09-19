@@ -1,0 +1,65 @@
+# @intent TextBuffer + Editor — IDE 核心，商業友好
+# @import basic
+
+struct Position {
+    line: usize,
+    col: usize,
+}
+
+struct Range {
+    start: Position,
+    end: Position,
+}
+
+struct TextBuffer {
+    content: String,
+    version: u64,
+}
+
+impl TextBuffer {
+    fn new(content: String) -> TextBuffer {
+        TextBuffer { content, version: 0 }
+    }
+
+    fn len(&self) -> usize {
+        self.content.len()
+    }
+
+    fn insert(&mut self, pos: usize, text: String) {
+        let mut new_content = String::new();
+        new_content.push_str(&self.content[0..pos]);
+        new_content.push_str(&text);
+        new_content.push_str(&self.content[pos..]);
+        self.content = new_content;
+        self.version += 1;
+    }
+
+    fn is_empty(&self) -> bool {
+        self.content.is_empty()
+    }
+}
+
+struct Editor {
+    buffer: TextBuffer,
+    cursor: Position,
+}
+
+impl Editor {
+    fn new() -> Editor {
+        Editor { buffer: TextBuffer::new("".to_string()), cursor: Position { line: 0, col: 0 } }
+    }
+
+    fn open(&mut self, content: String) {
+        self.buffer = TextBuffer::new(content);
+    }
+
+    fn save(&self) -> String {
+        self.buffer.content.clone()
+    }
+}
+
+fn main() {
+    let mut editor = Editor::new();
+    editor.open("fn main() {}".to_string());
+    let saved = editor.save();
+}

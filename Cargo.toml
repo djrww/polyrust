@@ -1,0 +1,92 @@
+# polyrust workspace 根
+#
+# 結構：
+#   core/           polyrust-core —— 形式化管線核心，【零第三方依賴】
+#   frontends/http  polyrust-http —— axum/tokio HTTP API 前端（有第三方依賴）
+#   frontends/llm   polyrust-llm  —— ureq 真實 TLS 傳輸的 LLM 前端（有第三方依賴）
+#   frontends/full  polyrust-full —— 全特性前端 + syn Oracle（有第三方依賴）
+#
+# 核心承諾：`core` 永遠不引入任何第三方 crate（std-only）；
+# 一切第三方依賴只允許出現在 frontends/* 之下。
+
+[workspace]
+resolver = "2"
+members = ["core", "frontends/http", "frontends/llm", "frontends/full", "frontends/ide"]
+
+[workspace.package]
+version = "0.2.2"
+edition = "2021"
+repository = "https://github.com/djrww/polyrust"
+license = "AGPL-3.0-only OR MIT OR Apache-2.0"
+# Commercial license available separately — see LICENSE and COMMERCIAL_NOTICE.md
+# SPDX: AGPL-3.0-only for open source, LicenseRef-PolyRust-Commercial for proprietary
+# Previous versions (<0.2.2) were MIT OR Apache-2.0, new contributions from 2024-12-01 are AGPL-3.0 + Commercial dual
+authors = ["PolyRust Team"]
+
+# ── 集中依賴版本管理：減輕重複、便於審計 ───────────────────────────────
+[workspace.dependencies]
+# axum：基線僅 http1 + tokio（最輕），json/query/form 等由各 crate 的 features 控制
+axum = { version = "0.7", default-features = false, features = ["http1", "tokio"] }
+# Tokio：基線僅 rt + rt-multi-thread + macros + net，移除 fs/io-util/signal/time 等
+tokio = { version = "1", default-features = false, features = ["rt", "rt-multi-thread", "macros", "net"] }
+# Serde：僅 derive + std
+serde = { version = "1", default-features = false, features = ["derive", "std"] }
+serde_json = { version = "1", default-features = false, features = ["std"] }
+# tower-http：僅 cors，最小化（可選）
+tower-http = { version = "0.6", default-features = false, features = ["cors"] }
+# syn：full + extra-traits 提供 Debug/Clone，light 模式可關閉
+# 需顯式啟用 clone-impls/parsing/printing/derive/proc-macro 以支持 no-default-features
+syn = { version = "2", default-features = false, features = ["full", "extra-traits", "clone-impls", "parsing", "printing", "derive", "proc-macro"] }
+# quote：無額外
+quote = { version = "1", default-features = false }
+# ureq：基線無特性（最輕），由 frontends/llm 的 features 控制 tls/json
+ureq = { version = "2", default-features = false }
+tower = { version = "0.4", default-features = false, features = ["util"] }
+notify = { version = "6", default-features = false }
+lsp-types = { version = "0.94", default-features = false, features = ["proposed"] }
+ropey = { version = "1.6", default-features = false }
+
+# ── Release：最優化執行期效能編譯（對全部成員生效）──────────────────────
+[profile.release]
+debug = false
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
+overflow-checks = false
+
+[profile.release-debug]
+inherits = "release"
+debug = true
+strip = false
+panic = "unwind"
+
+# ── Dev：開發期快速編譯，減輕依賴與 LTO ─────────────────────────────────
+[profile.dev]
+opt-level = 0
+debug = 1
+lto = false
+codegen-units = 16
+overflow-checks = true
+panic = "unwind"
+incremental = true
+
+[profile.dev.package."*"]
+opt-level = 0
+codegen-units = 16
+
+# ── Test：平衡速度與可調試 ────────────────────────────────────────────────
+[profile.test]
+opt-level = 0
+debug = 1
+lto = false
+codegen-units = 16
+overflow-checks = true
+incremental = true
+
+# ── Bench：接近 release 但保留符號 ───────────────────────────────────────
+[profile.bench]
+inherits = "release"
+debug = 1
+strip = false

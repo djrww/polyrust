@@ -1,0 +1,6 @@
+# @intent: break UNSAT — break 在 loop 外 + 類型錯誤
+struct Point { x: i32, y: i32 }
+fn main() {
+  break;
+  let p = Point { x: true, y: 0 };
+}

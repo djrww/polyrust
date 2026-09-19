@@ -1,0 +1,44 @@
+# @intent FileTree for IDE — 商業友好，零依賴核心
+# @import basic
+
+struct FileNode {
+    path: String,
+    name: String,
+    is_dir: bool,
+}
+
+struct FileTree {
+    root: FileNode,
+    nodes: Vec<FileNode>,
+}
+
+impl FileTree {
+    fn new(root_path: String) -> FileTree {
+        let root = FileNode { path: root_path.clone(), name: root_path, is_dir: true };
+        FileTree { root, nodes: Vec::new() }
+    }
+
+    fn add_file(&mut self, path: String, name: String) {
+        let node = FileNode { path, name, is_dir: false };
+        self.nodes.push(node);
+    }
+
+    fn file_count(&self) -> usize {
+        self.nodes.len()
+    }
+
+    fn find(&self, path: String) -> Option<FileNode> {
+        for node in &self.nodes {
+            if node.path == path {
+                return Some(node.clone());
+            }
+        }
+        None
+    }
+}
+
+fn main() {
+    let mut tree = FileTree::new("/".to_string());
+    tree.add_file("examples/sqr.poly".to_string(), "sqr.poly".to_string());
+    let count = tree.file_count();
+}
