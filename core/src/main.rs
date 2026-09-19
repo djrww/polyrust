@@ -417,7 +417,7 @@ fn main() {
     }
 
     if mode == "all" || mode == "obligations" {
-        hr("義務自證（九條定理的機械化檢查）");
+        hr("義務自證（十條定理的機械化檢查）");
         let results = obligations::run_all();
         let mut all_pass = true;
         for r in &results {
@@ -427,7 +427,7 @@ fn main() {
             all_pass &= r.pass;
         }
         hr("總結");
-        println!("九條義務自證：{}",
+        println!("十條義務自證：{}",
             if all_pass { "全部通過 ✓✓✓（命題 P 成立的機械見證；數學證明見 docs/THEOREMS.md）" } else { "有失敗項 ✗" });
         std::process::exit(if all_pass { 0 } else { 1 });
     }

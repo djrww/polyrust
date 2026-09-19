@@ -9,7 +9,7 @@ use crate::groebner::{field_polys, normal_form, reduced_groebner, solve_boolean,
 use crate::minirust::ast::Program;
 use crate::minirust::macros::Expander;
 use crate::minirust::parse::Parser;
-use crate::pipeline::{clause_to_poly, run_pipeline_eager as run_pipeline, PipelineResult};
+use crate::pipeline::{clause_to_poly, run_pipeline_eager as run_pipeline, run_pipeline_with_algo_ext, PipelineResult};
 use crate::poly::{Order, Poly};
 use std::collections::HashMap;
 
@@ -595,6 +595,60 @@ pub fn obligation_t9() -> ObligationResult {
     }
 }
 
+// ── T10 組合性：分解求解 vs 整體求解的對照義務 ──
+pub fn obligation_t10() -> ObligationResult {
+    let mut detail = String::new();
+    let mut pass = true;
+    for (name, src, expect_accept) in SUITE {
+        let r = match run_pipeline_with_algo_ext(name, src, false, None, true) {
+            Ok(r) => r,
+            Err(e) => {
+                pass = false;
+                detail.push_str(&format!("{}:ERR({})  ", name, e));
+                continue;
+            }
+        };
+        let Some(d) = &r.decomp else {
+            pass = false;
+            detail.push_str(&format!("{}:無分解摘要  ", name));
+            continue;
+        };
+        // 1. 並基是 Gröbner 基（逐對 S-多項式驗證）
+        let gb_ok = d.union_basis_is_gb;
+        // 2. 分解判定 == 整體判定（UNSAT 一致性）
+        let verdict_ok = d.any_unsat == r.is_unsat;
+        // 3. 判定 == 期望的 checker 結果
+        let expect_ok = (!r.is_unsat) == *expect_accept;
+        // 4. 每組件擴充 ≤ 2^{nᵢ}（組件級 T4）
+        let mut per_comp_ok = true;
+        for (nv, ext) in &d.per_component {
+            if *ext > (1usize << (*nv).min(30)) {
+                per_comp_ok = false;
+            }
+        }
+        // 5. 總擴充 ≤ Σ 2^{nᵢ}（組合界）
+        let total_ok = d.bound_decomposed.map_or(false, |b| (d.total_extensions as u128) <= b);
+        let sample_ok = gb_ok && verdict_ok && expect_ok && per_comp_ok && total_ok;
+        pass &= sample_ok;
+        detail.push_str(&format!(
+            "{}:[{},{}] {}{}{}  ",
+            name,
+            d.n_components,
+            d.max_component_bits,
+            d.summary_line(),
+            if per_comp_ok && total_ok { "" } else { "界✗" },
+            if verdict_ok && expect_ok { "" } else { "判定✗" }
+        ));
+    }
+    ObligationResult {
+        id: "T10",
+        name: "組合性（分解求解）",
+        statement: "並查集分解 → 逐組件 Buchberger：並基為 Gröbner 基；每組件擴充 ≤ 2^{nᵢ}；總擴充 ≤ Σ2^{nᵢ}；UNSAT 判定與整體求解一致".into(),
+        pass,
+        detail,
+    }
+}
+
 pub fn run_all() -> Vec<ObligationResult> {
     vec![
         obligation_t1(),
@@ -606,6 +660,7 @@ pub fn run_all() -> Vec<ObligationResult> {
         obligation_t7(),
         obligation_t8(),
         obligation_t9(),
+        obligation_t10(),
     ]
 }
 

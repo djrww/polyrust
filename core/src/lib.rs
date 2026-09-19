@@ -56,6 +56,10 @@ pub mod qap_groth16;
 pub mod lsp;
 pub mod charon_llbc;
 pub mod polyir;
+pub mod chalk_bridge;
+pub mod certify;
+pub mod composition;
+pub mod vanishing;
 
 /// 正式運作：core 文件清單 — 零依賴實際使用
 pub fn core_file_list() -> Vec<(&'static str, &'static str, &'static str)> {
@@ -98,6 +102,10 @@ pub fn core_file_list() -> Vec<(&'static str, &'static str, &'static str)> {
         ("incremental_cache.rs", "Incremental Cache LRU + diff — Phase B", "core/src/incremental_cache.rs"),
         ("qap_groth16.rs", "QAP Groth16 真實 arkworks/bellman + Solana verifier — Phase B", "core/src/qap_groth16.rs"),
         ("lsp.rs", "LSP Diagnostic→LSP + Hover + CodeAction + VSCode skeleton — Phase B", "core/src/lsp.rs"),
+        ("composition.rs", "T10 組合性：模塊化分解 + Σ2^{nᵢ} 組合界 + 並基驗證", "core/src/composition.rs"),
+        ("certify.rs", "認證路徑：外部 oracle σ 重建 + 多項式時間直接求值驗證", "core/src/certify.rs"),
+        ("chalk_bridge.rs", "Chalk/rustc 判決橋：oracle artifact JSON → OracleBits", "core/src/chalk_bridge.rs"),
+        ("vanishing.rs", "消失多項式多值編碼 + 引理 L0′ + ∏kᵢ 一般化界", "core/src/vanishing.rs"),
         ("obligations.rs", "Obligations — 優化", "core/src/obligations.rs"),
         ("formal.rs", "Formal Lean 橋 — 優化", "core/src/formal.rs"),
     ]

@@ -12,6 +12,8 @@
 | `Polyrust.WatchMove` | T3(b) 旁路：CDCL 傳播資料結構層 | 監視文字**交換**移動保持子句語義（`watch_move0/1_preserves_sat`）；全假子句不滿足（衝突偵測健全性）；**覆寫版反例**（v0.1.4 @brute 抓到的缺陷紀錄） |
 | `Polyrust.UniPoly` | T8 | 求值環同態；構造性線性餘式定理；互異根 vanishing ⇒ ∏(X−tᵢ) 整除；QAP 對偶主定理 |
 | `Polyrust.Squarefree` | T4 | 標準單項式 ⇒ 平方自由（域多項式入基）；平方自由 ↔ 位串雙射；恰 2ⁿ 個 ⇒ Buchberger 終止 |
+| `Polyrust.Composition` | **T10**（組合性） | 變量截斷/平移下整除保持；標準單項式分解引理（`standard_iff_factor`）；不相交宇宙之積（界 2^{n₁}·2^{n₂} = 2^{n₁+n₂}）；**加法界** Σ2^{nᵢ} ≤ 2^{Σnᵢ}（模塊化：常數大小組件 ⇒ 總界線性於程式規模） |
+| `Polyrust.BoundedStandard` | **∏kᵢ 一般化** | 純冪整除 ⇒ 指數逐維有界；混合進制枚舉 `allBounded` 長度 = ∏ kᵢ；`buchberger_extension_bound_general`；kᵢ ≡ 2 特例回到 T4 的 2ⁿ |
 | `Polyrust.Embedding` | L0 | 𝔽_p（p=2⁶¹−1）嵌入保真：小係數多項式 0/1 點求值模零 ⟺ 整數零 |
 | `Polyrust.MicroInstance` | T1/T2/T6/T7 | 加法規則、上下文矛盾、宏選臂三個微型系統的全枚舉（可靠性+完備性+判定） |
 | `Polyrust.SPoly` | T5 | S-多項式：單項式乘法的性質、S-多項式 ∈ 生成理想、Buchberger 判準（鏈分解、互質首項相消） |
@@ -84,3 +86,5 @@ import Polyrust.Completion
 import Polyrust.IncrementalIteration
 import Polyrust.Bidirectional7Files
 import Polyrust.UnsafeSafety
+import Polyrust.Composition
+import Polyrust.BoundedStandard

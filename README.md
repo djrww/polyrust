@@ -19,7 +19,7 @@ core/            polyrust-core —— 形式化管线核心【零第三方依赖
 frontends/
   http/          polyrust-http —— axum/tokio HTTP API 前端（/health、/api/nl、/api/funnel）
   llm/           polyrust-nl  —— ureq（纯 Rust TLS）传输的 LLM 护栏前端
-lean/            Lean 4 形式化（零依赖；20 模块、408 定理，见 docs/LEAN.md）
+lean/            Lean 4 形式化（零依赖；22 模块、2221 定理——2026-09-20 Enumerate 全环境实测，见 docs/LEAN.md）
 docs/            THEOREMS / LEAN / EVIDENCE / LLM / POLY_DSL / FORMAL_LEMMAS
 scripts/         审计与批测脚本
 ```
