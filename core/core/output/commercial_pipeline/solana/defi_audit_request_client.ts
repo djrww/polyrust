@@ -77,7 +77,7 @@ export async function auditContract(
     r1csWires: new anchor.BN(118),
     riskScore: new anchor.BN(260),
     qapVerified,
-    timestamp: new anchor.BN(1789846233),
+    timestamp: new anchor.BN(1789851263),
     certificateHash: Array(32).fill(0xAB),
   };
 

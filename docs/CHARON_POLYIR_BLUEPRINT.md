@@ -98,7 +98,7 @@ core/polyir_lower.rs   語義降糖：
 > 法證見 `docs/C0_CHARON_SPIKE.md`）；重跑 = `bash scripts/c0_env_check.sh`（≥4GB 機器 15–30 分鐘）。
 > 附帶確認：pin 版本已含 multi-target translate+merge（C4 需要嘅 modularity 基礎 ✓）；
 > 三態入口（rustc_reject／ok_with_missing→UNKNOWN(missing_decl)／ok）口徑已喺 harness 實作。
-| **C1 PolyIR + LLBC parser** | `core/charon_llbc.rs`（std-only JSON 子集 parser，詳盡 error 唔畀靜默跳過）→ `core/polyir.rs`；烏龜 fixtures（`.llbc` snapshot 入倉） | parser 對 snapshot fixtures rt-trip 全過；未知 schema variant → hard error（唔畀靜默語義漂移） | 3–5 日 |
+| **C1 PolyIR + LLBC parser ✅（2026-09-20）** | `core/charon_llbc.rs`（std-only JSON parser，offset 級錯誤）→ `core/polyir.rs`（結構 lift：lowerable/missing 投影）；10 個 `.llbc` fixtures 入倉（`core/tests/charon_fixtures/`） | 10 fixtures parse+round-trip 全過；unknown root key/未知 body variant/缺 key 三線 hard error 測試覆蓋；pinned schema 13 keys 白名單 + body {Structured|Error|Missing} 白名單；**98/98 lib 測試綠**。殘尾：C2 lowering 接入先開 body 內容類型化 | 1 日完成 |
 | **C2 直線 + 分支 lowering** | int/bool 算術、checked-op overflow、if/match（SwitchInt→ite-clause）；接入下半段 | matrix `basic` 全類 v3↔v4 差分一致；sqr/bad `.rs` 版端到端 SAT/UNSAT 同 legacy 逐位一致；lazy/eager 時延對表 | ~1 週 |
 | **C3 loop + fuel + UNKNOWN** | LLBC 結構化 loop bounded unroll；`@fuel`/`@invariant` 口徑不變（span→源行 DSL comment 或 `#[polyrust::fuel(N)]` attr 雙軌） | loop_unknown 端到端 UNKNOWN + reason 不變；for/while/match 15 案例差分一致 | ~1 週 |
 | **C4 calls / contracts** | inline depth 默認 2 + contract 模式（`@require/@ensure` → pre/post polys）；panic-freedom 檢查面 | struct/impl/trait 案例差分推進；commercial 10 案例至少 6 案例新鏈可判（含 enterprise_ide 目標修復 false-UNSAT） | ~1 週 |

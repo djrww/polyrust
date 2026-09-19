@@ -193,7 +193,7 @@ Cargo check:
 ```
 stdout: 
 stderr:     Checking defi_audit_request_txt v0.1.0 (/tmp/polyrust_native/cargo_check_defi_audit_request_txt)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.05s
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.03s
 
 ```
 

@@ -165,7 +165,7 @@ Cargo check:
 ```
 stdout: 
 stderr:     Checking missing_semantics_txt v0.1.0 (/tmp/polyrust_native/cargo_check_missing_semantics_txt)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.05s
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.03s
 
 ```
 
