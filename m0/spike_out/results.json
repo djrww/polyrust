@@ -1,0 +1,2552 @@
+[
+ {
+  "name": "sqr",
+  "cat": "matrix/basic",
+  "status": "ok",
+  "bytes": 15711,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 3,
+   "translated.item_names": 7,
+   "translated.assoc_item_names": 2,
+   "translated.short_names": 5,
+   "translated.type_decls": 3,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 1,
+   "translated.trait_decls": 2,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 4
+  }
+ },
+ {
+  "name": "add",
+  "cat": "matrix/basic",
+  "status": "ok",
+  "bytes": 15917,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 3,
+   "translated.item_names": 7,
+   "translated.assoc_item_names": 2,
+   "translated.short_names": 5,
+   "translated.type_decls": 3,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 1,
+   "translated.trait_decls": 2,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 4
+  }
+ },
+ {
+  "name": "fact",
+  "cat": "matrix/basic",
+  "status": "ok",
+  "bytes": 20584,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 3,
+   "translated.item_names": 7,
+   "translated.assoc_item_names": 2,
+   "translated.short_names": 5,
+   "translated.type_decls": 3,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 1,
+   "translated.trait_decls": 2,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 4
+  }
+ },
+ {
+  "name": "fib",
+  "cat": "matrix/basic",
+  "status": "ok",
+  "bytes": 23189,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 3,
+   "translated.item_names": 7,
+   "translated.assoc_item_names": 2,
+   "translated.short_names": 5,
+   "translated.type_decls": 3,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 1,
+   "translated.trait_decls": 2,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 4
+  }
+ },
+ {
+  "name": "max",
+  "cat": "matrix/basic",
+  "status": "ok",
+  "bytes": 7789,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 1,
+   "translated.item_names": 2,
+   "translated.assoc_item_names": 0,
+   "translated.short_names": 1,
+   "translated.type_decls": 1,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 0,
+   "translated.trait_decls": 0,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 1
+  }
+ },
+ {
+  "name": "is_even",
+  "cat": "matrix/basic",
+  "status": "ok",
+  "bytes": 8696,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 1,
+   "translated.item_names": 2,
+   "translated.assoc_item_names": 0,
+   "translated.short_names": 1,
+   "translated.type_decls": 1,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 0,
+   "translated.trait_decls": 0,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 1
+  }
+ },
+ {
+  "name": "abs",
+  "cat": "matrix/basic",
+  "status": "ok",
+  "bytes": 8500,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 1,
+   "translated.item_names": 2,
+   "translated.assoc_item_names": 0,
+   "translated.short_names": 1,
+   "translated.type_decls": 1,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 0,
+   "translated.trait_decls": 0,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 1
+  }
+ },
+ {
+  "name": "pow",
+  "cat": "matrix/basic",
+  "status": "ok",
+  "bytes": 21440,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 3,
+   "translated.item_names": 7,
+   "translated.assoc_item_names": 2,
+   "translated.short_names": 5,
+   "translated.type_decls": 3,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 1,
+   "translated.trait_decls": 2,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 4
+  }
+ },
+ {
+  "name": "gcd",
+  "cat": "matrix/basic",
+  "status": "ok",
+  "bytes": 12506,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 1,
+   "translated.item_names": 2,
+   "translated.assoc_item_names": 0,
+   "translated.short_names": 1,
+   "translated.type_decls": 1,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 0,
+   "translated.trait_decls": 0,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 1
+  }
+ },
+ {
+  "name": "sum_range",
+  "cat": "matrix/basic",
+  "status": "ok",
+  "bytes": 23928,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 3,
+   "translated.item_names": 7,
+   "translated.assoc_item_names": 2,
+   "translated.short_names": 5,
+   "translated.type_decls": 3,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 1,
+   "translated.trait_decls": 2,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 5
+  }
+ },
+ {
+  "name": "struct_point",
+  "cat": "matrix/struct_enum",
+  "status": "ok",
+  "bytes": 28365,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 3,
+   "translated.item_names": 9,
+   "translated.assoc_item_names": 2,
+   "translated.short_names": 7,
+   "translated.type_decls": 4,
+   "translated.fun_decls": 2,
+   "translated.global_decls": 1,
+   "translated.trait_decls": 2,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 6
+  }
+ },
+ {
+  "name": "enum_option",
+  "cat": "matrix/struct_enum",
+  "status": "ok",
+  "bytes": 10791,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 1,
+   "translated.item_names": 3,
+   "translated.assoc_item_names": 0,
+   "translated.short_names": 2,
+   "translated.type_decls": 2,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 0,
+   "translated.trait_decls": 0,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 2
+  }
+ },
+ {
+  "name": "enum_result",
+  "cat": "matrix/struct_enum",
+  "status": "ok",
+  "bytes": 37154,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 6,
+   "translated.item_names": 9,
+   "translated.assoc_item_names": 1,
+   "translated.short_names": 8,
+   "translated.type_decls": 3,
+   "translated.fun_decls": 3,
+   "translated.global_decls": 0,
+   "translated.trait_decls": 1,
+   "translated.trait_impls": 2,
+   "translated.ordered_decls": 8
+  }
+ },
+ {
+  "name": "struct_rect",
+  "cat": "matrix/struct_enum",
+  "status": "ok",
+  "bytes": 18863,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 3,
+   "translated.item_names": 8,
+   "translated.assoc_item_names": 2,
+   "translated.short_names": 6,
+   "translated.type_decls": 4,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 1,
+   "translated.trait_decls": 2,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 5
+  }
+ },
+ {
+  "name": "impl_methods",
+  "cat": "matrix/struct_enum",
+  "status": "ok",
+  "bytes": 25948,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 3,
+   "translated.item_names": 10,
+   "translated.assoc_item_names": 2,
+   "translated.short_names": 8,
+   "translated.type_decls": 4,
+   "translated.fun_decls": 3,
+   "translated.global_decls": 1,
+   "translated.trait_decls": 2,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 8
+  }
+ },
+ {
+  "name": "trait_display",
+  "cat": "matrix/struct_enum",
+  "status": "ok",
+  "bytes": 96832,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 12,
+   "translated.item_names": 30,
+   "translated.assoc_item_names": 5,
+   "translated.short_names": 22,
+   "translated.type_decls": 12,
+   "translated.fun_decls": 7,
+   "translated.global_decls": 3,
+   "translated.trait_decls": 5,
+   "translated.trait_impls": 3,
+   "translated.ordered_decls": 22
+  }
+ },
+ {
+  "name": "generic_struct",
+  "cat": "matrix/struct_enum",
+  "status": "ok",
+  "bytes": 23356,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 4,
+   "translated.item_names": 9,
+   "translated.assoc_item_names": 3,
+   "translated.short_names": 8,
+   "translated.type_decls": 3,
+   "translated.fun_decls": 2,
+   "translated.global_decls": 0,
+   "translated.trait_decls": 3,
+   "translated.trait_impls": 1,
+   "translated.ordered_decls": 8
+  }
+ },
+ {
+  "name": "enum_list",
+  "cat": "matrix/struct_enum",
+  "status": "ok",
+  "bytes": 68220,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 11,
+   "translated.item_names": 28,
+   "translated.assoc_item_names": 3,
+   "translated.short_names": 19,
+   "translated.type_decls": 11,
+   "translated.fun_decls": 11,
+   "translated.global_decls": 2,
+   "translated.trait_decls": 3,
+   "translated.trait_impls": 1,
+   "translated.ordered_decls": 16
+  }
+ },
+ {
+  "name": "struct_nested",
+  "cat": "matrix/struct_enum",
+  "status": "ok",
+  "bytes": 9213,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 1,
+   "translated.item_names": 4,
+   "translated.assoc_item_names": 0,
+   "translated.short_names": 3,
+   "translated.type_decls": 3,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 0,
+   "translated.trait_decls": 0,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 3
+  }
+ },
+ {
+  "name": "enum_color",
+  "cat": "matrix/struct_enum",
+  "status": "rustc_reject",
+  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+ },
+ {
+  "name": "struct_with_enum",
+  "cat": "matrix/struct_enum",
+  "status": "ok",
+  "bytes": 12214,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 1,
+   "translated.item_names": 4,
+   "translated.assoc_item_names": 0,
+   "translated.short_names": 3,
+   "translated.type_decls": 3,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 0,
+   "translated.trait_decls": 0,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 3
+  }
+ },
+ {
+  "name": "impl_trait",
+  "cat": "matrix/struct_enum",
+  "status": "ok",
+  "bytes": 67285,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 7,
+   "translated.item_names": 26,
+   "translated.assoc_item_names": 5,
+   "translated.short_names": 19,
+   "translated.type_decls": 11,
+   "translated.fun_decls": 3,
+   "translated.global_decls": 4,
+   "translated.trait_decls": 5,
+   "translated.trait_impls": 3,
+   "translated.ordered_decls": 16
+  }
+ },
+ {
+  "name": "struct_default",
+  "cat": "matrix/struct_enum",
+  "status": "rustc_reject",
+  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+ },
+ {
+  "name": "enum_with_data",
+  "cat": "matrix/struct_enum",
+  "status": "ok",
+  "bytes": 27616,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 3,
+   "translated.item_names": 8,
+   "translated.assoc_item_names": 2,
+   "translated.short_names": 6,
+   "translated.type_decls": 4,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 1,
+   "translated.trait_decls": 2,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 5
+  }
+ },
+ {
+  "name": "struct_methods_chain",
+  "cat": "matrix/struct_enum",
+  "status": "ok",
+  "bytes": 13708,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 1,
+   "translated.item_names": 5,
+   "translated.assoc_item_names": 0,
+   "translated.short_names": 4,
+   "translated.type_decls": 2,
+   "translated.fun_decls": 3,
+   "translated.global_decls": 0,
+   "translated.trait_decls": 0,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 4
+  }
+ },
+ {
+  "name": "vec_new",
+  "cat": "matrix/vec_string",
+  "status": "ok",
+  "bytes": 91527,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 11,
+   "translated.item_names": 31,
+   "translated.assoc_item_names": 4,
+   "translated.short_names": 23,
+   "translated.type_decls": 9,
+   "translated.fun_decls": 14,
+   "translated.global_decls": 2,
+   "translated.trait_decls": 4,
+   "translated.trait_impls": 2,
+   "translated.ordered_decls": 18
+  }
+ },
+ {
+  "name": "vec_len",
+  "cat": "matrix/vec_string",
+  "status": "ok",
+  "bytes": 83386,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 11,
+   "translated.item_names": 30,
+   "translated.assoc_item_names": 4,
+   "translated.short_names": 22,
+   "translated.type_decls": 9,
+   "translated.fun_decls": 13,
+   "translated.global_decls": 2,
+   "translated.trait_decls": 4,
+   "translated.trait_impls": 2,
+   "translated.ordered_decls": 16
+  }
+ },
+ {
+  "name": "vec_get",
+  "cat": "matrix/vec_string",
+  "status": "ok",
+  "bytes": 140772,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 16,
+   "translated.item_names": 46,
+   "translated.assoc_item_names": 6,
+   "translated.short_names": 36,
+   "translated.type_decls": 12,
+   "translated.fun_decls": 20,
+   "translated.global_decls": 4,
+   "translated.trait_decls": 6,
+   "translated.trait_impls": 4,
+   "translated.ordered_decls": 26
+  }
+ },
+ {
+  "name": "vec_iter_sum",
+  "cat": "matrix/vec_string",
+  "status": "ok",
+  "bytes": 406916,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 58,
+   "translated.item_names": 223,
+   "translated.assoc_item_names": 28,
+   "translated.short_names": 181,
+   "translated.type_decls": 52,
+   "translated.fun_decls": 129,
+   "translated.global_decls": 4,
+   "translated.trait_decls": 28,
+   "translated.trait_impls": 10,
+   "translated.ordered_decls": 22
+  }
+ },
+ {
+  "name": "string_from",
+  "cat": "matrix/vec_string",
+  "status": "ok",
+  "bytes": 40848,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 6,
+   "translated.item_names": 11,
+   "translated.assoc_item_names": 3,
+   "translated.short_names": 9,
+   "translated.type_decls": 4,
+   "translated.fun_decls": 2,
+   "translated.global_decls": 1,
+   "translated.trait_decls": 3,
+   "translated.trait_impls": 1,
+   "translated.ordered_decls": 6
+  }
+ },
+ {
+  "name": "string_len",
+  "cat": "matrix/vec_string",
+  "status": "ok",
+  "bytes": 28492,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 5,
+   "translated.item_names": 7,
+   "translated.assoc_item_names": 1,
+   "translated.short_names": 6,
+   "translated.type_decls": 2,
+   "translated.fun_decls": 3,
+   "translated.global_decls": 0,
+   "translated.trait_decls": 1,
+   "translated.trait_impls": 1,
+   "translated.ordered_decls": 4
+  }
+ },
+ {
+  "name": "string_concat",
+  "cat": "matrix/vec_string",
+  "status": "ok",
+  "bytes": 66825,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 8,
+   "translated.item_names": 21,
+   "translated.assoc_item_names": 5,
+   "translated.short_names": 15,
+   "translated.type_decls": 6,
+   "translated.fun_decls": 4,
+   "translated.global_decls": 3,
+   "translated.trait_decls": 5,
+   "translated.trait_impls": 3,
+   "translated.ordered_decls": 8
+  }
+ },
+ {
+  "name": "hashmap_new",
+  "cat": "matrix/vec_string",
+  "status": "ok",
+  "bytes": 213478,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 21,
+   "translated.item_names": 92,
+   "translated.assoc_item_names": 11,
+   "translated.short_names": 76,
+   "translated.type_decls": 21,
+   "translated.fun_decls": 43,
+   "translated.global_decls": 7,
+   "translated.trait_decls": 11,
+   "translated.trait_impls": 10,
+   "translated.ordered_decls": 44
+  }
+ },
+ {
+  "name": "hashmap_get",
+  "cat": "matrix/vec_string",
+  "status": "ok",
+  "bytes": 232346,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 22,
+   "translated.item_names": 91,
+   "translated.assoc_item_names": 12,
+   "translated.short_names": 76,
+   "translated.type_decls": 18,
+   "translated.fun_decls": 44,
+   "translated.global_decls": 6,
+   "translated.trait_decls": 12,
+   "translated.trait_impls": 11,
+   "translated.ordered_decls": 46
+  }
+ },
+ {
+  "name": "vec_map",
+  "cat": "matrix/vec_string",
+  "status": "ok",
+  "bytes": 475830,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 58,
+   "translated.item_names": 241,
+   "translated.assoc_item_names": 28,
+   "translated.short_names": 199,
+   "translated.type_decls": 53,
+   "translated.fun_decls": 138,
+   "translated.global_decls": 7,
+   "translated.trait_decls": 28,
+   "translated.trait_impls": 15,
+   "translated.ordered_decls": 40
+  }
+ },
+ {
+  "name": "string_chars",
+  "cat": "matrix/vec_string",
+  "status": "ok",
+  "bytes": 368910,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 55,
+   "translated.item_names": 203,
+   "translated.assoc_item_names": 28,
+   "translated.short_names": 170,
+   "translated.type_decls": 49,
+   "translated.fun_decls": 115,
+   "translated.global_decls": 3,
+   "translated.trait_decls": 28,
+   "translated.trait_impls": 8,
+   "translated.ordered_decls": 13
+  }
+ },
+ {
+  "name": "vec_filter",
+  "cat": "matrix/vec_string",
+  "status": "ok",
+  "bytes": 489548,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 60,
+   "translated.item_names": 247,
+   "translated.assoc_item_names": 29,
+   "translated.short_names": 204,
+   "translated.type_decls": 54,
+   "translated.fun_decls": 140,
+   "translated.global_decls": 8,
+   "translated.trait_decls": 29,
+   "translated.trait_impls": 16,
+   "translated.ordered_decls": 41
+  }
+ },
+ {
+  "name": "hashmap_len",
+  "cat": "matrix/vec_string",
+  "status": "ok",
+  "bytes": 90278,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 16,
+   "translated.item_names": 31,
+   "translated.assoc_item_names": 4,
+   "translated.short_names": 23,
+   "translated.type_decls": 10,
+   "translated.fun_decls": 13,
+   "translated.global_decls": 2,
+   "translated.trait_decls": 4,
+   "translated.trait_impls": 2,
+   "translated.ordered_decls": 17
+  }
+ },
+ {
+  "name": "string_split",
+  "cat": "matrix/vec_string",
+  "status": "ok",
+  "bytes": 571378,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 63,
+   "translated.item_names": 277,
+   "translated.assoc_item_names": 34,
+   "translated.short_names": 228,
+   "translated.type_decls": 65,
+   "translated.fun_decls": 151,
+   "translated.global_decls": 10,
+   "translated.trait_decls": 34,
+   "translated.trait_impls": 17,
+   "translated.ordered_decls": 56
+  }
+ },
+ {
+  "name": "vec_sort",
+  "cat": "matrix/vec_string",
+  "status": "ok",
+  "bytes": 199456,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 18,
+   "translated.item_names": 86,
+   "translated.assoc_item_names": 11,
+   "translated.short_names": 62,
+   "translated.type_decls": 16,
+   "translated.fun_decls": 45,
+   "translated.global_decls": 6,
+   "translated.trait_decls": 11,
+   "translated.trait_impls": 8,
+   "translated.ordered_decls": 30
+  }
+ },
+ {
+  "name": "loop_break",
+  "cat": "matrix/loop_match",
+  "status": "ok",
+  "bytes": 20662,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 3,
+   "translated.item_names": 7,
+   "translated.assoc_item_names": 2,
+   "translated.short_names": 5,
+   "translated.type_decls": 3,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 1,
+   "translated.trait_decls": 2,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 5
+  }
+ },
+ {
+  "name": "while_loop",
+  "cat": "matrix/loop_match",
+  "status": "ok",
+  "bytes": 23928,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 3,
+   "translated.item_names": 7,
+   "translated.assoc_item_names": 2,
+   "translated.short_names": 5,
+   "translated.type_decls": 3,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 1,
+   "translated.trait_decls": 2,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 5
+  }
+ },
+ {
+  "name": "for_range",
+  "cat": "matrix/loop_match",
+  "status": "ok",
+  "bytes": 375296,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 52,
+   "translated.item_names": 233,
+   "translated.assoc_item_names": 28,
+   "translated.short_names": 189,
+   "translated.type_decls": 46,
+   "translated.fun_decls": 143,
+   "translated.global_decls": 5,
+   "translated.trait_decls": 28,
+   "translated.trait_impls": 11,
+   "translated.ordered_decls": 30
+  }
+ },
+ {
+  "name": "match_int",
+  "cat": "matrix/loop_match",
+  "status": "ok",
+  "bytes": 66430,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 7,
+   "translated.item_names": 21,
+   "translated.assoc_item_names": 4,
+   "translated.short_names": 15,
+   "translated.type_decls": 9,
+   "translated.fun_decls": 3,
+   "translated.global_decls": 3,
+   "translated.trait_decls": 4,
+   "translated.trait_impls": 2,
+   "translated.ordered_decls": 13
+  }
+ },
+ {
+  "name": "match_bool",
+  "cat": "matrix/loop_match",
+  "status": "ok",
+  "bytes": 5804,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 1,
+   "translated.item_names": 2,
+   "translated.assoc_item_names": 0,
+   "translated.short_names": 1,
+   "translated.type_decls": 1,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 0,
+   "translated.trait_decls": 0,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 1
+  }
+ },
+ {
+  "name": "loop_continue",
+  "cat": "matrix/loop_match",
+  "status": "ok",
+  "bytes": 380821,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 52,
+   "translated.item_names": 233,
+   "translated.assoc_item_names": 28,
+   "translated.short_names": 189,
+   "translated.type_decls": 46,
+   "translated.fun_decls": 143,
+   "translated.global_decls": 5,
+   "translated.trait_decls": 28,
+   "translated.trait_impls": 11,
+   "translated.ordered_decls": 30
+  }
+ },
+ {
+  "name": "nested_loop",
+  "cat": "matrix/loop_match",
+  "status": "ok",
+  "bytes": 384104,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 52,
+   "translated.item_names": 233,
+   "translated.assoc_item_names": 28,
+   "translated.short_names": 189,
+   "translated.type_decls": 46,
+   "translated.fun_decls": 143,
+   "translated.global_decls": 5,
+   "translated.trait_decls": 28,
+   "translated.trait_impls": 11,
+   "translated.ordered_decls": 30
+  }
+ },
+ {
+  "name": "match_guard",
+  "cat": "matrix/loop_match",
+  "status": "ok",
+  "bytes": 70051,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 7,
+   "translated.item_names": 21,
+   "translated.assoc_item_names": 4,
+   "translated.short_names": 15,
+   "translated.type_decls": 9,
+   "translated.fun_decls": 3,
+   "translated.global_decls": 3,
+   "translated.trait_decls": 4,
+   "translated.trait_impls": 2,
+   "translated.ordered_decls": 13
+  }
+ },
+ {
+  "name": "loop_return",
+  "cat": "matrix/loop_match",
+  "status": "ok",
+  "bytes": 459949,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 61,
+   "translated.item_names": 245,
+   "translated.assoc_item_names": 29,
+   "translated.short_names": 195,
+   "translated.type_decls": 53,
+   "translated.fun_decls": 146,
+   "translated.global_decls": 6,
+   "translated.trait_decls": 29,
+   "translated.trait_impls": 11,
+   "translated.ordered_decls": 29
+  }
+ },
+ {
+  "name": "while_let",
+  "cat": "matrix/loop_match",
+  "status": "ok",
+  "bytes": 96591,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 12,
+   "translated.item_names": 32,
+   "translated.assoc_item_names": 4,
+   "translated.short_names": 23,
+   "translated.type_decls": 11,
+   "translated.fun_decls": 13,
+   "translated.global_decls": 2,
+   "translated.trait_decls": 4,
+   "translated.trait_impls": 2,
+   "translated.ordered_decls": 18
+  }
+ },
+ {
+  "name": "match_option",
+  "cat": "matrix/loop_match",
+  "status": "ok",
+  "bytes": 16172,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 4,
+   "translated.item_names": 7,
+   "translated.assoc_item_names": 2,
+   "translated.short_names": 6,
+   "translated.type_decls": 3,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 1,
+   "translated.trait_decls": 2,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 4
+  }
+ },
+ {
+  "name": "match_result",
+  "cat": "matrix/loop_match",
+  "status": "ok",
+  "bytes": 40416,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 6,
+   "translated.item_names": 11,
+   "translated.assoc_item_names": 3,
+   "translated.short_names": 10,
+   "translated.type_decls": 4,
+   "translated.fun_decls": 2,
+   "translated.global_decls": 1,
+   "translated.trait_decls": 3,
+   "translated.trait_impls": 1,
+   "translated.ordered_decls": 6
+  }
+ },
+ {
+  "name": "for_enumerate",
+  "cat": "matrix/loop_match",
+  "status": "ok",
+  "bytes": 473394,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 63,
+   "translated.item_names": 250,
+   "translated.assoc_item_names": 30,
+   "translated.short_names": 199,
+   "translated.type_decls": 54,
+   "translated.fun_decls": 147,
+   "translated.global_decls": 7,
+   "translated.trait_decls": 30,
+   "translated.trait_impls": 12,
+   "translated.ordered_decls": 30
+  }
+ },
+ {
+  "name": "loop_invariant",
+  "cat": "matrix/loop_match",
+  "status": "ok",
+  "bytes": 23911,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 3,
+   "translated.item_names": 7,
+   "translated.assoc_item_names": 2,
+   "translated.short_names": 5,
+   "translated.type_decls": 3,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 1,
+   "translated.trait_decls": 2,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 5
+  }
+ },
+ {
+  "name": "match_tuple",
+  "cat": "matrix/loop_match",
+  "status": "ok",
+  "bytes": 15359,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 3,
+   "translated.item_names": 7,
+   "translated.assoc_item_names": 2,
+   "translated.short_names": 5,
+   "translated.type_decls": 3,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 1,
+   "translated.trait_decls": 2,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 4
+  }
+ },
+ {
+  "name": "borrow_immut",
+  "cat": "matrix/borrowck",
+  "status": "ok",
+  "bytes": 5006,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 1,
+   "translated.item_names": 2,
+   "translated.assoc_item_names": 0,
+   "translated.short_names": 1,
+   "translated.type_decls": 1,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 0,
+   "translated.trait_decls": 0,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 1
+  }
+ },
+ {
+  "name": "borrow_mut",
+  "cat": "matrix/borrowck",
+  "status": "ok",
+  "bytes": 17765,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 3,
+   "translated.item_names": 7,
+   "translated.assoc_item_names": 2,
+   "translated.short_names": 5,
+   "translated.type_decls": 3,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 1,
+   "translated.trait_decls": 2,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 5
+  }
+ },
+ {
+  "name": "move_semantic",
+  "cat": "matrix/borrowck",
+  "status": "ok",
+  "bytes": 26631,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 5,
+   "translated.item_names": 6,
+   "translated.assoc_item_names": 1,
+   "translated.short_names": 5,
+   "translated.type_decls": 2,
+   "translated.fun_decls": 2,
+   "translated.global_decls": 0,
+   "translated.trait_decls": 1,
+   "translated.trait_impls": 1,
+   "translated.ordered_decls": 3
+  }
+ },
+ {
+  "name": "lifetime_simple",
+  "cat": "matrix/borrowck",
+  "status": "ok",
+  "bytes": 19731,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 4,
+   "translated.item_names": 8,
+   "translated.assoc_item_names": 2,
+   "translated.short_names": 6,
+   "translated.type_decls": 3,
+   "translated.fun_decls": 2,
+   "translated.global_decls": 1,
+   "translated.trait_decls": 2,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 5
+  }
+ },
+ {
+  "name": "borrow_two",
+  "cat": "matrix/borrowck",
+  "status": "ok",
+  "bytes": 16524,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 3,
+   "translated.item_names": 7,
+   "translated.assoc_item_names": 2,
+   "translated.short_names": 5,
+   "translated.type_decls": 3,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 1,
+   "translated.trait_decls": 2,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 4
+  }
+ },
+ {
+  "name": "mut_borrow_exclusive",
+  "cat": "matrix/borrowck",
+  "status": "ok",
+  "bytes": 20350,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 3,
+   "translated.item_names": 7,
+   "translated.assoc_item_names": 2,
+   "translated.short_names": 5,
+   "translated.type_decls": 3,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 1,
+   "translated.trait_decls": 2,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 5
+  }
+ },
+ {
+  "name": "nll_region",
+  "cat": "matrix/borrowck",
+  "status": "ok",
+  "bytes": 8226,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 1,
+   "translated.item_names": 2,
+   "translated.assoc_item_names": 0,
+   "translated.short_names": 1,
+   "translated.type_decls": 1,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 0,
+   "translated.trait_decls": 0,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 2
+  }
+ },
+ {
+  "name": "outlives",
+  "cat": "matrix/borrowck",
+  "status": "ok",
+  "bytes": 16649,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 3,
+   "translated.item_names": 7,
+   "translated.assoc_item_names": 2,
+   "translated.short_names": 5,
+   "translated.type_decls": 3,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 1,
+   "translated.trait_decls": 2,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 4
+  }
+ },
+ {
+  "name": "borrow_in_loop",
+  "cat": "matrix/borrowck",
+  "status": "ok",
+  "bytes": 428960,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 61,
+   "translated.item_names": 237,
+   "translated.assoc_item_names": 30,
+   "translated.short_names": 188,
+   "translated.type_decls": 54,
+   "translated.fun_decls": 137,
+   "translated.global_decls": 6,
+   "translated.trait_decls": 30,
+   "translated.trait_impls": 10,
+   "translated.ordered_decls": 24
+  }
+ },
+ {
+  "name": "move_closure",
+  "cat": "matrix/borrowck",
+  "status": "ok",
+  "bytes": 63548,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 5,
+   "translated.item_names": 25,
+   "translated.assoc_item_names": 7,
+   "translated.short_names": 18,
+   "translated.type_decls": 7,
+   "translated.fun_decls": 4,
+   "translated.global_decls": 4,
+   "translated.trait_decls": 7,
+   "translated.trait_impls": 3,
+   "translated.ordered_decls": 16
+  }
+ },
+ {
+  "name": "ref_deref",
+  "cat": "matrix/borrowck",
+  "status": "rustc_reject",
+  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+ },
+ {
+  "name": "lifetime_struct",
+  "cat": "matrix/borrowck",
+  "status": "ok",
+  "bytes": 15733,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 3,
+   "translated.item_names": 8,
+   "translated.assoc_item_names": 2,
+   "translated.short_names": 6,
+   "translated.type_decls": 4,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 1,
+   "translated.trait_decls": 2,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 5
+  }
+ },
+ {
+  "name": "borrow_match",
+  "cat": "matrix/borrowck",
+  "status": "ok",
+  "bytes": 16851,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 4,
+   "translated.item_names": 7,
+   "translated.assoc_item_names": 2,
+   "translated.short_names": 6,
+   "translated.type_decls": 3,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 1,
+   "translated.trait_decls": 2,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 4
+  }
+ },
+ {
+  "name": "mut_borrow_split",
+  "cat": "matrix/borrowck",
+  "status": "ok",
+  "bytes": 121484,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 14,
+   "translated.item_names": 38,
+   "translated.assoc_item_names": 5,
+   "translated.short_names": 27,
+   "translated.type_decls": 12,
+   "translated.fun_decls": 14,
+   "translated.global_decls": 4,
+   "translated.trait_decls": 5,
+   "translated.trait_impls": 3,
+   "translated.ordered_decls": 17
+  }
+ },
+ {
+  "name": "lifetime_elision",
+  "cat": "matrix/borrowck",
+  "status": "ok",
+  "bytes": 383235,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 53,
+   "translated.item_names": 223,
+   "translated.assoc_item_names": 30,
+   "translated.short_names": 186,
+   "translated.type_decls": 52,
+   "translated.fun_decls": 130,
+   "translated.global_decls": 3,
+   "translated.trait_decls": 30,
+   "translated.trait_impls": 8,
+   "translated.ordered_decls": 22
+  }
+ },
+ {
+  "name": "raw_ptr_valid",
+  "cat": "matrix/unsafe",
+  "status": "ok",
+  "bytes": 10369,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 1,
+   "translated.item_names": 2,
+   "translated.assoc_item_names": 0,
+   "translated.short_names": 1,
+   "translated.type_decls": 1,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 0,
+   "translated.trait_decls": 0,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 2
+  }
+ },
+ {
+  "name": "raw_ptr_box",
+  "cat": "matrix/unsafe",
+  "status": "ok",
+  "bytes": 82925,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 11,
+   "translated.item_names": 32,
+   "translated.assoc_item_names": 4,
+   "translated.short_names": 24,
+   "translated.type_decls": 9,
+   "translated.fun_decls": 15,
+   "translated.global_decls": 2,
+   "translated.trait_decls": 4,
+   "translated.trait_impls": 2,
+   "translated.ordered_decls": 18
+  }
+ },
+ {
+  "name": "static_mut_exclusive",
+  "cat": "matrix/unsafe",
+  "status": "ok",
+  "bytes": 20935,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 3,
+   "translated.item_names": 9,
+   "translated.assoc_item_names": 2,
+   "translated.short_names": 7,
+   "translated.type_decls": 3,
+   "translated.fun_decls": 2,
+   "translated.global_decls": 2,
+   "translated.trait_decls": 2,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 7
+  }
+ },
+ {
+  "name": "static_mut_mutex",
+  "cat": "matrix/unsafe",
+  "status": "ok",
+  "bytes": 143106,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 11,
+   "translated.item_names": 38,
+   "translated.assoc_item_names": 6,
+   "translated.short_names": 31,
+   "translated.type_decls": 12,
+   "translated.fun_decls": 10,
+   "translated.global_decls": 5,
+   "translated.trait_decls": 6,
+   "translated.trait_impls": 5,
+   "translated.ordered_decls": 22
+  }
+ },
+ {
+  "name": "union_tag",
+  "cat": "matrix/unsafe",
+  "status": "ok",
+  "bytes": 7883,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 1,
+   "translated.item_names": 3,
+   "translated.assoc_item_names": 0,
+   "translated.short_names": 2,
+   "translated.type_decls": 2,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 0,
+   "translated.trait_decls": 0,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 2
+  }
+ },
+ {
+  "name": "unsafe_fn_precond",
+  "cat": "matrix/unsafe",
+  "status": "ok",
+  "bytes": 19986,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 3,
+   "translated.item_names": 8,
+   "translated.assoc_item_names": 2,
+   "translated.short_names": 6,
+   "translated.type_decls": 3,
+   "translated.fun_decls": 2,
+   "translated.global_decls": 1,
+   "translated.trait_decls": 2,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 6
+  }
+ },
+ {
+  "name": "unsafe_trait_invariant",
+  "cat": "matrix/unsafe",
+  "status": "ok",
+  "bytes": 8692,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 3,
+   "translated.item_names": 9,
+   "translated.assoc_item_names": 2,
+   "translated.short_names": 5,
+   "translated.type_decls": 4,
+   "translated.fun_decls": 0,
+   "translated.global_decls": 2,
+   "translated.trait_decls": 2,
+   "translated.trait_impls": 1,
+   "translated.ordered_decls": 4
+  }
+ },
+ {
+  "name": "raw_ptr_missing_src",
+  "cat": "matrix/unsafe",
+  "status": "ok",
+  "bytes": 195305,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 14,
+   "translated.item_names": 90,
+   "translated.assoc_item_names": 19,
+   "translated.short_names": 73,
+   "translated.type_decls": 17,
+   "translated.fun_decls": 39,
+   "translated.global_decls": 8,
+   "translated.trait_decls": 19,
+   "translated.trait_impls": 7,
+   "translated.ordered_decls": 38
+  }
+ },
+ {
+  "name": "static_mut_missing",
+  "cat": "matrix/unsafe",
+  "status": "ok",
+  "bytes": 10872,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 1,
+   "translated.item_names": 4,
+   "translated.assoc_item_names": 0,
+   "translated.short_names": 3,
+   "translated.type_decls": 1,
+   "translated.fun_decls": 2,
+   "translated.global_decls": 1,
+   "translated.trait_decls": 0,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 4
+  }
+ },
+ {
+  "name": "union_missing",
+  "cat": "matrix/unsafe",
+  "status": "ok",
+  "bytes": 7815,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 1,
+   "translated.item_names": 3,
+   "translated.assoc_item_names": 0,
+   "translated.short_names": 2,
+   "translated.type_decls": 2,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 0,
+   "translated.trait_decls": 0,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 2
+  }
+ },
+ {
+  "name": "async_simple",
+  "cat": "matrix/async_io",
+  "status": "ok_with_missing",
+  "bytes": 3784,
+  "missing_marks": 1,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 1,
+   "translated.item_names": 2,
+   "translated.assoc_item_names": 0,
+   "translated.short_names": 1,
+   "translated.type_decls": 1,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 0,
+   "translated.trait_decls": 0,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 1
+  }
+ },
+ {
+  "name": "async_await",
+  "cat": "matrix/async_io",
+  "status": "ok_with_missing",
+  "bytes": 4682,
+  "missing_marks": 1,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 1,
+   "translated.item_names": 3,
+   "translated.assoc_item_names": 0,
+   "translated.short_names": 2,
+   "translated.type_decls": 1,
+   "translated.fun_decls": 2,
+   "translated.global_decls": 0,
+   "translated.trait_decls": 0,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 2
+  }
+ },
+ {
+  "name": "io_pure",
+  "cat": "matrix/async_io",
+  "status": "ok",
+  "bytes": 15304,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 3,
+   "translated.item_names": 7,
+   "translated.assoc_item_names": 2,
+   "translated.short_names": 5,
+   "translated.type_decls": 3,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 1,
+   "translated.trait_decls": 2,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 4
+  }
+ },
+ {
+  "name": "io_effect",
+  "cat": "matrix/async_io",
+  "status": "ok",
+  "bytes": 21469,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 8,
+   "translated.item_names": 10,
+   "translated.assoc_item_names": 2,
+   "translated.short_names": 8,
+   "translated.type_decls": 4,
+   "translated.fun_decls": 3,
+   "translated.global_decls": 1,
+   "translated.trait_decls": 2,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 8
+  }
+ },
+ {
+  "name": "async_spawn",
+  "cat": "matrix/async_io",
+  "status": "rustc_reject",
+  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+ },
+ {
+  "name": "future_combinator",
+  "cat": "matrix/async_io",
+  "status": "ok_with_missing",
+  "bytes": 3767,
+  "missing_marks": 1,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 1,
+   "translated.item_names": 2,
+   "translated.assoc_item_names": 0,
+   "translated.short_names": 1,
+   "translated.type_decls": 1,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 0,
+   "translated.trait_decls": 0,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 1
+  }
+ },
+ {
+  "name": "io_file",
+  "cat": "matrix/async_io",
+  "status": "ok",
+  "bytes": 58749,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 12,
+   "translated.item_names": 20,
+   "translated.assoc_item_names": 3,
+   "translated.short_names": 15,
+   "translated.type_decls": 8,
+   "translated.fun_decls": 4,
+   "translated.global_decls": 3,
+   "translated.trait_decls": 3,
+   "translated.trait_impls": 2,
+   "translated.ordered_decls": 14
+  }
+ },
+ {
+  "name": "async_loop",
+  "cat": "matrix/async_io",
+  "status": "ok_with_missing",
+  "bytes": 3828,
+  "missing_marks": 1,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 1,
+   "translated.item_names": 2,
+   "translated.assoc_item_names": 0,
+   "translated.short_names": 1,
+   "translated.type_decls": 1,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 0,
+   "translated.trait_decls": 0,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 1
+  }
+ },
+ {
+  "name": "pure_no_io",
+  "cat": "matrix/async_io",
+  "status": "ok",
+  "bytes": 421514,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 61,
+   "translated.item_names": 234,
+   "translated.assoc_item_names": 29,
+   "translated.short_names": 184,
+   "translated.type_decls": 53,
+   "translated.fun_decls": 138,
+   "translated.global_decls": 4,
+   "translated.trait_decls": 29,
+   "translated.trait_impls": 10,
+   "translated.ordered_decls": 27
+  }
+ },
+ {
+  "name": "io_with_pure_call",
+  "cat": "matrix/async_io",
+  "status": "ok",
+  "bytes": 69700,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 11,
+   "translated.item_names": 22,
+   "translated.assoc_item_names": 3,
+   "translated.short_names": 16,
+   "translated.type_decls": 10,
+   "translated.fun_decls": 6,
+   "translated.global_decls": 2,
+   "translated.trait_decls": 3,
+   "translated.trait_impls": 1,
+   "translated.ordered_decls": 18
+  }
+ },
+ {
+  "name": "password_gen",
+  "cat": "matrix/commercial",
+  "status": "ok",
+  "bytes": 37299,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 6,
+   "translated.item_names": 11,
+   "translated.assoc_item_names": 2,
+   "translated.short_names": 9,
+   "translated.type_decls": 5,
+   "translated.fun_decls": 3,
+   "translated.global_decls": 1,
+   "translated.trait_decls": 2,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 8
+  }
+ },
+ {
+  "name": "text_buffer",
+  "cat": "matrix/commercial",
+  "status": "ok",
+  "bytes": 36080,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 5,
+   "translated.item_names": 9,
+   "translated.assoc_item_names": 1,
+   "translated.short_names": 6,
+   "translated.type_decls": 3,
+   "translated.fun_decls": 4,
+   "translated.global_decls": 0,
+   "translated.trait_decls": 1,
+   "translated.trait_impls": 1,
+   "translated.ordered_decls": 6
+  }
+ },
+ {
+  "name": "file_tree",
+  "cat": "matrix/commercial",
+  "status": "ok",
+  "bytes": 23974,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 3,
+   "translated.item_names": 4,
+   "translated.assoc_item_names": 0,
+   "translated.short_names": 3,
+   "translated.type_decls": 3,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 0,
+   "translated.trait_decls": 0,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 3
+  }
+ },
+ {
+  "name": "reactive_ui",
+  "cat": "matrix/commercial",
+  "status": "ok",
+  "bytes": 105123,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 13,
+   "translated.item_names": 34,
+   "translated.assoc_item_names": 4,
+   "translated.short_names": 26,
+   "translated.type_decls": 11,
+   "translated.fun_decls": 14,
+   "translated.global_decls": 2,
+   "translated.trait_decls": 4,
+   "translated.trait_impls": 3,
+   "translated.ordered_decls": 19
+  }
+ },
+ {
+  "name": "enterprise_ide",
+  "cat": "matrix/commercial",
+  "status": "ok",
+  "bytes": 197498,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 20,
+   "translated.item_names": 84,
+   "translated.assoc_item_names": 9,
+   "translated.short_names": 68,
+   "translated.type_decls": 18,
+   "translated.fun_decls": 43,
+   "translated.global_decls": 5,
+   "translated.trait_decls": 9,
+   "translated.trait_impls": 9,
+   "translated.ordered_decls": 41
+  }
+ },
+ {
+  "name": "defi_audit",
+  "cat": "matrix/commercial",
+  "status": "ok",
+  "bytes": 110138,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 10,
+   "translated.item_names": 51,
+   "translated.assoc_item_names": 7,
+   "translated.short_names": 36,
+   "translated.type_decls": 13,
+   "translated.fun_decls": 24,
+   "translated.global_decls": 3,
+   "translated.trait_decls": 7,
+   "translated.trait_impls": 4,
+   "translated.ordered_decls": 19
+  }
+ },
+ {
+  "name": "embedded_cert",
+  "cat": "matrix/commercial",
+  "status": "ok",
+  "bytes": 98384,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 11,
+   "translated.item_names": 29,
+   "translated.assoc_item_names": 4,
+   "translated.short_names": 23,
+   "translated.type_decls": 11,
+   "translated.fun_decls": 8,
+   "translated.global_decls": 3,
+   "translated.trait_decls": 4,
+   "translated.trait_impls": 3,
+   "translated.ordered_decls": 22
+  }
+ },
+ {
+  "name": "llm_guardrail",
+  "cat": "matrix/commercial",
+  "status": "ok",
+  "bytes": 111419,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 10,
+   "translated.item_names": 50,
+   "translated.assoc_item_names": 7,
+   "translated.short_names": 35,
+   "translated.type_decls": 12,
+   "translated.fun_decls": 24,
+   "translated.global_decls": 3,
+   "translated.trait_decls": 7,
+   "translated.trait_impls": 4,
+   "translated.ordered_decls": 18
+  }
+ },
+ {
+  "name": "web3_audit",
+  "cat": "matrix/commercial",
+  "status": "ok",
+  "bytes": 31891,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 5,
+   "translated.item_names": 8,
+   "translated.assoc_item_names": 1,
+   "translated.short_names": 7,
+   "translated.type_decls": 3,
+   "translated.fun_decls": 3,
+   "translated.global_decls": 0,
+   "translated.trait_decls": 1,
+   "translated.trait_impls": 1,
+   "translated.ordered_decls": 5
+  }
+ },
+ {
+  "name": "self_evolving",
+  "cat": "matrix/commercial",
+  "status": "ok",
+  "bytes": 91990,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 11,
+   "translated.item_names": 25,
+   "translated.assoc_item_names": 4,
+   "translated.short_names": 20,
+   "translated.type_decls": 10,
+   "translated.fun_decls": 7,
+   "translated.global_decls": 2,
+   "translated.trait_decls": 4,
+   "translated.trait_impls": 2,
+   "translated.ordered_decls": 19
+  }
+ },
+ {
+  "name": "examples/arith",
+  "cat": "examples",
+  "status": "ok",
+  "bytes": 42287,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 3,
+   "translated.item_names": 10,
+   "translated.assoc_item_names": 2,
+   "translated.short_names": 8,
+   "translated.type_decls": 3,
+   "translated.fun_decls": 4,
+   "translated.global_decls": 1,
+   "translated.trait_decls": 2,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 8
+  }
+ },
+ {
+  "name": "examples/bad",
+  "cat": "examples",
+  "status": "rustc_reject",
+  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+ },
+ {
+  "name": "examples/demo_7plusI",
+  "cat": "examples",
+  "status": "rustc_reject",
+  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+ },
+ {
+  "name": "examples/demo_phase2",
+  "cat": "examples",
+  "status": "rustc_reject",
+  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+ },
+ {
+  "name": "examples/full_syntax",
+  "cat": "examples",
+  "status": "rustc_reject",
+  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+ },
+ {
+  "name": "examples/sqr",
+  "cat": "examples",
+  "status": "ok",
+  "bytes": 30583,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 3,
+   "translated.item_names": 8,
+   "translated.assoc_item_names": 2,
+   "translated.short_names": 6,
+   "translated.type_decls": 3,
+   "translated.fun_decls": 2,
+   "translated.global_decls": 1,
+   "translated.trait_decls": 2,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 6
+  }
+ },
+ {
+  "name": "examples/template",
+  "cat": "examples",
+  "status": "rustc_reject",
+  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+ },
+ {
+  "name": "phase3/async_sat",
+  "cat": "examples",
+  "status": "ok_with_missing",
+  "bytes": 11496,
+  "missing_marks": 1,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 3,
+   "translated.item_names": 4,
+   "translated.assoc_item_names": 1,
+   "translated.short_names": 3,
+   "translated.type_decls": 1,
+   "translated.fun_decls": 2,
+   "translated.global_decls": 0,
+   "translated.trait_decls": 1,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 4
+  }
+ },
+ {
+  "name": "phase3/async_unknown",
+  "cat": "examples",
+  "status": "rustc_reject",
+  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+ },
+ {
+  "name": "phase3/async_unsat",
+  "cat": "examples",
+  "status": "rustc_reject",
+  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+ },
+ {
+  "name": "phase3/break_sat",
+  "cat": "examples",
+  "status": "ok",
+  "bytes": 26588,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 3,
+   "translated.item_names": 7,
+   "translated.assoc_item_names": 2,
+   "translated.short_names": 5,
+   "translated.type_decls": 3,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 1,
+   "translated.trait_decls": 2,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 5
+  }
+ },
+ {
+  "name": "phase3/break_unsat",
+  "cat": "examples",
+  "status": "rustc_reject",
+  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+ },
+ {
+  "name": "phase3/cast_sat",
+  "cat": "examples",
+  "status": "rustc_reject",
+  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+ },
+ {
+  "name": "phase3/cast_unsat",
+  "cat": "examples",
+  "status": "rustc_reject",
+  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+ },
+ {
+  "name": "phase3/closure_sat",
+  "cat": "examples",
+  "status": "ok",
+  "bytes": 268036,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 18,
+   "translated.item_names": 95,
+   "translated.assoc_item_names": 8,
+   "translated.short_names": 77,
+   "translated.type_decls": 22,
+   "translated.fun_decls": 30,
+   "translated.global_decls": 17,
+   "translated.trait_decls": 8,
+   "translated.trait_impls": 18,
+   "translated.ordered_decls": 62
+  }
+ },
+ {
+  "name": "phase3/closure_unsat",
+  "cat": "examples",
+  "status": "rustc_reject",
+  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+ },
+ {
+  "name": "phase3/io_sat",
+  "cat": "examples",
+  "status": "rustc_reject",
+  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+ },
+ {
+  "name": "phase3/io_unknown",
+  "cat": "examples",
+  "status": "rustc_reject",
+  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+ },
+ {
+  "name": "phase3/io_unsat",
+  "cat": "examples",
+  "status": "rustc_reject",
+  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+ },
+ {
+  "name": "phase3/lifetime_sat",
+  "cat": "examples",
+  "status": "ok",
+  "bytes": 20004,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 3,
+   "translated.item_names": 8,
+   "translated.assoc_item_names": 2,
+   "translated.short_names": 6,
+   "translated.type_decls": 3,
+   "translated.fun_decls": 2,
+   "translated.global_decls": 1,
+   "translated.trait_decls": 2,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 6
+  }
+ },
+ {
+  "name": "phase3/lifetime_unknown",
+  "cat": "examples",
+  "status": "ok",
+  "bytes": 16789,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 3,
+   "translated.item_names": 8,
+   "translated.assoc_item_names": 2,
+   "translated.short_names": 6,
+   "translated.type_decls": 3,
+   "translated.fun_decls": 2,
+   "translated.global_decls": 1,
+   "translated.trait_decls": 2,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 6
+  }
+ },
+ {
+  "name": "phase3/lifetime_unsat",
+  "cat": "examples",
+  "status": "ok",
+  "bytes": 6277,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 1,
+   "translated.item_names": 2,
+   "translated.assoc_item_names": 0,
+   "translated.short_names": 1,
+   "translated.type_decls": 1,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 0,
+   "translated.trait_decls": 0,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 2
+  }
+ },
+ {
+  "name": "phase3/loop_sat",
+  "cat": "examples",
+  "status": "ok",
+  "bytes": 20334,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 3,
+   "translated.item_names": 7,
+   "translated.assoc_item_names": 2,
+   "translated.short_names": 5,
+   "translated.type_decls": 3,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 1,
+   "translated.trait_decls": 2,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 5
+  }
+ },
+ {
+  "name": "phase3/loop_unknown",
+  "cat": "examples",
+  "status": "ok",
+  "bytes": 20337,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 3,
+   "translated.item_names": 7,
+   "translated.assoc_item_names": 2,
+   "translated.short_names": 5,
+   "translated.type_decls": 3,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 1,
+   "translated.trait_decls": 2,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 5
+  }
+ },
+ {
+  "name": "phase3/loop_unsat",
+  "cat": "examples",
+  "status": "ok",
+  "bytes": 20283,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 3,
+   "translated.item_names": 7,
+   "translated.assoc_item_names": 2,
+   "translated.short_names": 5,
+   "translated.type_decls": 3,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 1,
+   "translated.trait_decls": 2,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 5
+  }
+ },
+ {
+  "name": "phase3/match_sat",
+  "cat": "examples",
+  "status": "rustc_reject",
+  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+ },
+ {
+  "name": "phase3/match_unknown",
+  "cat": "examples",
+  "status": "ok",
+  "bytes": 52125,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 6,
+   "translated.item_names": 12,
+   "translated.assoc_item_names": 3,
+   "translated.short_names": 11,
+   "translated.type_decls": 5,
+   "translated.fun_decls": 2,
+   "translated.global_decls": 1,
+   "translated.trait_decls": 3,
+   "translated.trait_impls": 1,
+   "translated.ordered_decls": 10
+  }
+ },
+ {
+  "name": "phase3/match_unsat",
+  "cat": "examples",
+  "status": "rustc_reject",
+  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+ },
+ {
+  "name": "phase3/mod_sat",
+  "cat": "examples",
+  "status": "ok",
+  "bytes": 12657,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 1,
+   "translated.item_names": 4,
+   "translated.assoc_item_names": 0,
+   "translated.short_names": 3,
+   "translated.type_decls": 2,
+   "translated.fun_decls": 2,
+   "translated.global_decls": 0,
+   "translated.trait_decls": 0,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 4
+  }
+ },
+ {
+  "name": "phase3/mod_unknown",
+  "cat": "examples",
+  "status": "ok",
+  "bytes": 11820,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 1,
+   "translated.item_names": 4,
+   "translated.assoc_item_names": 0,
+   "translated.short_names": 3,
+   "translated.type_decls": 2,
+   "translated.fun_decls": 2,
+   "translated.global_decls": 0,
+   "translated.trait_decls": 0,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 4
+  }
+ },
+ {
+  "name": "phase3/mod_unsat",
+  "cat": "examples",
+  "status": "rustc_reject",
+  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+ },
+ {
+  "name": "phase3/pat_or_sat",
+  "cat": "examples",
+  "status": "rustc_reject",
+  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+ },
+ {
+  "name": "phase3/pat_or_unsat",
+  "cat": "examples",
+  "status": "rustc_reject",
+  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+ },
+ {
+  "name": "phase3/pat_range_sat",
+  "cat": "examples",
+  "status": "ok",
+  "bytes": 24491,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 1,
+   "translated.item_names": 2,
+   "translated.assoc_item_names": 0,
+   "translated.short_names": 1,
+   "translated.type_decls": 1,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 0,
+   "translated.trait_decls": 0,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 2
+  }
+ },
+ {
+  "name": "phase3/pat_range_unsat",
+  "cat": "examples",
+  "status": "rustc_reject",
+  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+ },
+ {
+  "name": "phase3/return_break_sat",
+  "cat": "examples",
+  "status": "ok",
+  "bytes": 33395,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 3,
+   "translated.item_names": 8,
+   "translated.assoc_item_names": 2,
+   "translated.short_names": 6,
+   "translated.type_decls": 3,
+   "translated.fun_decls": 2,
+   "translated.global_decls": 1,
+   "translated.trait_decls": 2,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 6
+  }
+ },
+ {
+  "name": "phase3/return_break_unsat",
+  "cat": "examples",
+  "status": "rustc_reject",
+  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+ },
+ {
+  "name": "phase3/return_sat",
+  "cat": "examples",
+  "status": "ok",
+  "bytes": 23790,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 3,
+   "translated.item_names": 8,
+   "translated.assoc_item_names": 2,
+   "translated.short_names": 6,
+   "translated.type_decls": 3,
+   "translated.fun_decls": 2,
+   "translated.global_decls": 1,
+   "translated.trait_decls": 2,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 6
+  }
+ },
+ {
+  "name": "phase3/return_unsat",
+  "cat": "examples",
+  "status": "rustc_reject",
+  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+ },
+ {
+  "name": "phase3/struct_sat",
+  "cat": "examples",
+  "status": "ok",
+  "bytes": 76038,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 6,
+   "translated.item_names": 21,
+   "translated.assoc_item_names": 4,
+   "translated.short_names": 15,
+   "translated.type_decls": 8,
+   "translated.fun_decls": 5,
+   "translated.global_decls": 2,
+   "translated.trait_decls": 4,
+   "translated.trait_impls": 2,
+   "translated.ordered_decls": 15
+  }
+ },
+ {
+  "name": "phase3/struct_unknown",
+  "cat": "examples",
+  "status": "rustc_reject",
+  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+ },
+ {
+  "name": "phase3/struct_unsat",
+  "cat": "examples",
+  "status": "rustc_reject",
+  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+ },
+ {
+  "name": "phase3/try_cast_sat",
+  "cat": "examples",
+  "status": "rustc_reject",
+  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+ },
+ {
+  "name": "phase3/try_cast_unsat",
+  "cat": "examples",
+  "status": "rustc_reject",
+  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+ },
+ {
+  "name": "phase3/try_sat",
+  "cat": "examples",
+  "status": "rustc_reject",
+  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+ },
+ {
+  "name": "phase3/try_unsat",
+  "cat": "examples",
+  "status": "rustc_reject",
+  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+ },
+ {
+  "name": "phase3/unsafe_sat",
+  "cat": "examples",
+  "status": "ok",
+  "bytes": 7606,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 1,
+   "translated.item_names": 2,
+   "translated.assoc_item_names": 0,
+   "translated.short_names": 1,
+   "translated.type_decls": 1,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 0,
+   "translated.trait_decls": 0,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 2
+  }
+ },
+ {
+  "name": "phase3/unsafe_unknown",
+  "cat": "examples",
+  "status": "ok",
+  "bytes": 10351,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 1,
+   "translated.item_names": 2,
+   "translated.assoc_item_names": 0,
+   "translated.short_names": 1,
+   "translated.type_decls": 1,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 0,
+   "translated.trait_decls": 0,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 2
+  }
+ },
+ {
+  "name": "phase3/unsafe_unsat",
+  "cat": "examples",
+  "status": "ok",
+  "bytes": 8804,
+  "missing_marks": 0,
+  "top_lists": {
+   "translated.target_information": 1,
+   "translated.files": 1,
+   "translated.item_names": 2,
+   "translated.assoc_item_names": 0,
+   "translated.short_names": 1,
+   "translated.type_decls": 1,
+   "translated.fun_decls": 1,
+   "translated.global_decls": 0,
+   "translated.trait_decls": 0,
+   "translated.trait_impls": 0,
+   "translated.ordered_decls": 2
+  }
+ },
+ {
+  "name": "phase3/vec_sat",
+  "cat": "examples",
+  "status": "rustc_reject",
+  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+ },
+ {
+  "name": "phase3/vec_unknown",
+  "cat": "examples",
+  "status": "rustc_reject",
+  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+ },
+ {
+  "name": "phase3/vec_unsat",
+  "cat": "examples",
+  "status": "rustc_reject",
+  "first_err": "warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the "
+ }
+]
