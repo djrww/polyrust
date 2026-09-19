@@ -1,0 +1,12 @@
+# Charon 工具鏈 pin（C0，2026-09-19）
+# 由 scripts/c0_spike.py / CI canary job 消費；升級必須走顯式 PR 並重跑 spike。
+charon_commit: ca501af6b8abfc65cc67980cf312388de68b8c67
+charon_repo: https://github.com/AeneasVerif/charon
+charon_version: 0.1.265
+rust_toolchain: nightly-2026-09-17
+rust_components: [rustc-dev, llvm-tools, rust-src]  # miri 僅 charon 自身測試用，spike 不需要
+license: Apache-2.0  # 外部進程 + 資料格式消費，與本倉 AGPL+Commercial 無衝突
+pinned_at: 2026-09-19
+notes: |
+  charon/Cargo.lock 隨 commit pin；llbc JSON schema 非穩定接口——
+  schema 變動需配合 core/charon_llbc.rs（C1）exhaustive parser + snapshot fixtures。

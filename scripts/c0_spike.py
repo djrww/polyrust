@@ -1,0 +1,149 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
+# c0_spike.py — Charon C0 Spike harness（CHARON_POLYIR_BLUEPRINT.md C0）
+#
+# 將語義矩陣 100 案例 + examples/*.poly + examples/phase3/*.poly
+# 脫水（去掉 polyrust DSL `# ...` 行）成純 Rust，逐一餵 Charon，記錄：
+#   ok / ok_with_missing / rustc_reject（地真值 UNSAT：型別錯誤，含 E0614 類）/ charon_err
+# 輸出 spike_out/results.json + summary.md；並挑 6 個代表作 llbc fixture。
+#
+# 用法：python3 scripts/c0_spike.py --charon /path/to/charon --out spike_out
+#
+import argparse, json, os, re, shutil, subprocess, sys, tempfile
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def sanitize(src: str) -> str:
+    """去掉 polyrust DSL 註釋行（`# ...`）——rustc 視 `#` 為屬性開頭，原樣餵入必 syntax error。"""
+    lines = [ln for ln in src.splitlines() if not ln.lstrip().startswith("#")]
+    return "\n".join(lines) + "\n"
+
+
+def corpus():
+    items = []  # (name, category, sanitized_rs)
+    sm = open(os.path.join(ROOT, "core/src/semantic_matrix.rs"), encoding="utf-8").read()
+    for name, body, cat in re.findall(
+        r'SemanticCase::new\("(\w+)",\s*"((?:[^"\\]|\\.)*)",\s*(?:true|false),\s*vec!\[[^\]]*\],\s*"(\w+)"\)',
+        sm,
+    ):
+        items.append((name, f"matrix/{cat}", sanitize(body.encode().decode("unicode_escape"))))
+    for sub in ("examples", "examples/phase3"):
+        d = os.path.join(ROOT, sub)
+        if not os.path.isdir(d):
+            continue
+        for f in sorted(os.listdir(d)):
+            if f.endswith(".poly"):
+                src = open(os.path.join(d, f), encoding="utf-8").read()
+                items.append((f"{sub.split('/')[-1]}/{f[:-5]}", "examples", sanitize(src)))
+    return items
+
+
+def llbc_stats(path: str):
+    try:
+        data = open(path, encoding="utf-8", errors="replace").read()
+        doc = json.loads(data)
+    except Exception as e:
+        return {"parse": f"llbc-not-json: {e}", "bytes": os.path.getsize(path)}
+    missing = data.count('"Missing"') + len(re.findall(r'"error"\s*:', data))
+    top = {}
+    for k, v in doc.items():
+        if isinstance(v, list):
+            top[k] = len(v)
+        elif isinstance(v, dict):
+            for k2, v2 in v.items():
+                if isinstance(v2, list):
+                    top[f"{k}.{k2}"] = len(v2)
+    return {"bytes": os.path.getsize(path), "missing_marks": missing, "top_lists": top}
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--charon", required=True)
+    ap.add_argument("--out", default="spike_out")
+    ap.add_argument("--fixtures", default=None, help="複製代表 llbc 到呢個目錄")
+    ap.add_argument("--limit", type=int, default=0)
+    args = ap.parse_args()
+    os.makedirs(args.out, exist_ok=True)
+
+    results = []
+    for name, cat, rs in corpus():
+        if args.limit and len(results) >= args.limit:
+            break
+        safe = re.sub(r"[^\w/-]", "_", name).replace("/", "__")
+        with tempfile.TemporaryDirectory() as td:
+            inp = os.path.join(td, "input.rs")
+            open(inp, "w", encoding="utf-8").write(rs)
+            try:
+                p = subprocess.run(
+                    [args.charon, "--crate-type=rlib", inp],
+                    cwd=td, capture_output=True, text=True, timeout=120,
+                )
+            except subprocess.TimeoutExpired:
+                results.append({"name": name, "cat": cat, "status": "timeout"})
+                continue
+            err = p.stderr or ""
+            llbcs = [f for f in os.listdir(td) if f.endswith(".llbc") or f.endswith(".ullbc")]
+            if p.returncode != 0:
+                cls = "rustc_reject" if re.search(r"error(\[E\d+\])?:", err) else "charon_err"
+                rec = {"name": name, "cat": cat, "status": cls,
+                       "first_err": (err.strip().splitlines() or ["?"])[0][:160]}
+                results.append(rec)
+                continue
+            rec = {"name": name, "cat": cat, "status": "ok"}
+            if llbcs:
+                dst = os.path.join(args.out, safe + ".llbc")
+                shutil.copy(os.path.join(td, llbcs[0]), dst)
+                st = llbc_stats(dst)
+                rec.update(st)
+                if st.get("missing_marks", 0) > 0:
+                    rec["status"] = "ok_with_missing"
+            results.append(rec)
+
+    os.path.exists(args.out) or os.makedirs(args.out)
+    with open(os.path.join(args.out, "results.json"), "w", encoding="utf-8") as f:
+        json.dump(results, f, ensure_ascii=False, indent=1)
+
+    # 聚合
+    from collections import Counter
+    agg = Counter(r["status"] for r in results)
+    bycat = {}
+    for r in results:
+        bycat.setdefault(r["cat"], Counter())[r["status"]] += 1
+    n_ok = agg["ok"] + agg["ok_with_missing"]
+    lines = ["# C0 Charon Spike — 執行結果", "",
+             f"總案例 {len(results)}；出 LLBC **{n_ok}**（{100*n_ok/len(results):.1f}%）；"
+             f"ok {agg['ok']} ｜ ok_with_missing {agg['ok_with_missing']} ｜ "
+             f"rustc_reject {agg['rustc_reject']} ｜ charon_err {agg['charon_err']} ｜ timeout {agg['timeout']}", "",
+             "## 按類別", "", "| 類別 | ok | ok+missing | rustc_reject | charon_err | timeout |", "|---|---|---|---|---|---|"]
+    for c in sorted(bycat):
+        cc = bycat[c]
+        lines.append(f"| {c} | {cc['ok']} | {cc['ok_with_missing']} | {cc['rustc_reject']} | {cc['charon_err']} | {cc['timeout']} |")
+    lines += ["", "## 明細（非 ok）", ""]
+    for r in results:
+        if r["status"] not in ("ok",):
+            lines.append(f"- `{r['name']}` [{r['cat']}] → **{r['status']}**  {r.get('first_err','')}")
+    with open(os.path.join(args.out, "summary.md"), "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+
+    # fixtures：每類挑 1 個 ok 代表
+    if args.fixtures:
+        os.makedirs(args.fixtures, exist_ok=True)
+        picked = {}
+        for r in results:
+            if r["status"].startswith("ok") and r["cat"] not in picked:
+                picked[r["cat"]] = r
+        for r in list(picked.values())[:6]:
+            safe = re.sub(r"[^\w/-]", "_", r["name"]).replace("/", "__")
+            src = os.path.join(args.out, safe + ".llbc")
+            if os.path.exists(src):
+                shutil.copy(src, os.path.join(args.fixtures, safe + ".llbc"))
+
+    print("\n".join(lines[:8]))
+    ok_threshold = 70 if len(results) >= 100 else 0.7 * len(results)
+    print(f"\n== C0 驗收：出 LLBC {n_ok}/{len(results)}（門檻 ≥{int(ok_threshold)}）→ " +
+          ("PASS" if n_ok >= ok_threshold else "FAIL"))
+
+
+if __name__ == "__main__":
+    sys.exit(main())
