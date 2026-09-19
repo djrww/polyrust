@@ -56,6 +56,7 @@ pub mod qap_groth16;
 pub mod lsp;
 pub mod charon_llbc;
 pub mod polyir;
+pub mod polyir_encode;
 pub mod chalk_bridge;
 pub mod certify;
 pub mod composition;
@@ -105,6 +106,7 @@ pub fn core_file_list() -> Vec<(&'static str, &'static str, &'static str)> {
         ("composition.rs", "T10 組合性：模塊化分解 + Σ2^{nᵢ} 組合界 + 並基驗證", "core/src/composition.rs"),
         ("certify.rs", "認證路徑：外部 oracle σ 重建 + 多項式時間直接求值驗證", "core/src/certify.rs"),
         ("chalk_bridge.rs", "Chalk/rustc 判決橋：oracle artifact JSON → OracleBits", "core/src/chalk_bridge.rs"),
+        ("polyir_encode.rs", "PolyIR 值軌跡→𝔽_p 編碼+代數判定（C2）", "core/src/polyir_encode.rs"),
         ("vanishing.rs", "消失多項式多值編碼 + 引理 L0′ + ∏kᵢ 一般化界", "core/src/vanishing.rs"),
         ("obligations.rs", "Obligations — 優化", "core/src/obligations.rs"),
         ("formal.rs", "Formal Lean 橋 — 優化", "core/src/formal.rs"),

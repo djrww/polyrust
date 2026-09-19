@@ -26,8 +26,10 @@ jobs:
           curl -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain none --profile minimal
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
           TOOLCHAIN=$(grep '^rust_toolchain:' charon.pin | awk '{print $2}')
+          # miri：C0 觀察 35 例 rustc_reject 日誌含 "cargo-miri is not installed"
+          # ——charon 內部以 cargo-miri 取 MIR；無 miri 會誤分類（v0.2.5 修）
           rustup toolchain install "$TOOLCHAIN" --profile minimal \
-            --component rust-src --component rustc-dev --component llvm-tools
+            --component rust-src --component rustc-dev --component llvm-tools --component miri
 
       - name: Clone + pin Charon
         run: |

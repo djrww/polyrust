@@ -416,6 +416,67 @@ fn main() {
         return;
     }
 
+    if mode == "pir" {
+        // pir <file.llbc> [name=值[,值][;值[,值]] ...]
+        // C2：LLBC → PolyIR 值軌跡 → 𝔽_p 編碼 → 求解 → 認證；不支援形態如實降級。
+        let Some(path) = args.get(2) else {
+            eprintln!("用法：polyrust pir <file.llbc> [fun=1;2,3 ...]");
+            std::process::exit(2);
+        };
+        let text = std::fs::read_to_string(path).unwrap_or_else(|e| {
+            eprintln!("讀檔失敗 {}: {}", path, e);
+            std::process::exit(2);
+        });
+        let root = match polyrust_core::charon_llbc::LlbcRoot::parse(&text) {
+            Ok(r) => r,
+            Err(e) => {
+                eprintln!("LLBC schema 錯誤：{}", e.msg);
+                std::process::exit(2);
+            }
+        };
+        let mut dom_map: Vec<(String, Vec<Vec<i64>>)> = vec![];
+        for spec in args.iter().skip(3) {
+            if let Some((name, doms)) = spec.split_once('=') {
+                let parsed: Result<Vec<Vec<i64>>, _> = doms
+                    .split(';')
+                    .map(|arg| arg.split(',').map(|v| v.parse::<i64>()).collect())
+                    .collect();
+                match parsed {
+                    Ok(d) => dom_map.push((name.to_string(), d)),
+                    Err(_) => {
+                        eprintln!("參數域格式錯誤：{}", spec);
+                        std::process::exit(2);
+                    }
+                }
+            }
+        }
+        println!("crate: {}（charon {}）funs={}", root.crate_name, root.charon_version, root.funs.len());
+        let mut all_ok = true;
+        for f in &root.funs {
+            let doms = dom_map.iter().find(|(n, _)| *n == f.name).map(|(_, d)| d.clone());
+            let dec = polyrust_core::polyir_encode::decide_fun(f, doms.as_deref().unwrap_or(&[]));
+            let verdict = match &dec {
+                polyrust_core::polyir_encode::Decision::Certified { ret, n_vars, n_eqs, overflow_asserted } => {
+                    format!(
+                        "CERTIFIED ret={:?} vars={} eqs={} overflow_asserted={}",
+                        ret, n_vars, n_eqs, overflow_asserted
+                    )
+                }
+                polyrust_core::polyir_encode::Decision::Unknown { reason } => format!("UNKNOWN({})", reason),
+                polyrust_core::polyir_encode::Decision::Unsat => "UNSAT".to_string(),
+            };
+            let mark = if dec.is_certified() { "✓" } else { "·" };
+            println!("  [{}] {} → {}", mark, f.name, verdict);
+            all_ok &= matches!(
+                dec,
+                polyrust_core::polyir_encode::Decision::Certified { .. }
+                    | polyrust_core::polyir_encode::Decision::Unknown { .. }
+            );
+        }
+        println!("pir: 完成（UNKNOWN = 能力邊界如實申報，非錯誤）");
+        std::process::exit(if all_ok { 0 } else { 1 });
+    }
+
     if mode == "all" || mode == "obligations" {
         hr("義務自證（十條定理的機械化檢查）");
         let results = obligations::run_all();

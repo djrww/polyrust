@@ -531,7 +531,7 @@ impl LlbcRoot {
 mod tests {
     use super::*;
 
-    const FIXTURES: [(&str, &str); 10] = [
+    const FIXTURES: [(&str, &str); 11] = [
         ("sqr", include_str!("../tests/charon_fixtures/sqr.llbc")),
         ("add", include_str!("../tests/charon_fixtures/add.llbc")),
         ("max", include_str!("../tests/charon_fixtures/max.llbc")),
@@ -542,6 +542,7 @@ mod tests {
         ("async_simple", include_str!("../tests/charon_fixtures/async_simple.llbc")),
         ("phase3__loop_sat", include_str!("../tests/charon_fixtures/phase3__loop_sat.llbc")),
         ("struct_point", include_str!("../tests/charon_fixtures/struct_point.llbc")),
+        ("io_pure", include_str!("../tests/charon_fixtures/io_pure.llbc")),
     ];
 
     #[test]

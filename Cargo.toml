@@ -14,7 +14,7 @@ resolver = "2"
 members = ["core", "frontends/http", "frontends/llm", "frontends/full", "frontends/ide"]
 
 [workspace.package]
-version = "0.2.2"
+version = "0.2.5"
 edition = "2021"
 repository = "https://github.com/djrww/polyrust"
 # v0.3 起統一為【全產品 AGPL-3.0 + 商業雙授權】（2026-09-19 決策：core 係價值核心，唔做
