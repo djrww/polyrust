@@ -56,35 +56,35 @@ Complete: true
 
 ## MIR Layer (Original)
 Lowered MIR {
-  products: 8 (["Range", "FileTree", "Position", "Editor", "EnterpriseIDE", "TextBuffer", "RustAnalyzer", "FileNode"])
+  products: 8 (["Position", "FileNode", "TextBuffer", "Editor", "EnterpriseIDE", "RustAnalyzer", "Range", "FileTree"])
   sums: 0 ([])
   generated: 0 items
   mod_map: 0 entries
   universe N=18
   program items: 14
-  product Range: 2 fields
-    - start: Position
-    - end: Position
-  product FileTree: 1 fields
-    - nodes: Vec<FileNode>
   product Position: 2 fields
     - line: i32
     - col: i32
+  product FileNode: 2 fields
+    - path: String
+    - content: String
+  product TextBuffer: 1 fields
+    - text: String
   product Editor: 2 fields
     - buffer: TextBuffer
     - cursor: i32
   product EnterpriseIDE: 2 fields
     - files: FileTree
     - editors: Vec<Editor>
-  product TextBuffer: 1 fields
-    - text: String
   product RustAnalyzer: 1 fields
     - cache: i32
-  product FileNode: 2 fields
-    - path: String
-    - content: String
+  product Range: 2 fields
+    - start: Position
+    - end: Position
+  product FileTree: 1 fields
+    - nodes: Vec<FileNode>
   stats: Lowered: 8 products, 0 sums, 0 generated, 0 mod_map, universe N=18
-Products: ["Range", "FileTree", "Position", "Editor", "EnterpriseIDE", "TextBuffer", "RustAnalyzer", "FileNode"]
+Products: ["Position", "FileNode", "TextBuffer", "Editor", "EnterpriseIDE", "RustAnalyzer", "Range", "FileTree"]
 Sums: []
 
 }
@@ -169,35 +169,35 @@ Stats: structs=8 enums=0 fns=1 traits=0 impls=6 mods=0 consts=0 statics=0 types=
 
 ## Supplemented MIR
 Lowered MIR {
-  products: 8 (["FileTree", "FileNode", "Editor", "RustAnalyzer", "Range", "Position", "TextBuffer", "EnterpriseIDE"])
+  products: 8 (["FileNode", "Editor", "EnterpriseIDE", "Range", "TextBuffer", "FileTree", "RustAnalyzer", "Position"])
   sums: 0 ([])
   generated: 0 items
   mod_map: 0 entries
   universe N=18
   program items: 14
-  product FileTree: 1 fields
-    - nodes: Vec<FileNode>
   product FileNode: 2 fields
     - path: String
     - content: String
   product Editor: 2 fields
     - buffer: TextBuffer
     - cursor: i32
-  product RustAnalyzer: 1 fields
-    - cache: i32
-  product Range: 2 fields
-    - start: Position
-    - end: Position
-  product Position: 2 fields
-    - line: i32
-    - col: i32
-  product TextBuffer: 1 fields
-    - text: String
   product EnterpriseIDE: 2 fields
     - files: FileTree
     - editors: Vec<Editor>
+  product Range: 2 fields
+    - start: Position
+    - end: Position
+  product TextBuffer: 1 fields
+    - text: String
+  product FileTree: 1 fields
+    - nodes: Vec<FileNode>
+  product RustAnalyzer: 1 fields
+    - cache: i32
+  product Position: 2 fields
+    - line: i32
+    - col: i32
   stats: Lowered: 8 products, 0 sums, 0 generated, 0 mod_map, universe N=18
-Products: ["FileTree", "FileNode", "Editor", "RustAnalyzer", "Range", "Position", "TextBuffer", "EnterpriseIDE"]
+Products: ["FileNode", "Editor", "EnterpriseIDE", "Range", "TextBuffer", "FileTree", "RustAnalyzer", "Position"]
 Sums: []
 
 }

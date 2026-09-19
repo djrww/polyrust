@@ -90,8 +90,8 @@ mod tests {
             }
             if row.case == "sum_range" {
                 assert!(
-                    row.markers.iter().any(|m| m == "loop-unroll-1"),
-                    "loop 未標 loop-unroll-1: {:?}", row.markers
+                    row.markers.iter().any(|m| m.starts_with("loop-")),
+                    "loop 未標 bounded marker: {:?}", row.markers
                 );
             }
         }

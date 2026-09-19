@@ -349,6 +349,8 @@ pub enum BodyKind {
     Structured,
     Error,
     Missing,
+    /// 外部/trait 聲明無 body（string 變體）
+    Opaque,
 }
 
 /// 抽一個 fun_decl 嘅最細可用投影（body 內容屬 C2/C3 活動範圍，呢度保留原 raw JSON）。
@@ -486,6 +488,9 @@ impl LlbcRoot {
         let mut funs = Vec::with_capacity(fun_arr.len());
         for (i, f) in fun_arr.iter().enumerate() {
             let ctx = format!("fun_decls[{i}]");
+            if matches!(f, Value::Null) {
+                continue; // null 佔位（trait/外部聲明索引對齊用）— 實測喺 while_let fixtures
+            }
             let def_id = num_i64(f.get("def_id"), &format!("{ctx}.def_id"))?;
             let (path, name) = extract_name(f.get("item_meta").and_then(|m| m.get("name")));
             let body_kind = match f.get("body") {
@@ -500,10 +505,21 @@ impl LlbcRoot {
                         })
                     }
                 },
+                // C3 法證：外部/trait method body 係 string "Opaque"（loop_return 嘅 Vec::iter 等）
+                Some(Value::Str(s)) => match s.as_str() {
+                    "Opaque" => BodyKind::Opaque,
+                    "Missing" => BodyKind::Missing,
+                    other => {
+                        return Err(LlbcError {
+                            offset: 0,
+                            msg: format!("{ctx}.body: unknown string variant `{other}`"),
+                        })
+                    }
+                },
                 _ => {
                     return Err(LlbcError {
                         offset: 0,
-                        msg: format!("{ctx}.body: expected 1-key object variant (Structured|Error|Missing)"),
+                        msg: format!("{ctx}.body: expected 1-key object variant or string (Structured|Error|Missing|Opaque)"),
                     })
                 }
             };

@@ -5,7 +5,7 @@
 - Fully complete (4 layers): true
 - Functional passed: Some(true)
 - Risk: 26.0 | QAP: false
-- Duration: 2893ms
+- Duration: 3033ms
 
 ## AST — N=18 fns=1 complete=true
 
@@ -36,24 +36,24 @@ ProgramV2 (universe N=18) {
 ## MIR — N=18 products=8 complete=true
 
 Lowered MIR {
-  products: 8 (["Position", "FileTree", "TextBuffer", "FileNode", "RustAnalyzer", "EnterpriseIDE", "Editor", "Range"])
+  products: 8 (["TextBuffer", "FileNode", "RustAnalyzer", "Position", "Editor", "FileTree", "EnterpriseIDE", "Range"])
   sums: 0 ([])
   generated: 0 items
   mod_map: 0 entries
   universe N=18
   program items: 14
-  product Position: 2 fields
-    - line: i32
-    - col: i32
-  product FileTree: 1 fields
-    - nodes: Vec<FileNode>
   product TextBuffer: 1 fields
     - text: String
   product FileNode: 2 fields
     - path: String
     - content: String
   product RustAnalyzer: 1 fields
-    -
+    - cache: i32
+  product Position: 2 fields
+    - line: i32
+    - col: i32
+  product Editor: 2 fields
+    - buffer: Tex
 
 ## V3 — SAT — Risk 26.0 — QAP Some(false)
 

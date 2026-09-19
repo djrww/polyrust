@@ -16,8 +16,10 @@ pub type ConstTable = HashMap<usize, ConstLit>;
 pub fn collect_consts(root: &Value, out: &mut ConstTable) {
     match root {
         Value::Obj(fields) => {
-            if let Some(vc) = root.get("Const") {
-                if let Some(arr) = vc.get("Value").and_then(|x| x.as_arr()) {
+            // 法證：常量定點可以喺 `{"Const":{"Value":[id,…]}}` 之外嘅裸 `{"Value":[id,…]}` 出現
+            // （nested_loop Switch pattern），而類型/其他 Value payload 會喺 parse_const_inner 失敗 → 自動略過。
+            for payload in [root.get("Const").and_then(|c| c.get("Value")), root.get("Value")] {
+                if let Some(arr) = payload.and_then(|x| x.as_arr()) {
                     if arr.len() == 2 {
                         if let Some(id) = arr[0].as_num().and_then(|n| n.parse::<usize>().ok()) {
                             if let Ok(lit) = parse_const_inner(&arr[1], "collect") {
@@ -50,7 +52,8 @@ fn err<T>(ctx: &str, msg: &str) -> Result<T, LlbcError> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Place {
     pub local: usize,
-    /// `Some(idx)` = `.idx` field 投影（e.g. checked 結果 .1 = overflow flag）。
+    /// `Some(idx)` = `.idx` field 投影（e.g. checked 結果 .1 = overflow flag）；
+    /// 哨兵 `Some(usize::MAX)` = `Deref`（C2/C3 當 base 別名處理，marker 喺 lowering 落）。
     pub proj: Option<usize>,
 }
 impl Place {
@@ -80,6 +83,8 @@ pub enum Operand {
 pub enum ConstLit {
     Int(i128, bool /*signed*/, u32 /*bits*/),
     Bool(bool),
+    /// 非數值字面量（Str/Char/Bytes/Float/Unit…）— 域層面抽象，保留檢視字串
+    ScalarOpaque(String),
 }
 
 #[derive(Debug, Clone)]
@@ -92,6 +97,8 @@ pub enum RValue {
     Discriminant(Place),
     /// struct/tuple 初始化等（C4 語義；C2 保留 raw 作 no-op 抽象）。
     AggregateOpaque(Value),
+    /// &/&mut 借用創建（C4 borrow 語義；而家同 borrowck 一樣放寬抽象）— for/while-let 迭代器實測出現。
+    RefOpaque(Value),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -105,6 +112,8 @@ pub enum BinOpName {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnOpName {
     Neg, Not,
+    /// 數值轉型（as- cast；抽象處理）
+    Cast,
 }
 
 #[derive(Debug, Clone)]
@@ -148,6 +157,8 @@ pub enum StmtKind {
     Continue(usize),
     Return,
     UnwindResume,
+    /// panic/UB 終止（Abort:"UndefinedBehavior" 等）——唔屬正常終止路徑
+    Abort(String),
     NopLike(String),
 }
 
@@ -188,18 +199,29 @@ fn parse_place(v: &Value, ctx: &str) -> Result<Place, LlbcError> {
         // {"Projection":[base_place, [elem...]]}
         let base = pj.first().ok_or_else(|| LlbcError { offset: 0, msg: format!("{ctx}: projection base missing") })?;
         let base = parse_place(base, &format!("{ctx}.proj"))?;
-        if base.proj.is_some() {
-            return err(ctx, "nested projection（C4）");
-        }
-        // elems 係單個 elem 物件（{"Field":[_,i]}）或 array
+        // 嵌套 collapse 規則（法證：(*r).0 = Deref∘Field）：Deref 哨兵透明化；
+        // 剩餘 nested Field∘Field / Field∘Deref → hard error（C4 ADT/別名語義先開）
+        let deref_sentinel = Some(usize::MAX);
+        let deref_base = base.proj == deref_sentinel;
+        // elems：array | 單個物件 | 裸字符串（{"Deref"} 實測係 string payload）
         let elems: Vec<Value> = match pj.get(1) {
             Some(Value::Arr(a)) => a.clone(),
             Some(single @ Value::Obj(_)) => vec![single.clone()],
+            Some(Value::Str(s)) => vec![Value::Str(s.clone())],
             _ => Vec::new(),
         };
         if elems.len() == 1 {
             if let Some(idx) = elems[0].get("Field").and_then(|f| f.as_arr()).and_then(|a| a.get(1)).and_then(|n| n.as_num()).and_then(|n| n.parse::<usize>().ok()) {
+                // Field∘Field 多級 → collapse 取最外層 idx 作 SSA-cell 識別（ADT 真語義 C4；
+                // 抽象層面 (local, 最外層 idx) 一格足以）
                 return Ok(Place { local: base.local, proj: Some(idx) });
+            }
+            if let Some(d) = elems[0].as_str() {
+                if d == "Deref" {
+                    // 哨兵編碼：proj=MAX 代表 Deref（數值域上同 base 別名；alias 語義 C4）
+                    // Field∘Deref → 一律 collapse 成 Deref 哨兵（alias base cell；混合配對 C4）
+                    return Ok(Place { local: base.local, proj: deref_sentinel });
+                }
             }
         }
         return err(ctx, &format!("unsupported projection elems（C4）`{}`", kind.dump().chars().take(120).collect::<String>()));
@@ -240,6 +262,12 @@ fn parse_const_inner(core: &Value, ctx: &str) -> Result<ConstLit, LlbcError> {
     let lit = arr.first().ok_or_else(|| LlbcError { offset: 0, msg: format!("{ctx}: const lit missing") })?;
     if let Some(b) = lit.get("Bool").and_then(|b| b.as_bool()) {
         return Ok(ConstLit::Bool(b));
+    }
+    for key in ["Str", "Char", "Bytes", "Unit", "Float"] {
+        if let Some(v) = lit.get(key) {
+            let tag = v.as_str().map(|s| format!("{key}:{s}")).unwrap_or_else(|| key.to_string());
+            return Ok(ConstLit::ScalarOpaque(tag.chars().take(24).collect()));
+        }
     }
     if let Some(int) = lit.get("Integer") {
         // {"Integer":{"Signed":["I32","0"]}} / {"Unsigned":["Usize","42"]}
@@ -311,6 +339,7 @@ fn parse_rvalue(v: &Value, ctx: &str, consts: &ConstTable) -> Result<RValue, Llb
             let opn = match op_token_name(&a[0]).as_deref() {
                 Some("Neg") => UnOpName::Neg,
                 Some("Not") => UnOpName::Not,
+                Some("Cast") => UnOpName::Cast,
                 other => return err(&format!("{ctx}.UnaryOp"), &format!("unknown op `{other:?}`")),
             };
             return parse_operand(&a[1], &format!("{ctx}.UnaryOp.0"), consts).map(|o| RValue::UnaryOp(opn, o));
@@ -322,6 +351,12 @@ fn parse_rvalue(v: &Value, ctx: &str, consts: &ConstTable) -> Result<RValue, Llb
     }
     if let Some(agg) = v.get("Aggregate") {
         return Ok(RValue::AggregateOpaque(agg.clone()));
+    }
+    if let Some(rf) = v.get("Ref") {
+        return Ok(RValue::RefOpaque(rf.clone()));
+    }
+    if let Some(rf) = v.get("AddressOf") {
+        return Ok(RValue::RefOpaque(rf.clone()));
     }
     err(ctx, &format!("unsupported rvalue `{}`", v.dump().chars().take(160).collect::<String>()))
 }
@@ -413,6 +448,14 @@ fn parse_stmt_kind(v: &Value, ctx: &str, consts: &ConstTable) -> Result<StmtKind
     if let Some(bk) = v.get("Borrowck") {
         return Ok(StmtKind::BorrowckOpaque(bk.clone()));
     }
+    if let Some(ab) = v.get("Abort") {
+        let tag = ab.as_str().unwrap_or("?").to_string();
+        return Ok(StmtKind::Abort(tag));
+    }
+    if let Some(_dr) = v.get("Drop") {
+        // object Drop（析構膠水）→ 約束層面 no-op（資源語義 C4）
+        return Ok(StmtKind::NopLike("Drop(obj)".into()));
+    }
     if let Some(n) = v.get("Break").and_then(|x| x.as_num()).and_then(|n| n.parse::<usize>().ok()) {
         return Ok(StmtKind::Break(n));
     }
@@ -459,9 +502,21 @@ fn parse_scalar_ty(v: &Value) -> ScalarTy {
 /// 解析 fun body（須已通過 charon_llbc 白名單）。兜手處理 type ref：decode inline scalar；
 /// `Deduplicated:n` → 查 type_decls[n].kind。
 pub fn parse_fun_body(fun_raw: &Value, type_decls: &[Value]) -> Result<FunBody, LlbcError> {
-    let ctx = fun_raw
-        .get("item_meta").and_then(|m| m.get("name"))
-        .map(|_| "fun").unwrap_or("fun");
+    let mut consts = ConstTable::new();
+    if let Some(b) = fun_raw.get("body") {
+        collect_consts(b, &mut consts);
+    }
+    parse_fun_body_with_consts(fun_raw, type_decls, &consts)
+}
+
+/// crate-wide const 表版本（法證：nested_loop 嘅 Switch pattern 常量唔喺本 fun body 節點定點，
+/// Charon 按 crate 去重）——由 analyze 層攞 root 全 JSON 建表傳入。
+pub fn parse_fun_body_with_consts(
+    fun_raw: &Value,
+    type_decls: &[Value],
+    consts: &ConstTable,
+) -> Result<FunBody, LlbcError> {
+    let ctx = "fun";
     let body = fun_raw.get("body").and_then(|b| b.get("Structured"))
         .ok_or_else(|| LlbcError { offset: 0, msg: format!("{ctx}: body not Structured") })?;
     let resolve = |tref: &Value| -> ScalarTy {
@@ -503,9 +558,7 @@ pub fn parse_fun_body(fun_raw: &Value, type_decls: &[Value]) -> Result<FunBody, 
             }
         }
     }
-    let mut consts = ConstTable::new();
-    collect_consts(body, &mut consts);
-    let top = parse_block_t(body.get("body").ok_or_else(|| LlbcError { offset: 0, msg: format!("{ctx}: body.body missing") })?, ctx, &consts)?;
+    let top = parse_block_t(body.get("body").ok_or_else(|| LlbcError { offset: 0, msg: format!("{ctx}: body.body missing") })?, ctx, consts)?;
     Ok(FunBody {
         arg_count,
         n_locals: locals_arr.len(),

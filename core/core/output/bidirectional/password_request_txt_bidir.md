@@ -127,23 +127,23 @@ Stats: structs=2 enums=1 fns=3 traits=0 impls=3 mods=0 consts=0 statics=0 types=
 
 ## Supplemented MIR
 Lowered MIR {
-  products: 2 (["PasswordConfig", "PasswordGenerator"])
+  products: 2 (["PasswordGenerator", "PasswordConfig"])
   sums: 1 (["Strength"])
   generated: 0 items
   mod_map: 0 entries
   universe N=11
   program items: 8
+  product PasswordGenerator: 1 fields
+    - config: PasswordConfig
   product PasswordConfig: 5 fields
     - length: i32
     - use_upper: bool
     - use_lower: bool
     - use_digits: bool
     - use_symbols: bool
-  product PasswordGenerator: 1 fields
-    - config: PasswordConfig
   sum Strength: 3 variants
   stats: Lowered: 2 products, 1 sums, 0 generated, 0 mod_map, universe N=11
-Products: ["PasswordConfig", "PasswordGenerator"]
+Products: ["PasswordGenerator", "PasswordConfig"]
 Sums: ["Strength"]
 
 }
@@ -236,7 +236,7 @@ test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 
 
 stderr:    Compiling password_request_txt v0.1.0 (/tmp/polyrust_native/cargo_check_password_request_txt)
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
      Running unittests src/main.rs (/tmp/polyrust_native/cargo_check_password_request_txt/target/debug/deps/password_request_txt-1bcfac4a1abc9065)
 
 ```
