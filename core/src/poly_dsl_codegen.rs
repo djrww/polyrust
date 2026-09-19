@@ -478,9 +478,11 @@ impl Charset { pub fn chars(&self) -> &'static str { match self { Charset::Lower
 #[derive(Debug, Clone)] pub struct PasswordConfig { pub length: usize, pub charset: Charset }
 impl PasswordConfig { pub fn new(length: usize) -> Self { Self { length, charset: Charset::All } } pub fn is_valid(&self) -> bool { self.length >= 8 } }
 #[derive(Debug, Clone)] pub struct PasswordGenerator { pub config: PasswordConfig }
-impl PasswordGenerator { pub fn new(config: PasswordConfig) -> Self { Self { config } } pub fn generate(&self) -> Result<String, String> { if !self.config.is_valid() { Err("too short".to_string()) } else { Ok("Abc123!@#".repeat((self.config.length / 8) + 1)[..self.config.length].to_string()) } } }
+impl PasswordGenerator { pub fn new(config: PasswordConfig) -> Self { Self { config } } pub fn generate(&self) -> Result<String, String> { if !self.config.is_valid() { Err("too short".to_string()) } else { Ok(generate_secure_mixed(self.config.length, true, true, true)) } } }
 pub fn generate_password(config: PasswordConfig) -> Result<String, String> { PasswordGenerator::new(config).generate() }
-pub fn generate_secure(length: usize) -> String { "a".repeat(length) }
+pub fn generate_secure(length: usize) -> String { generate_secure_mixed(length, true, true, true) }
+pub fn generate_secure_mixed(length: usize, upper: bool, numbers: bool, symbols: bool) -> String { let mut seed = 0x123456789abcdefu64 ^ (length as u64).wrapping_mul(0x9e3779b97f4a7c15); let mut charset = String::from("abcdefghijklmnopqrstuvwxyz"); if upper { charset.push_str("ABCDEFGHIJKLMNOPQRSTUVWXYZ"); } if numbers { charset.push_str("0123456789"); } if symbols { charset.push_str("!@#$%^&*()_+-=[]{}|;:,.<>?"); } let chars: Vec<char> = charset.chars().collect(); let mut result = String::with_capacity(length); for _ in 0..length { let r = { seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1); seed }; let idx = (r % chars.len() as u64) as usize; result.push(chars[idx]); } result }
+fn lcg_rand(seed: &mut u64) -> u64 { *seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1); *seed }
 #[derive(Debug, Clone, PartialEq)] pub enum Strength { Weak, Medium, Strong, VeryStrong }
 impl Strength { pub fn score(&self) -> u8 { match self { Strength::Weak => 1, Strength::Medium => 2, Strength::Strong => 3, Strength::VeryStrong => 4 } } }
 pub fn check_strength(pwd: &str) -> Strength { if pwd.len() > 16 { Strength::VeryStrong } else if pwd.len() > 12 { Strength::Strong } else if pwd.len() > 8 { Strength::Medium } else { Strength::Weak } }
@@ -592,8 +594,8 @@ pub use types::*;
             "patch" => "    for p in patches { println!(\"patch\"); }".to_string(),
             "render" => "    vnode.tag.clone()".to_string(),
             "use_state" => "    (initial.clone(), Box::new(|_|{}))".to_string(),
-            "generate_password" => "    Ok(\"Abc123!@#\".to_string())".to_string(),
-            "generate_secure" => "    \"a\".repeat(length)".to_string(),
+            "generate_password" => "    generate_secure_mixed(16, true, true, true)".to_string(),
+            "generate_secure" => "    generate_secure_mixed(length, true, true, true)".to_string(),
             "check_strength" => "    Strength::Strong".to_string(),
             "launch_app" => "    Ok(AppStatus::Running(1001))".to_string(),
             "open_file" => "    Ok(Editor { buffer: TextBuffer::new(\"hi\".to_string(), Language::Rust), cursor: Position::new(0,0), selection: None, diagnostics: Vec::new() })".to_string(),

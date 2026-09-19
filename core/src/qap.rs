@@ -278,7 +278,7 @@ impl Qap {
     }
 
     /// 計算簡單哈希 (FNV-1a) 用於證書
-    fn hash_poly(p: &UniPoly) -> u64 {
+    pub fn hash_poly(p: &UniPoly) -> u64 {
         let mut h: u64 = 1469598103934665603;
         for coeff in &p.c {
             let v = coeff.0;
@@ -288,7 +288,7 @@ impl Qap {
         h
     }
 
-    fn hash_polys(polys: &[UniPoly]) -> String {
+    pub fn hash_polys(polys: &[UniPoly]) -> String {
         let mut h: u64 = 1469598103934665603;
         for p in polys {
             h ^= Self::hash_poly(p);
@@ -324,10 +324,27 @@ impl Qap {
     }
 }
 
+/// 導出 R1CS 為 JSON（相容 snarkjs/bellman）
+pub fn export_r1cs_json(r: &R1cs, qap: &Qap) -> String {
+    use crate::json::J;
+    let obj = vec![
+        ("n_wires", J::Int(r.n_wires as i64)),
+        ("n_constraints", J::Int(r.constraints.len() as i64)),
+        ("z_degree", J::Int(qap.z.deg().unwrap_or(0) as i64)),
+        ("max_wire_degree", J::Int(qap.max_wire_degree() as i64)),
+        ("export_format", J::s("r1cs.json v1 — compatible with snarkjs/bellman")),
+        ("z_hash", J::s(&format!("{:016x}", Qap::hash_poly(&qap.z)))),
+        ("a_hash", J::s(&Qap::hash_polys(&qap.a))),
+        ("b_hash", J::s(&Qap::hash_polys(&qap.b))),
+        ("c_hash", J::s(&Qap::hash_polys(&qap.c))),
+    ];
+    J::obj(obj).to_string()
+}
+
 /// 實際使用：qap.rs 文件清單 — 優化 with_capacity
 pub fn qap_file_list() -> Vec<(&'static str, &'static str, &'static str)> {
     vec![
-        ("qap.rs", "qap.rs 正式運作 — 優化 with_capacity", "core/src/qap.rs"),
+        ("qap.rs", "qap.rs 正式運作 — 優化 with_capacity + r1cs.json export", "core/src/qap.rs"),
     ]
 }
 

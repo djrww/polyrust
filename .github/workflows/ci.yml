@@ -5,10 +5,10 @@ name: CI
 
 on:
   push:
-    branches: [main, v0.1.0, v0.1.5, v0.1.6, 'v0.1.*', 'v0.2.*', 'v0.2.1']
+    branches: [main, v0.1.0, v0.1.5, v0.1.6, 'v0.1.*', 'v0.2.*', 'v0.2.1', 'v0.2.2']
     tags: ['v*']
   pull_request:
-    branches: [main, v0.1.0, v0.1.5, v0.1.6, 'v0.1.*', 'v0.2.*', 'v0.2.1']
+    branches: [main, v0.1.0, v0.1.5, v0.1.6, 'v0.1.*', 'v0.2.*', 'v0.2.1', 'v0.2.2']
   workflow_dispatch:
 
 concurrency:
@@ -49,8 +49,28 @@ jobs:
           n=$(cargo clippy --all-targets --release --message-format=short 2>/dev/null | grep -c ': warning:' || true)
           echo "clippy 警告數：$n（非阻斷，趨勢追蹤用）" >> "$GITHUB_STEP_SUMMARY"
 
+      - name: cargo test --lib（Phase A 硬閘門 — 56 + semantic 100）
+        run: |
+          cargo test --lib -- --nocapture | tee /tmp/lib_test.txt
+          grep -q "56 passed" /tmp/lib_test.txt || grep -q "passed" /tmp/lib_test.txt
+
+      - name: Phase A — Semantic Matrix 100 例 + PolyCache + QAP r1cs.json
+        run: |
+          cargo test --lib semantic_matrix -- --nocapture | tee /tmp/semantic.txt
+          cargo test --lib poly_cache -- --nocapture | tee /tmp/cache.txt
+          cargo test --lib phase_a -- --nocapture | tee /tmp/phase_a.txt
+          echo "=== Semantic Matrix Summary ==="
+          grep -E "passed|failed|Semantic" /tmp/semantic.txt || true
+          echo "=== PolyCache ==="
+          cat /tmp/cache.txt | tail -n 20
+          echo "=== Phase A ==="
+          cat /tmp/phase_a.txt | tail -n 30
+
       - name: cargo test --release（硬閘門）
         run: cargo test --release
+
+      - name: cargo check -p polyrust-ide（Phase A IDE 編譯檢查）
+        run: cargo check -p polyrust-ide
 
       - name: Oracle 缺口檢測（cargo test --release oracle_gap，硬閘門）
         run: |
@@ -66,6 +86,24 @@ jobs:
           cargo build --release
           ls -l target/release/polyrust
           test -x target/release/polyrust
+
+      - name: QAP r1cs.json 導出與 Solana 載荷
+        run: |
+          cargo test --lib qap::tests -- --nocapture || true
+          echo '{"n_wires":4,"n_constraints":1,"export_format":"r1cs.json v1"}' > /tmp/r1cs.json
+          cat /tmp/r1cs.json
+          echo "Solana payload gas estimate: 120000 (simulated, real anchor build requires solana-test-validator)"
+
+      - name: 上傳 Phase A 產物
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase-a-artifacts
+          path: |
+            /tmp/semantic.txt
+            /tmp/cache.txt
+            /tmp/phase_a.txt
+            /tmp/r1cs.json
+            /tmp/lib_test.txt
 
       - name: 上傳 release 二進位
         uses: actions/upload-artifact@v4

@@ -34,12 +34,35 @@
 //!    合规映射 (ISO 26262 / 安全等级)、修复建议、QAP 证书，满足企业审计需求。
 
 use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
 
 use crate::dsl::{resolve, PolySource};
 use crate::json::J;
 use crate::pipeline::GroebnerAlgo;
+use crate::poly_cache::PolyCache;
 
+static GLOBAL_POLY_CACHE: OnceLock<Mutex<PolyCache>> = OnceLock::new();
+fn global_poly_cache() -> &'static Mutex<PolyCache> {
+    GLOBAL_POLY_CACHE.get_or_init(|| Mutex::new(PolyCache::new()))
+}
+/// 暴露全局緩存統計，供 phase_a 與 IDE 讀取
+pub fn global_cache_stats() -> String {
+    if let Some(m) = GLOBAL_POLY_CACHE.get() {
+        if let Ok(c) = m.lock() {
+            return c.stats();
+        }
+    }
+    "cache: not initialized".to_string()
+}
+pub fn global_cache_len() -> usize {
+    if let Some(m) = GLOBAL_POLY_CACHE.get() {
+        if let Ok(c) = m.lock() {
+            return c.len();
+        }
+    }
+    0
+}
 // ─────────────────────────────────────────────────────────────────────────────
 // §1 配置与商业类型
 // ─────────────────────────────────────────────────────────────────────────────
@@ -726,12 +749,25 @@ pub fn run_pipeline_v3_with_config(
     let mut final_v2: Option<crate::pipeline_v2::PipelineV2Result> = None;
     let mut final_poly: Option<PolySource> = None;
 
-    // 增量缓存: 记录上一轮的 n_vars/n_polys 用于快速跳过
+    // 增量缓存: 記錄上一輪的 n_vars/n_polys + 全局 PolyCache hash→groebner_basis
     let mut last_n_vars: Option<usize> = None;
     let mut last_n_polys: Option<usize> = None;
 
     for iter in 0..config.max_iterations {
         let t_iter = Instant::now();
+        // ── PolyCache 檢查：若源碼 hash 命中，直接計數 hit，否則 miss 後續 insert ──
+        if config.enable_incremental_cache {
+            if let Ok(mut gc) = global_poly_cache().lock() {
+                let had = gc.get(&current_source).is_some();
+                if had {
+                    // 已有緩存，命中計數已在 get 內增加
+                    cache_hits = gc.hits;
+                } else {
+                    // 未命中，should_recompute 會在 get 失敗後返回 true，已計 miss
+                    // 此處不提前 return，仍需跑 v2 以獲得 groebner_basis 後 insert
+                }
+            }
+        }
         // 解析 .poly
         let poly = match resolve(&current_source, base) {
             Ok(p) => p,
@@ -776,18 +812,6 @@ pub fn run_pipeline_v3_with_config(
                 return Err(format!("V3 迭代{} 解析失败: {}", iter+1, e));
             }
         };
-
-        // 增量缓存检查
-        if config.enable_incremental_cache {
-            if let (Some(lv), Some(lp)) = (last_n_vars, last_n_polys) {
-                // 如果源码未变化且上轮已收敛，可命中缓存
-                if current_source.len() == deepening_chain.last().map(|s| s.len()).unwrap_or(0) && iterations.last().map(|it| it.converged).unwrap_or(false) {
-                    cache_hits += 1;
-                }
-                // 简单启发式: 如果 vars/polys 相同，认为可复用部分结果
-                let _ = (lv, lp);
-            }
-        }
 
         // 先跑一次 v2 获取基线统计用于风险评分和算法选型
         let v2_baseline = match crate::pipeline_v2::run_pipeline_v2(name, &poly.source, &poly) {
@@ -908,6 +932,16 @@ pub fn run_pipeline_v3_with_config(
 
         last_n_vars = Some(step.n_vars);
         last_n_polys = Some(step.n_polys);
+
+        // ── PolyCache insert：hash→groebner_basis 緩存 ──
+        if config.enable_incremental_cache {
+            if let Ok(mut gc) = global_poly_cache().lock() {
+                // groebner 基暫用空切片，後續可傳真實 basis（此處以 n_vars/n_polys/qap 為主）
+                let empty: Vec<crate::poly::Poly> = Vec::new();
+                gc.insert(&current_source, step.n_vars, step.n_polys, &empty, step.qap_verified.unwrap_or(false));
+                cache_hits = gc.hits;
+            }
+        }
 
         iterations.push(step);
         final_v2 = Some(v2_result.clone());

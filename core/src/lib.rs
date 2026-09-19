@@ -43,6 +43,9 @@ pub mod server;
 pub mod daemon;
 pub mod commercial_pipeline;
 pub mod solana_onchain;
+pub mod poly_cache;
+pub mod semantic_matrix;
+pub mod phase_a;
 
 /// 正式運作：core 文件清單 — 零依賴實際使用
 pub fn core_file_list() -> Vec<(&'static str, &'static str, &'static str)> {
@@ -77,6 +80,9 @@ pub fn core_file_list() -> Vec<(&'static str, &'static str, &'static str)> {
         ("native_bidirectional.rs", "原生器材雙向閉環 AST/MIR 四層補齊", "core/src/native_bidirectional.rs"),
         ("commercial_pipeline.rs", "商業化管線 txt->poly->AST->MIR->Rust->native->audit->onchain 真實全鏈路", "core/src/commercial_pipeline.rs"),
         ("solana_onchain.rs", "Solana 真上鏈 QAP 證書 Anchor Program + TS Client + Deploy 真實實現", "core/src/solana_onchain.rs"),
+        ("poly_cache.rs", "PolyCache 增量管線 hash→Groebner 緩存 — Phase A", "core/src/poly_cache.rs"),
+        ("semantic_matrix.rs", "Semantic Matrix 100 例語義保持 — Phase A", "core/src/semantic_matrix.rs"),
+        ("phase_a.rs", "Phase A 整合：增量+語義+QAP r1cs.json+CI — Phase A", "core/src/phase_a.rs"),
         ("obligations.rs", "Obligations — 優化", "core/src/obligations.rs"),
         ("formal.rs", "Formal Lean 橋 — 優化", "core/src/formal.rs"),
     ]
