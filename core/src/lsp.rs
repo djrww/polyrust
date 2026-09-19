@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! LSP — Phase B IDE 真實：tower-lsp 結構 + Diagnostic→LSP 轉換 + VSCode 骨架
 //! core 零依賴：定義 LSP 類型，轉換函數供 frontends/ide 使用
 

@@ -80,8 +80,9 @@ def main():
                 # 新 CLI（ca501af6+）：`charon rustc -- <rustc args>`，檔名亦屬 rustc 參數。
                 # 舊用法 `charon --crate-type=rlib file.rs` 會被 clap 拒絕（C0 首跑法證：152/152
                 # 全錯分為 rustc_reject）。
+                # --edition=2021 必需：rustc 單檔編譯預設 edition 2015，async/await 直接 E0670。
                 p = subprocess.run(
-                    [args.charon, "rustc", "--", inp, "--crate-type=rlib"],
+                    [args.charon, "rustc", "--", inp, "--crate-type=rlib", "--edition=2021"],
                     cwd=td, capture_output=True, text=True, timeout=120,
                 )
             except subprocess.TimeoutExpired:
@@ -118,8 +119,21 @@ def main():
     for r in results:
         bycat.setdefault(r["cat"], Counter())[r["status"]] += 1
     n_ok = agg["ok"] + agg["ok_with_missing"]
+    # 設計上 UNSAT（rustc-invalid）案例一口徑：明細 status==rustc_reject 的佔位實質係正確判定，
+    # 但 DSL 語料（缺 use 行、`?` 非 Result 返回等）屬語料-vs-Rust 誠實邊界，唔係 Charon 能力缺口。
+    # 設計上 UNSAT（phase3/*_unsat、examples/bad）：rustc 拒絕係正確判定，唔應拖低指標。
+    # 其餘 reject（*_sat/*_unknown 入 rustc_reject、matrix 缺 derive/外部 crate 等）
+    # 屬語料-vs-真 Rust 嘅誠實邊界 → C1 語料修剪清單，唔係 Charon 能力缺口。
+    n_rej = agg["rustc_reject"]
+    n_design_unsat = sum(
+        1 for r in results
+        if r["status"] == "rustc_reject" and (r["name"].endswith("_unsat") or r["name"] == "examples/bad")
+    )
+    denom_eff = max(len(results) - n_design_unsat, 1)
+    eff = len(results)
     lines = ["# C0 Charon Spike — 執行結果", "",
-             f"總案例 {len(results)}；出 LLBC **{n_ok}**（{100*n_ok/len(results):.1f}%）；"
+             f"## 有效轉換率：**{n_ok}/{denom_eff} = {100*n_ok/denom_eff:.1f}%**（已排除設計 UNSAT {n_design_unsat} 例）", "",
+             f"總案例 {len(results)}；出 LLBC **{n_ok}**（{100*n_ok/eff:.1f}%）；"
              f"ok {agg['ok']} ｜ ok_with_missing {agg['ok_with_missing']} ｜ "
              f"rustc_reject {agg['rustc_reject']} ｜ charon_err {agg['charon_err']} ｜ timeout {agg['timeout']}", "",
              "## 按類別", "", "| 類別 | ok | ok+missing | rustc_reject | charon_err | timeout |", "|---|---|---|---|---|---|"]

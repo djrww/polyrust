@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! Diagnostic — Phase B P0 硬化：精確 span + code + help + note
 //! 目標：錯誤信息從 Vec<String> 升級為結構化 Diagnostic，含 file:line:col，關聯 mod_map 路徑
 

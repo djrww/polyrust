@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! QAP Groth16 — Phase B 真實 Groth16：arkworks/bellman 集成 + to_solana_ix
 //! 目標：從 r1cs.json 導出 Groth16 proof，Solana verifier 真實驗證，替代當前哈希檢查
 

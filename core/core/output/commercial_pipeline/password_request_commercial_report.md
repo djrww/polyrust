@@ -4,8 +4,8 @@
 - Poly len: 1616 chars
 - Fully complete (4 layers): true
 - Functional passed: Some(true)
-- Risk: 15.5 | QAP: true
-- Duration: 1123ms
+- Risk: 15.5 | QAP: false
+- Duration: 1173ms
 
 ## AST — N=11 fns=3 complete=true
 
@@ -33,31 +33,31 @@ ProgramV2 (universe N=11) {
 ## MIR — N=11 products=2 complete=true
 
 Lowered MIR {
-  products: 2 (["PasswordGenerator", "PasswordConfig"])
+  products: 2 (["PasswordConfig", "PasswordGenerator"])
   sums: 1 (["Strength"])
   generated: 0 items
   mod_map: 0 entries
   universe N=11
   program items: 8
-  product PasswordGenerator: 1 fields
-    - config: PasswordConfig
   product PasswordConfig: 5 fields
     - length: i32
     - use_upper: bool
     - use_lower: bool
     - use_digits: bool
     - use_symbols: bool
+  product PasswordGenerator: 1 fields
+    - config: PasswordConfig
   sum Strength: 3 variants
   stats: Lowered: 2 products, 1 sums, 0 generated, 0 mod_map, universe N=11
 Products: ["Pa
 
-## V3 — SAT — Risk 15.5 — QAP Some(true)
+## V3 — SAT — Risk 15.5 — QAP Some(false)
 
 Business: 低风险代码，适合直接上链或嵌入式部署，QAP 证书可作为审计见证
 
 Loss avoided: $10k-50k (避免轻微缺陷)
 
-## Native — compile true — binary 4506704 bytes
+## Native — compile true — binary 4506720 bytes
 
 ## Solana On-Chain
 
@@ -74,7 +74,6 @@ Loss avoided: $10k-50k (避免轻微缺陷)
 - core/output/commercial_pipeline/password_request_commercial.rs
 - core/output/commercial_pipeline/password_request_audit.md
 - core/output/commercial_pipeline/password_request_audit.json
-- core/output/commercial_pipeline/password_request_qap.json
 - core/output/commercial_pipeline/solana/password_request_solana_payload.json
 - core/output/commercial_pipeline/solana/password_request_solana_program.rs
 - core/output/commercial_pipeline/solana/password_request_anchor_idl.json

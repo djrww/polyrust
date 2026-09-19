@@ -4,8 +4,8 @@
 - Poly len: 511 chars
 - Fully complete (4 layers): true
 - Functional passed: Some(true)
-- Risk: 12.0 | QAP: true
-- Duration: 760ms
+- Risk: 12.0 | QAP: false
+- Duration: 770ms
 
 ## AST — N=7 fns=3 complete=true
 
@@ -35,7 +35,7 @@ Sums: []
 }
 
 
-## V3 — SAT — Risk 12.0 — QAP Some(true)
+## V3 — SAT — Risk 12.0 — QAP Some(false)
 
 Business: 低风险代码，适合直接上链或嵌入式部署，QAP 证书可作为审计见证
 
@@ -58,7 +58,6 @@ Loss avoided: $10k-50k (避免轻微缺陷)
 - core/output/commercial_pipeline/missing_syntax_commercial.rs
 - core/output/commercial_pipeline/missing_syntax_audit.md
 - core/output/commercial_pipeline/missing_syntax_audit.json
-- core/output/commercial_pipeline/missing_syntax_qap.json
 - core/output/commercial_pipeline/solana/missing_syntax_solana_payload.json
 - core/output/commercial_pipeline/solana/missing_syntax_solana_program.rs
 - core/output/commercial_pipeline/solana/missing_syntax_anchor_idl.json

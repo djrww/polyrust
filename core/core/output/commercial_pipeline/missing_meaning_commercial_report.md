@@ -4,8 +4,8 @@
 - Poly len: 2163 chars
 - Fully complete (4 layers): true
 - Functional passed: Some(true)
-- Risk: 26.0 | QAP: true
-- Duration: 2812ms
+- Risk: 26.0 | QAP: false
+- Duration: 3154ms
 
 ## AST — N=18 fns=1 complete=true
 
@@ -36,25 +36,26 @@ ProgramV2 (universe N=18) {
 ## MIR — N=18 products=8 complete=true
 
 Lowered MIR {
-  products: 8 (["Range", "FileTree", "RustAnalyzer", "EnterpriseIDE", "Position", "Editor", "FileNode", "TextBuffer"])
+  products: 8 (["Editor", "RustAnalyzer", "Position", "Range", "FileNode", "FileTree", "TextBuffer", "EnterpriseIDE"])
   sums: 0 ([])
   generated: 0 items
   mod_map: 0 entries
   universe N=18
   program items: 14
+  product Editor: 2 fields
+    - buffer: TextBuffer
+    - cursor: i32
+  product RustAnalyzer: 1 fields
+    - cache: i32
+  product Position: 2 fields
+    - line: i32
+    - col: i32
   product Range: 2 fields
     - start: Position
     - end: Position
-  product FileTree: 1 fields
-    - nodes: Vec<FileNode>
-  product RustAnalyzer: 1 fields
-    - cache: i32
-  product EnterpriseIDE: 2 fields
-    - files: FileTree
-    - editors: Vec<Editor>
-  product Positio
+  product FileNode: 2 fiel
 
-## V3 — SAT — Risk 26.0 — QAP Some(true)
+## V3 — SAT — Risk 26.0 — QAP Some(false)
 
 Business: 低风险代码，适合直接上链或嵌入式部署，QAP 证书可作为审计见证
 
@@ -77,7 +78,6 @@ Loss avoided: $10k-50k (避免轻微缺陷)
 - core/output/commercial_pipeline/missing_meaning_commercial.rs
 - core/output/commercial_pipeline/missing_meaning_audit.md
 - core/output/commercial_pipeline/missing_meaning_audit.json
-- core/output/commercial_pipeline/missing_meaning_qap.json
 - core/output/commercial_pipeline/solana/missing_meaning_solana_payload.json
 - core/output/commercial_pipeline/solana/missing_meaning_solana_program.rs
 - core/output/commercial_pipeline/solana/missing_meaning_anchor_idl.json

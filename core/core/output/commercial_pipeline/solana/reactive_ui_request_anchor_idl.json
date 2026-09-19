@@ -70,13 +70,13 @@
   "metadata": {
     "source": "reactive_ui_request",
     "risk_score": 15.5,
-    "qap_verified": true,
+    "qap_verified": false,
     "r1cs_constraints": 208,
     "r1cs_wires": 124,
     "type_universe": 11,
     "groebner_algo": "f4f5",
-    "certificate": "QAP-CERT-reactive_ui_request-418-1789810036",
-    "timestamp": 1789810037,
+    "certificate": "QAP-CERT-reactive_ui_request-208-0",
+    "timestamp": 1789846244,
     "lean_proofs": [
       "Polyrust.QAP.qap_verified_implies_sat",
       "Polyrust.IncrementalIteration.f4f5_iter_converges",

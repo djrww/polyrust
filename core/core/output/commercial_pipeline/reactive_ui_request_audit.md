@@ -1,6 +1,6 @@
 # Polyrust V3 商业审计报告 — reactive_ui_request
 
-**版本**: v3.0-commercial | **时间**: 1789810036 | **迭代**: 3
+**版本**: v3.0-commercial | **时间**: 1789846244 | **迭代**: 3
 
 **判定**: SAT ✅ | **风险**: 15.5 (low) | **ISO**: QM (Quality Management)
 
@@ -9,7 +9,7 @@
 - **商业价值**: 低风险代码，适合直接上链或嵌入式部署，QAP 证书可作为审计见证
 - **避免损失**: $10k-50k (避免轻微缺陷)
 - **类型宇宙**: N=11 (7+4 扩展)
-- **QAP 验证**: Some(true) (篡改拒绝 Some(true))
+- **QAP 验证**: Some(false) (篡改拒绝 Some(true))
 - **Groebner 算法**: f4f5 (basis size 0)
 - **收敛**: 是 (3 轮迭代)
 
@@ -27,16 +27,16 @@
 
 | 标准 | 通过 | 说明 |
 |---|---|---|
-| Lean_Formal | ✅ |  |
-| TypeSafety | ✅ |  |
-| ISO26262_QM | ✅ |  |
+| ZeroDependency | ✅ |  |
 | ISO26262_ASIL_D | ✅ |  |
 | ISO26262_ASIL_A | ✅ |  |
 | UnsafeAudited | ✅ |  |
 | MemorySafety | ✅ |  |
+| TypeSafety | ✅ |  |
+| QAP_Verified | ❌ |  |
+| Lean_Formal | ✅ |  |
+| ISO26262_QM | ✅ |  |
 | ISO26262_ASIL_B | ✅ |  |
-| QAP_Verified | ✅ |  |
-| ZeroDependency | ✅ |  |
 
 ## Lean 形式化证明引用
 
@@ -54,9 +54,9 @@
 
 | 轮 | 判定 | vars | polys | 算法 | 风险 | 耗时ms | 收敛 |
 |---|---|---|---|---|---|---|---|
-| 1 | SAT | 166 | 100 | f4f5 | 9.5 | 133 |  |
-| 2 | SAT | 208 | 124 | f4f5 | 11.5 | 219 |  |
-| 3 | SAT | 208 | 124 | f4f5 | 13.5 | 184 | ✓ |
+| 1 | SAT | 166 | 100 | f4f5 | 9.5 | 122 |  |
+| 2 | SAT | 208 | 124 | f4f5 | 11.5 | 178 |  |
+| 3 | SAT | 208 | 124 | f4f5 | 13.5 | 177 | ✓ |
 
 ## 修复建议
 

@@ -70,13 +70,13 @@
   "metadata": {
     "source": "missing_meaning",
     "risk_score": 26,
-    "qap_verified": true,
+    "qap_verified": false,
     "r1cs_constraints": 307,
     "r1cs_wires": 129,
     "type_universe": 18,
     "groebner_algo": "f4f5",
-    "certificate": "QAP-CERT-missing_meaning-622-1789810032",
-    "timestamp": 1789810033,
+    "certificate": "QAP-CERT-missing_meaning-307-0",
+    "timestamp": 1789846240,
     "lean_proofs": [
       "Polyrust.QAP.qap_verified_implies_sat",
       "Polyrust.IncrementalIteration.f4f5_iter_converges",

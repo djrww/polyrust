@@ -1,6 +1,6 @@
 # Polyrust V3 商业审计报告 — defi_audit_request
 
-**版本**: v3.0-commercial | **时间**: 1789810026 | **迭代**: 3
+**版本**: v3.0-commercial | **时间**: 1789846233 | **迭代**: 3
 
 **判定**: SAT ✅ | **风险**: 26.0 (low) | **ISO**: QM (Quality Management)
 
@@ -9,7 +9,7 @@
 - **商业价值**: 低风险代码，适合直接上链或嵌入式部署，QAP 证书可作为审计见证
 - **避免损失**: $10k-50k (避免轻微缺陷)
 - **类型宇宙**: N=7 (7+0 扩展)
-- **QAP 验证**: Some(true) (篡改拒绝 Some(true))
+- **QAP 验证**: Some(false) (篡改拒绝 Some(true))
 - **Groebner 算法**: f4f5 (basis size 0)
 - **收敛**: 是 (3 轮迭代)
 
@@ -27,16 +27,16 @@
 
 | 标准 | 通过 | 说明 |
 |---|---|---|
+| ZeroDependency | ✅ |  |
+| ISO26262_ASIL_D | ❌ |  |
 | TypeSafety | ✅ |  |
 | MemorySafety | ✅ |  |
-| ISO26262_ASIL_B | ✅ |  |
-| QAP_Verified | ✅ |  |
-| UnsafeAudited | ✅ |  |
-| ZeroDependency | ✅ |  |
-| ISO26262_ASIL_A | ✅ |  |
-| ISO26262_ASIL_D | ❌ |  |
+| UnsafeAudited | ❌ |  |
 | Lean_Formal | ✅ |  |
 | ISO26262_QM | ✅ |  |
+| ISO26262_ASIL_A | ✅ |  |
+| ISO26262_ASIL_B | ✅ |  |
+| QAP_Verified | ❌ |  |
 
 ## Lean 形式化证明引用
 
@@ -55,9 +55,9 @@
 
 | 轮 | 判定 | vars | polys | 算法 | 风险 | 耗时ms | 收敛 |
 |---|---|---|---|---|---|---|---|
-| 1 | SAT | 89 | 64 | f4f5 | 20.0 | 43 |  |
-| 2 | SAT | 153 | 118 | f4f5 | 22.0 | 130 |  |
-| 3 | SAT | 153 | 118 | f4f5 | 24.0 | 122 | ✓ |
+| 1 | SAT | 89 | 64 | f4f5 | 20.0 | 36 |  |
+| 2 | SAT | 153 | 118 | f4f5 | 22.0 | 100 |  |
+| 3 | SAT | 153 | 118 | f4f5 | 24.0 | 103 | ✓ |
 
 ## 修复建议
 

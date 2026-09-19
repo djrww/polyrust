@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! Incremental Cache — Phase B 性能硬化：type_universe LRU + constraints_v2 增量重算
 //! 目標：文件改動僅重算受影響節點，type_universe 緩存避免重複 unify
 

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! Phase B — P0 硬化 + IDE LSP + Groth16
 //! 整合：Diagnostic span + AST 80 + 增量性能 + LSP + QAP Groth16 真實
 

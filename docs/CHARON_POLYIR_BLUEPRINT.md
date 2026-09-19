@@ -91,7 +91,7 @@ core/polyir_lower.rs   語義降糖：
 
 | 里程碑 | 內容 | 驗收（全部要 CI 可斷言） | 粗估 |
 |---|---|---|---|
-| **C0 Spike** | 安裝/pin Charon（hetzner nightly 鎖 commit）；12 examples + 100 matrix cases 全過 `charon cargo --preset=aeneas`；記錄 missing-decl rate；LLBC schema snapshot 測試 | ≥70/100 cases 出 LLBC；missing rate 有報告；pin 檔入倉（`charon.pin`） | 1–2 日 |
+| **C0 Spike ✅（2026-09-20 轉綠）** | pin Charon（`charon.pin` = `ca501af6`）；152 例（100 matrix + 52 examples/phase3）全過 `charon rustc --edition=2021`；missing rate + E-code 分解有報告；LLBC schema snapshot v1（`{charon_version, translated{…}, has_errors}`） | **117/152 = 77.0%**（≥70% PASS）；有效轉換率（除 16 設計 UNSAT）**86.0%**；charon_err/timeout = 0/0；基線報告 `docs/C0_BASELINE.md` | 已完成 |
 
 > **C0 現況（2026-09-19）**：基建三件套已完成（`charon.pin`、`scripts/c0_spike.py` 全量 harness、
 > `scripts/c0_env_check.sh` 一鍵環境）；全量執行**受執行沙箱 2GB RAM 限制**（Charon 構建硬下限 ≈4GB，
