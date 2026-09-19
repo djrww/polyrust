@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 /- # Buchberger 終止性（定理 T4）——完整機械化
 
 對應 docs/THEOREMS.md §6（T4）：

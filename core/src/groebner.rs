@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! Buchberger 演算法：S-多項式循環、兩條消去準則（第一準則 = LM 互素；
 //! 第二準則 = 鏈準則）、約化 Gröbner 基，以及布爾多項式系統（含域多項式
 //! x²−x）的回溯求解。

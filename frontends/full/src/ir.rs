@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! Surface AST → MiniRustFull IR 的中間表示
 //! 本文件是 v0.2 擴展的骨架，展示如何把新特性降維至核心管線
 

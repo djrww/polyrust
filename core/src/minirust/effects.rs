@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! Phase3 — 效應系統：unsafe 上下文位元、I/O、pure、no-io、raw ptr + 5類 unsafe 前移
 //! 核心思想：每個節點帶 eff 位元：in_unsafe: bool, has_io: bool, is_pure: bool
 //! 新增：unsafe_fn_defs, unsafe_trait_defs, static_mut_defs, union_defs, thread_unsafe

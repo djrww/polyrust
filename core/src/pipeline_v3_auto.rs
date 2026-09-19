@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! Pipeline V3 Auto — 自动进行 + 2个example回喂
 //!
 //! 实现用户要求：

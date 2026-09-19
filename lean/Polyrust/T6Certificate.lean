@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 /- # Gröbner 判定定理（T6）：求值同態、憑證與布爾插值
 
 對應 docs/THEOREMS.md §8（T6）：

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! Phase3+ — Expr 解析器補齊：Closure / Return / Break / Try / Cast / Range
 //! 零依賴，手寫遞歸下降，覆蓋 FullExpr 中缺口變體，約 300 行
 

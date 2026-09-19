@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! 多變量多項式（係數於 ℚ）：單項式、三種單項式序（lex / grlex / grevlex）、
 //! 多元除法、S-多項式。這是 Buchberger 演算法與代數編碼的基礎設施。
 

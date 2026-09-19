@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! Commercial Pipeline — 真實商業化全鏈路：txt -> poly -> AST -> MIR -> Rust -> native -> audit -> on-chain
 //!
 //! 目標：

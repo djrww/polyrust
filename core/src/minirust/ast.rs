@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! Mini-Rust 抽象語法樹 — 統一版（AST 補齊）
 //! 本文件合併：
 //! - ast.rs 原始 7 型別 + BinOp + E + FnDef + Macro

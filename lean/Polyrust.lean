@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 /- # polyrust 的 Lean 4 形式化（無 Mathlib，自包含）
 
 `docs/THEOREMS.md` 中命題 P 證明骨幹的機械化：模組對應引理與定理如下。

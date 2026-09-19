@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! Phase2 — 型別宇宙構造、閉包、統一 (unify)
 //! Phase3 — lifetime 參數、outlives 圖、泛型 lifetime 統一
 //!

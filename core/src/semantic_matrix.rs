@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! Semantic Matrix — Phase A 语义保持测试矩阵 100 例
 //! 目标：poly → Rust → rustc → cargo test 行为等价，>90% 通过率，无 filler
 
@@ -95,7 +96,10 @@ pub fn all_semantic_cases() -> Vec<SemanticCase> {
         SemanticCase::new("move_semantic", "# @intent move\nfn move_sem(s: String) -> String { let t = s; t }", true, vec!["String"], "borrowck"),
         SemanticCase::new("lifetime_simple", "# @intent lifetime\nfn longest<'a>(a: &'a str, b: &'a str) -> &'a str { if a.len() > b.len() { a } else { b } }", true, vec!["longest", "'a"], "borrowck"),
         SemanticCase::new("borrow_two", "# @intent borrow two\nfn two_borrows(a: &i32, b: &i32) -> i32 { *a + *b }", true, vec!["&"], "borrowck"),
-        SemanticCase::new("mut_borrow_exclusive", "# @intent mut exclusive\nfn exclusive(x: &mut i32, y: &mut i32) { *x = *x + 1; *y = *y + 2; }", false, vec!["&mut"], "borrowck"),
+        // 2026-09-19 修正：期望 SAT。rustc 實測此函數**合法編譯**（兩個 &mut 參數嘅互斥性
+        // 由調用點借用規則保證，簽名本身無衝突）；v1 與 v3 都判 SAT。
+        // 舊期望 UNSAT(false) 屬 aspirational 錯標，地真值為準。
+        SemanticCase::new("mut_borrow_exclusive", "# @intent mut exclusive\nfn exclusive(x: &mut i32, y: &mut i32) { *x = *x + 1; *y = *y + 2; }", true, vec!["&mut"], "borrowck"),
         SemanticCase::new("nll_region", "# @intent NLL\nfn nll() -> i32 { let mut x = 5; { let r = &mut x; *r = 10; } x }", true, vec!["&mut"], "borrowck"),
         SemanticCase::new("outlives", "# @intent outlives\nfn outlives<'a, 'b>(x: &'a i32, y: &'b i32) -> i32 where 'a: 'b { *x + *y }", true, vec!["outlives", "'a"], "borrowck"),
         SemanticCase::new("borrow_in_loop", "# @intent borrow in loop\nfn borrow_loop(v: &mut Vec<i32>) { for x in v.iter_mut() { *x = *x * 2; } }", true, vec!["iter_mut"], "borrowck"),
@@ -198,8 +202,6 @@ mod tests {
     /// 規則：只允許從本表移除（修好即刪行並同步下調上限），
     /// 絕不新增——新失敗 = 回歸，CI 紅。每行附原因與跟蹤。
     const KNOWN_FAILURES: &[(&str, &str)] = &[
-        ("mut_borrow_exclusive", "v3 借用互斥編碼弱化：預期 UNSAT 判成 SAT — P0，見 DEV_PLAN_V03 P0-C1"),
-        ("ref_deref", "v3 借用檢查弱化：預期 UNSAT 判成 SAT — P0，同上"),
         ("async_simple", "async 狀態機生成碼語義標記缺失（expected_contains 不符）— P1"),
         ("async_spawn", "async spawn 判定偏差 — P1"),
         ("io_with_pure_call", "I/O 效應 × pure 誤拒（false UNSAT）— P1"),
@@ -215,8 +217,8 @@ mod tests {
         for d in &details {
             println!("{}", d);
         }
-        // Phase A target >90%（2026-09-19 基線 94.0%）
-        assert!(rate >= 94.0, "pass rate {:.1}% 低於 2026-09-19 基線 94%（回歸）", rate);
+        // 2026-09-19 第二次收緊：P0-C1 修好 borrowck 兩案例後基線 96.0%
+        assert!(rate >= 96.0, "pass rate {:.1}% 低於 2026-09-19 基線 96%（回歸）", rate);
 
         // baseline ratchet：失敗集合必須 ⊆ 已知白名單（新失敗即回歸，直接紅）
         let failing: Vec<String> = details

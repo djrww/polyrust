@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 /- # F5 演算法形式化 — 簽名準則與重寫準則
 
 Faugère F5 2002 的 Lean 形式化，針對正則序列優化。

@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 /- # 積型歸約（方案 (b)）：複合型別檢查歸約為逐欄位檢查
 
 對應 `docs/THEOREMS.md` §11（T9）泛化方案的**第 (b) 步**：在 `T9Generalized`

@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 /- # 子句代數：消解、學習子句與模型守恆（定理 T3(b) + CDCL 學習）
 
 對應 docs/THEOREMS.md §5（T3）：

@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 /-
 Phase3 — Async QAP：Future 輪詢約束、狀態機到 R1CS
 對應 Rust：core/src/minirust/async_qap.rs

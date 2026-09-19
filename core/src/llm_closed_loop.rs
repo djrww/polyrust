@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! Phase 3: 閉環 + LLM — 你便是 LLM，所以把之前需要 LLM 的補上實作
 //! 零第三方，std only，但用 LLM 智能 (本文件由 LLM 自身實作)
 

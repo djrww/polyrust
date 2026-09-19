@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 /- # 雙向完備（補全）
 
 本模組把以往只有單向的引理補全為雙向 ⟺，實現「補全」類：

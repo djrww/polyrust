@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! polyrust-core —— Mini-Rust 宏的代數形式化管線核心
 //!
 //! CDCL（子句學習）× Buchberger（Gröbner 基化簡）× QAP（算術程序驗證）。
@@ -25,6 +26,7 @@ pub mod groebner_f4;
 pub mod groebner_f5;
 pub mod groebner_f4f5;
 pub mod json;
+pub mod differential;
 pub mod llm;
 pub mod llm_closed_loop;
 pub mod lrat;

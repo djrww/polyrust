@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 /- # Phase2 — 模塊扁平化：證明扁平化保持可定型性
 對應 Rust `core/src/minirust/lower.rs` 的 `flatten_item` 與 `lower_program` 的 mod 處理
 -/

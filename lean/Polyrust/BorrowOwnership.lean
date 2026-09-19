@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 /- # 借用與所有權（T9 的借用擴充）
 
 把 `docs/THEOREMS.md` §3（T1）所述的三項借用要素機械化：

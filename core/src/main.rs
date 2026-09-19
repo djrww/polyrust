@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! polyrust：Mini-Rust 宏的代數形式化管線
 //! CDCL（子句學習）× Buchberger（Gröbner 基化簡）× QAP（算術程序驗證）
 //!

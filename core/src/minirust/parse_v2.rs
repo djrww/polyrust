@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! Phase1 — 擴展詞法與類型解析（7+i）
 //! 支援 Vec<T>, String, HashMap<K,V>, Option<T>, Result<T,E>, *mut T, *const T, &'a T 等
 

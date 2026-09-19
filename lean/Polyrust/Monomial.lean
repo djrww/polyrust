@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 /- # 單項式代數（共用基礎層）
 
 本模組提供後續所有模組共用的**指數向量單項式代數**：

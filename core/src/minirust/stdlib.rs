@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! Phase3 — Vec/String/HashMap 內建庫擴展與泛型版本
 //!
 //! 提供 Rust std 類型的多項式編碼

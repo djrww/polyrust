@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 /-
 Phase3 — trait/impl 方法表與存在量化
 對應 Rust：core/src/minirust/trait_impl.rs

@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 /-
 Phase3 — Unsafe 上下文位元、I/O 效應、Pure、No-IO
 對應 Rust：core/src/minirust/effects.rs, borrowck.rs

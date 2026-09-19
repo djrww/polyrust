@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! Phase A — 落地漏水堵住：增量管線 + 語義矩陣 + QAP r1cs.json + CI
 //! 四項 P0 任務的整合入口
 

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! macro_rules! 展開器：token 層匹配、衛生轉錄（模板引入的識別字改名）、
 //! 結果重新解析為 AST（新節點 id）。多臂宏的每個臂都是一個「選擇點」，
 //! 由約束生成賦予臂位元 a_i（代數）與臂互斥子句（CDCL）。

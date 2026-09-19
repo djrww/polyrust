@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! 一致性 oracle（窮舉驗證）：借鏡 `rlzl` 的「暴力法做 ground truth」哲學。
 //!
 //! 在**有界的細程序空間**內窮舉所有 `.poly` 程序，逐個跑：

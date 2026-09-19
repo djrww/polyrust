@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! Phase2 — Lowering：struct/enum → product/sum, match → if 決策樹, for → loop, async → state machine, mod → flatten
 //!
 //! 本模組將 `ProgramV2`（含高級特性）降維至 `Program`（v0.1 核心）或生成中間表示供 `constraints_v2` 使用。

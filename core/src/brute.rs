@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! @brute 對照常態化（仿 `rlzl`）：**暴力法 ⟺ 代數法，逐位元比對**。
 //!
 //! `rlzl` 的哲學：昂貴/精巧的實作必須時刻接受一個**獨立、簡單、直接**的

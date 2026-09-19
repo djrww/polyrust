@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! PolyCache — Phase A 增量管線：hash(src) → (n_vars, groebner_basis, timestamp)
 //! 目標：文件改動僅重算受影響節點，避免全量 F4/F5
 

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! 直接型別檢查器（ground truth oracle）：
 //! 遞迴推導 Mini-Rust 型別，多臂宏採「存在臂選擇」語義
 //! （存在某個臂組合使整個程序良構——管線的型別導向臂選擇與之一致；

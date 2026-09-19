@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 /- # 布爾 Nullstellensatz（構造性、𝔽_p 函數層）（v0.1.4 新增）
 
 **本模組證什麼（說死）**：

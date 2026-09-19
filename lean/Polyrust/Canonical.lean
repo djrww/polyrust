@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 /- # 約化 Gröbner 基的唯一性（定理 T7(a)）
 
 對應 docs/THEOREMS.md §9（T7(a)）：**固定單項式序，理想的約化 Gröbner 基唯一。**

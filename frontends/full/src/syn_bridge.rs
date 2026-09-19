@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! syn → ast_full 橋接：前端完整 Rust 語法解析
 //! 依賴 syn = { features = ["full"] }，僅前端可用，core 保持零依賴
 

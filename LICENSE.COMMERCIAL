@@ -1,11 +1,13 @@
-PolyRust Commercial License — Template (Draft)
+PolyRust Commercial License — v1.0 (2026-09-19)
 
 Copyright (C) 2024-2026 PolyRust Team
-Contact: commercial@polyrust.example / legal@polyrust.example
+商業授權聯絡 / Commercial licensing contact: **TBA（首次商業發佈前由維護者填入）**
+Temporary channel: open a repository issue titled "[Commercial License Request]".
 
-This is a TEMPLATE for commercial licensing. A final signed agreement is required.
-This file is for informational purposes and does NOT grant any commercial rights
-by itself. You must obtain a signed commercial agreement.
+This document states the standard terms of the PolyRust Commercial License.
+A final written agreement referencing this document is required before any
+commercial rights take effect; depositing fees or obtaining a copy of the
+Software alone does NOT grant commercial rights.
 
 --------------------------------------------------------------------------------
 1. Grant
@@ -130,13 +132,15 @@ Licensee shall NOT:
 8. How to Obtain
 --------------------------------------------------------------------------------
 
-  Email commercial@polyrust.example with:
+:
+  Contact (TBA — to be announced before first commercial release) with:
     - Company name, size, use case (SaaS / embedded / IDE / audit)
     - Whether you modify core/ (QAP, Groebner, unsafe_safety)
     - Estimated deployments / users
     - Desired support tier
 
-  Or open GitHub issue "[Commercial License Request]".
+  Until the contact is announced: open a repository issue titled
+  "[Commercial License Request]".
 
 --------------------------------------------------------------------------------
-END OF TEMPLATE
+END OF TERMS (PolyRust Commercial License v1.0)

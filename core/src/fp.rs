@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! 質域 𝔽_p，p = 2⁶¹ − 1（Mersenne 質數）。QAP 見 qap.rs。
 //! u128 中間乘積保證無溢出（61+61 = 122 < 128）。
 

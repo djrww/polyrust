@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! `.poly` DSL 載入器、函式庫 import、模板替換，與 LLM 接口契約。
 //!
 //! `.poly` 是 polyrust 的「可輸入」描述語言：內容即 Mini-Rust 子集源碼

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! Phase3 — borrowck lifetime outlives 檢查、unsafe gate、NLL + static mut thread 檢查
 //! 整合 lifetime.rs、effects.rs、analysis.rs
 

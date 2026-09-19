@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! F4/F5 結合：簽名準則選配對 + 矩陣批量歸約 + 稀疏化 + 分塊並行
 //! 業界標準 (msolve, FGb)，針對 polyrust 布爾系統優化
 //!

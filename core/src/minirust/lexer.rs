@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! Mini-Rust 詞法分析。Phase1 擴展：支持 `>` 用於泛型 `Vec<T>`
 //! Phase3+：補 | || ? . .. ..= as return break continue move in box 字符串字面量
 

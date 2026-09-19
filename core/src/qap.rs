@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! QAP（Quadratic Arithmetic Program）：
 //! R1CS（A·z ∘ B·z = C·z）→ 經 Lagrange 插值 → 多項式形式
 //! a(t)·b(t) − c(t) ≡ 0 (mod Z(t))，Z 為定義域上的 vanishing 多項式。

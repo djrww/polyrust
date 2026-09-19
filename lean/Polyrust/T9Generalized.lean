@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 /- # 型別宇宙泛化（定理 T9 的一般化）：任意可枚舉型別宇宙上的端到端正確性
 
 對應 `docs/THEOREMS.md` §11（T9），但把 `T9EndToEnd.lean` 裡寫死的

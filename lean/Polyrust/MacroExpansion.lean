@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 /- # 宏展開是求值同態（定理 T7(b) 的語法層形式化）
 
 `docs/THEOREMS.md` §9（T7(b)）：

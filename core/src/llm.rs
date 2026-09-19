@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! LLM 整合層：**可插拔 provider 適配** + **`.poly` 護欄**（guardrail）。
 //!
 //! ## 設計（零依賴，std-only）

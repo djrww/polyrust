@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 /- UnsafeEmitProof — Lean 對 emit 文本/IR 的對應定理 -/
 import Polyrust.UnsafeSafety
 namespace Polyrust

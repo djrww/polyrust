@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! Mini-Rust 前端：詞法、語法、宏系統（macro_rules! + 衛生）、
 //! 借用活性分析、直接型別檢查器（ground truth）、代數約束生成。
 //! Phase1 擴展：型別宇宙 7+i（universe）、擴展 AST v2

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! Poly DSL Codegen v3 — 真實代碼，無 filler，功能測試為主
 //! 移除所有 `// `.repeat(ratio) 和 `语义填充` 垃圾，改為真實 Rust 邏輯
 //! 主指標：功能測試通過率 + API 完整度 + cargo check 真實編譯

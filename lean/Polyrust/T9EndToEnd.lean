@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 /- # 端到端正確性（定理 T9）：迷你語言、約束編碼與代碼生成 round-trip
 
 對應 `docs/THEOREMS.md` §11（T9）：

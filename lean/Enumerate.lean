@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 /-
 列舉腳本（臨時工具，不入 lake 目標）：
 輸出 `Polyrust.*` 命名空間下全部宣告的 TSV：

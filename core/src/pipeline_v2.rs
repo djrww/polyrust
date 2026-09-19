@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! Phase3 — 管線 v2：支援 struct/enum/impl/trait、Vec/String/HashMap、loop/match、mod、async、I/O、unsafe、lifetime
 //! 混合路線：DSL + syn 前端，core 零依賴
 //! Phase2/3/4 補齊：unify、lower、borrowck 衝突、QAP 集成、前端 N 展示
@@ -263,7 +264,10 @@ fn check_vec_type_errors(_prog: &ProgramV2, source: &str) -> Vec<String> {
 
 fn check_borrow_conflicts(source: &str) -> Vec<(usize, usize)> {
     // 僅檢測用戶主體中的 &mut 衝突，忽略 self / 標準庫
-    // 收集 let 變量 (mut 或帶類型) — 優化 with_capacity
+    // 2026-09-19：曾試行「簽名 ≥2 &mut 參數即衝突」（Rule B）——v1↔v3 差分測試
+    // + rustc 地真值證明其為**錯誤規則**（rustc 合法、v1 SAT）；已回退。
+    // 合法互斥借用嘅正確建模喺 P1（NLL region 圖）。
+    let mut conflicts = vec![];
     let mut declared_mut: std::collections::HashSet<String> = std::collections::HashSet::with_capacity(16);
     for line in source.lines() {
         let t = line.trim();
@@ -275,7 +279,6 @@ fn check_borrow_conflicts(source: &str) -> Vec<(usize, usize)> {
             }
         }
     }
-    let mut conflicts = vec![];
     let mut borrows: std::collections::HashMap<String, Vec<usize>> = std::collections::HashMap::new();
     for (idx, line) in source.lines().enumerate() {
         let t = line.trim();
@@ -302,6 +305,160 @@ fn check_borrow_conflicts(source: &str) -> Vec<(usize, usize)> {
         }
     }
     conflicts
+}
+
+/// v0.3 補強（P0-C1）：本地解引用深度分析。
+/// 對齊 rustc E0614（type cannot be dereferenced）：追蹤簡單
+/// `let` 引用鏈 + 函數參數類型聲明可得嘅 reference depth，
+/// 若使用點 `*{k} ident` 嘅 k > 已知深度 ⇒ 確定無效解引用 ⇒ UNSAT。
+/// 深度未知（match 綁定/raw pointer/`let x = *y`）一律保守放行——
+/// 寧漏報不誤報。對應 v1 口徑下 ref_deref 類案例嘅遺漏缺口。
+fn check_deref_depth(source: &str) -> Vec<String> {
+    let mut errors = vec![];
+    let mut depth: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+
+    let is_ident = |s: &str| -> bool {
+        !s.is_empty()
+            && s.chars().all(|c| c.is_alphanumeric() || c == '_')
+            && s.chars().next().map(|c| c.is_alphabetic() || c == '_').unwrap_or(false)
+            && s != "mut"
+            && s != "self"
+            && s != "Self"
+            && s != "const"
+    };
+    let ident_head = |s: &str| -> String {
+        s.chars().take_while(|&c| c.is_alphanumeric() || c == '_').collect()
+    };
+
+    // 1) 函數參數深度：逐一 fn 簽名，`name: &...&Type` 計 & 數
+    let bytes = source.as_bytes();
+    let mut i = 0usize;
+    while i + 2 < bytes.len() {
+        // 註：以 bytes 比較取代 &str 切片——源含 UTF-8 多字節字符（中文註釋）時
+        // 任意 byte index 切片會 panic（char boundary），2026-09-19 事故教訓。
+        if bytes[i] == b'f' && bytes[i + 1] == b'n' && bytes[i + 2] == b' ' {
+            let mut j = i + 3;
+            while j < bytes.len() && bytes[j] != b'(' && bytes[j] != b'{' && bytes[j] != b';' {
+                j += 1;
+            }
+            if j < bytes.len() && bytes[j] == b'(' {
+                let mut d = 0usize;
+                let mut k = j;
+                while k < bytes.len() {
+                    match bytes[k] {
+                        b'(' => d += 1,
+                        b')' => {
+                            d -= 1;
+                            if d == 0 {
+                                break;
+                            }
+                        }
+                        _ => {}
+                    }
+                    k += 1;
+                }
+                if k < bytes.len() {
+                    let params = &source[j + 1..k];
+                    for param in params.split(',').filter(|p| p.contains(':')) {
+                        let mut it = param.splitn(2, ':');
+                        let name = it.next().unwrap_or("").trim().trim_start_matches("mut ").trim();
+                        let ty = it.next().unwrap_or("");
+                        if is_ident(name) {
+                            let nd = ty.matches('&').count();
+                            if nd > 0 {
+                                depth.insert(name.to_string(), nd);
+                            }
+                        }
+                    }
+                    i = k;
+                }
+            }
+        }
+        i += 1;
+    }
+
+    // 2) 局部 let 引用鏈：按源序逐行；`&E[×n]` ⇒ depth = n + (E 若為 ident 之已知深度)
+    for line in source.lines() {
+        for stmt in line.split(';') {
+            let s = stmt.trim();
+            if !s.starts_with("let ") {
+                continue;
+            }
+            let rest = s[4..].trim().trim_start_matches("mut ").trim();
+            let Some((lhs, expr)) = rest.split_once('=') else { continue };
+            let name = lhs.split(':').next().unwrap_or("").trim().to_string();
+            if !is_ident(&name) {
+                continue;
+            }
+            let expr = expr.trim();
+            let a = expr.bytes().take_while(|b| *b == b'&').count();
+            if a > 0 {
+                if is_ident(expr.trim_start_matches('&').trim_start_matches("mut ").trim()) {
+                    let id = expr.trim_start_matches('&').trim_start_matches("mut ").trim().to_string();
+                    let base = depth.get(&id).copied().unwrap_or(0);
+                    depth.insert(name.clone(), a + base);
+                } else {
+                    depth.insert(name.clone(), a);
+                }
+            } else if ident_head(expr).as_str() != expr {
+                // 複雜表達式不追蹤
+            } else if is_ident(expr) {
+                if let Some(d0) = depth.get(expr).copied() {
+                    depth.insert(name, d0);
+                }
+            }
+        }
+    }
+
+    // 3) 使用點：一串 `*` 後接 ident；僅在深度已知且明顯超過時報錯。
+    //    raw pointer 類型片段（*const / *mut T）經 ident_head 規避；
+    //    乘法/解引用二元符號上下文（如 a * b）無連串 `*`，不受影響。
+    let mut prev_is_deref_run_char = false;
+    let mut idx = 0usize;
+    while idx < bytes.len() {
+        let b = bytes[idx];
+        if b == b'*' {
+            // 前一非空白字符若是 ident/')'/']'（如 a *  或 *在一元位之外）則視為乘法，不計
+            let mut p = idx;
+            while p > 0 && bytes[p - 1].is_ascii_whitespace() {
+                p -= 1;
+            }
+            let bin_ctx = p > 0
+                && (bytes[p - 1].is_ascii_alphanumeric()
+                    || bytes[p - 1] == b')'
+                    || bytes[p - 1] == b']'
+                    || bytes[p - 1] == b'_');
+            let _ = prev_is_deref_run_char;
+            let mut k = idx;
+            while k < bytes.len() && bytes[k] == b'*' {
+                k += 1;
+            }
+            if !bin_ctx {
+                let mut m = k;
+                while m < bytes.len() && bytes[m].is_ascii_whitespace() {
+                    m += 1;
+                }
+                let head = ident_head(&source[m..]);
+                if is_ident(&head) {
+                    let cnt = k - idx;
+                    if let Some(d0) = depth.get(&head) {
+                        if cnt > *d0 {
+                            errors.push(format!(
+                                "invalid deref: `{}` 嘅 reference depth 為 {}，但出現 {} 重解引用（rustc E0614 語義：cannot be dereferenced）",
+                                head, d0, cnt
+                            ));
+                        }
+                    }
+                }
+            }
+            idx = k;
+            prev_is_deref_run_char = true;
+        } else {
+            prev_is_deref_run_char = false;
+            idx += 1;
+        }
+    }
+    errors
 }
 
 /// v0.3 hardening：估算 `while X < N`（配 `X = X + D` / `X += D`）所需迭代數；
@@ -616,6 +773,13 @@ pub fn run_pipeline_v2_with_algo(
         for (a,b) in borrow_conflicts {
             result.errors.push(format!("borrow conflict: &mut at lines {} and {} overlap", a, b));
         }
+    }
+
+    // Phase3 補（v0.3 P0-C1）：無效解引用深度（rustc E0614 語義）
+    let deref_errors = check_deref_depth(source);
+    if !deref_errors.is_empty() {
+        result.borrowck_errors.extend(deref_errors.clone());
+        result.errors.extend(deref_errors);
     }
 
     // Phase3 補：loop 契約
@@ -1148,3 +1312,43 @@ pub fn run_pipeline_v2(_name: &str, source: &str, poly_src: &PolySource) -> Resu
 }
 
 
+
+#[cfg(test)]
+mod borrowck_v03_tests {
+    use super::*;
+
+    #[test]
+    fn mut_params_no_conflict_rustc_ground_truth() {
+        // rustc 地真值（2026-09-19 實測）：兩個 &mut 參數係**合法** Rust
+        //（互斥性喺調用點由借用規則保證），管線不得產生衝突。
+        // 差分測試亦證實 v1 判 SAT。舊矩陣期望 UNSAT 屬 aspirational 錯標，已修。
+        let src = "fn exclusive(x: &mut i32, y: &mut i32) { *x = *x + 1; *y = *y + 2; }";
+        let c = check_borrow_conflicts(src);
+        assert!(c.is_empty(), "兩個 &mut 參數不得視為衝突（rustc 合法、v1 SAT）");
+    }
+
+    #[test]
+    fn rule_b_single_mut_param_clean() {
+        let src = "fn borrow_mut(x: &mut i32) { *x = *x + 1; }";
+        assert!(check_borrow_conflicts(src).is_empty());
+    }
+
+    #[test]
+    fn deref_depth_over_deref_rejected() {
+        // rustc E0614：rr 深度 2，***rr 必敗
+        let src = "fn ref_deref() -> i32 { let x = 5; let r = &x; let rr = &r; ***rr }";
+        let e = check_deref_depth(src);
+        assert_eq!(e.len(), 1, "應恰好一個無效解引用錯誤，got {:?}", e);
+    }
+
+    #[test]
+    fn deref_depth_legit_passes() {
+        let src = "fn nll() -> i32 { let mut x = 5; { let r = &mut x; *r = 10; } x }";
+        assert!(check_deref_depth(src).is_empty(), "合法單重解引用不得誤報");
+        let src2 = "fn outlives<'a, 'b>(x: &'a i32, y: &'b i32) -> i32 where 'a: 'b { *x + *y }";
+        assert!(check_deref_depth(src2).is_empty());
+        // match 綁定未知深度 → 保守放行
+        let src3 = "fn borrow_match(o: &Option<i32>) -> i32 { match o { Some(v) => *v, None => 0 } }";
+        assert!(check_deref_depth(src3).is_empty());
+    }
+}

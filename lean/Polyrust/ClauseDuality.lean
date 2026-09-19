@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 /- # 子句–多項式對偶（定理 T3(a) 的核心）
 
 對應 docs/THEOREMS.md §5（T3）：

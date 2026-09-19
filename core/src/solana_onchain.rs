@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! Solana 真上鏈 — QAP 證書上鏈驗證
 //!
 //! 生成：

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! Phase3 — 迴圈契約與有界展開：@fuel, @invariant, @requires, @ensures
 //!
 //! 基於 `dsl.rs` 解析的契約，生成多項式與子句。

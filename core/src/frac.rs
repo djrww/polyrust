@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! 係數域：質域 𝔽_p，p = 2⁶¹ − 1（見 fp.rs）。
 //!
 //! # 為什麼用 𝔽_p 而非 ℚ

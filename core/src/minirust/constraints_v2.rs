@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! Phase2 — 約束生成 v2：可變 N = 7+i，product/sum/match/loop/mod/async 編碼
 //!
 //! 基於 `Universe` 的可變類型宇宙，每節點 N 個位元（one-hot），支持：

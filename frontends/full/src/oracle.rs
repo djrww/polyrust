@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! Path C 混合 — Oracle 對比：core 手寫解析器 vs 前端 syn 完整解析器
 //! 用於自動化檢測缺口，生成差異報告
 //! light 模式（無 syn）提供 stub 實現，僅手寫解析器自檢

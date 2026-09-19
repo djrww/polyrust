@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! Phase3 — lifetime 參數、outlives 圖、NLL 借用分析
 //!
 //! 支持 `# @lifetime 'a: 'b` 形式的 outlives 約束

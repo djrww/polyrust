@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! polyrust-core 的建置腳本：把 Lean 4 形式化（`lean/Polyrust`）編譯成靜態庫
 //! `.a`，並在連結階段「編譯嵌入」到凡依賴本 crate 的二進位檔內。
 //!

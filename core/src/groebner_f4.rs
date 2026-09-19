@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! F4 演算法硬化版：稀疏 Fp 矩陣 + 塊對角 + 增量配對 + 布爾平方自由化
 //! 針對 polyrust 布爾稀疏系統優化，Frac = Fp (p=2^61-1)
 //! 新增：分塊並行歸約（std::thread::scope，零依賴）

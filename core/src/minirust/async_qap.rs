@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! Phase3 — async QAP：Future 輪詢約束、狀態機到 R1CS
 //!
 //! async/await 降維為狀態機，每個 await 點是一個狀態轉換

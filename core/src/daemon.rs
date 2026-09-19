@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! Phase 2: Daemon + 功能测试闭环 + V3 Auto 真修复 + NL 大闭环
 //! 零第三方依赖，std only
 

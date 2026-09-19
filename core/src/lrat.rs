@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! LRAT/RUP UNSAT 證書核（v0.3 hardening，Phase S1 首塊）。
 //!
 //! 目的：為「UNSAT 判定」提供**與求解器無關、可獨立複核**的憑證。CDCL 求解器

@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 /- # Phase2 — Product/Sum 編碼：struct 積型、enum 和型、Vec/Option/Result 約束
 對應 Rust `core/src/minirust/constraints_v2.rs` 的 product/sum 編碼
 -/

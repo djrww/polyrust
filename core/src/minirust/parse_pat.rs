@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! Phase3+ — Pat 解析器補齊：Or / Range
 //! 零依賴，手寫遞歸下降，覆蓋 FullPat::Or 與 FullPat::Range，並兼容已有變體
 

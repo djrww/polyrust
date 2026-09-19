@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! polyrust-ide v0.2.1-next — 完整開發環境：輸入框→core引擎管線→輸出框 + 真實文件系統 + 自動監聽 + 商業管線
 //! 商業友好：MIT/Apache/BSD/ISC/CC0/CDLA-Permissive，cargo deny 全綠
 

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! 借用活性分析（簡化的直線碼 liveness）：
 //! 每個 &mut 借用有存活區間 [建立點, 最後使用點+1)；
 //! 同一變量的兩個借用區間重疊 ⇒ 衝突；對仍被借用變量直接賦值 ⇒ 衝突。

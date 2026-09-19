@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! Benchmark F4/F4F5 vs Classic — 零依賴簡易基準 + Auto 策略
 //! 運行: cargo run --release --bin bench_f4f5
 //! 特性：

@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 /-
 Phase3 — Lifetime Region 與 outlives 圖
 對應 Rust：core/src/minirust/lifetime.rs, borrowck.rs

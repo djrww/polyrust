@@ -2,6 +2,14 @@
 
 **CDCL × Buchberger × QAP**：把 Rust（Mini-Rust 子集）的语法规则、类型检查与借用检查转换为布尔多项式方程组，用三方联合求解，并从代数见证合成可编译的 Rust 代码。
 
+> **License（全產品）**：**AGPL-3.0+ 商業雙授權** — 開源使用遵循 GNU AGPL-3.0
+> （`LICENSE.AGPL-3.0`，含 SaaS/網絡服務源碼披露義務 §13）；閉源/SaaS/企業使用
+> 需商業授權（`LICENSE.COMMERCIAL` v1.0 + `COMMERCIAL_NOTICE.md`，聯絡渠道 TBA，
+> 過渡期開倉庫 issue `[Commercial License Request]`）。核心 `core/` **唔係** permissive
+> 授權——core 係本項目價值核心（2026-09-19 決策，見 `docs/DEV_LOG_2026-09-19.md`）。
+> 每個源碼檔案帶 `(AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)` SPDX 標頭；
+> `scripts/license-scan.sh` 為 CI 硬閘門。
+
 ## 仓库结构（Cargo workspace）
 
 ```

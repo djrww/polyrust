@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 /- # 一元多項式與 QAP 忠實性核心（定理 T8）
 
 對應 docs/THEOREMS.md §10（T8）：

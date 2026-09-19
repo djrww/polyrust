@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 /- # 衍生引理（由核心引理推出）
 
 本模組匯集由鐵律核心命題直接推出的衍生結論：

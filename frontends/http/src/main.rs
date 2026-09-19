@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! polyrust-http —— axum/tokio HTTP API 前端
 //!
 //! 與核心自帶的零依賴 `server.rs`（std-only TCP）平行存在：

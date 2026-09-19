@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! M1 — 單一判定入口。
 //!
 //! Surface（ast_v2 / pipeline_v2）只負責偵測與 lower。

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! Phase3 — trait/impl 方法表與存在量化
 //!
 //! trait 定義、impl 塊、方法表 lowering、存在量化 ∃T

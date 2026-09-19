@@ -17,9 +17,10 @@ members = ["core", "frontends/http", "frontends/llm", "frontends/full", "fronten
 version = "0.2.2"
 edition = "2021"
 repository = "https://github.com/djrww/polyrust"
-license = "AGPL-3.0-only OR MIT OR Apache-2.0"
-# Commercial license available separately — see LICENSE and COMMERCIAL_NOTICE.md
-# SPDX: AGPL-3.0-only for open source, LicenseRef-PolyRust-Commercial for proprietary
+# v0.3 起統一為【全產品 AGPL-3.0 + 商業雙授權】（2026-09-19 決策：core 係價值核心，唔做
+# permissive core 放寬）。Cargo `license` 欄位限於 SPDX，故填開源臂 AGPL-3.0-only；
+# 商業臂見 LICENSE.COMMERCIAL / COMMERCIAL_NOTICE.md（LicenseRef-PolyRust-Commercial）。
+license = "AGPL-3.0-only"
 # Previous versions (<0.2.2) were MIT OR Apache-2.0, new contributions from 2024-12-01 are AGPL-3.0 + Commercial dual
 authors = ["PolyRust Team"]
 

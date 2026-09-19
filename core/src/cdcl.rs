@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! CDCL（Conflict-Driven Clause Learning）SAT 求解器。
 //! 雙監視文字傳播、VSIDS 活動度、1-UIP 衝突分析、相位保存。
 //! 用於：宏臂選擇、借用互斥等布爾側條件；學習子句可轉成多項式後

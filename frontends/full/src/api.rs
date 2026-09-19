@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! v0.2 API 實現 — Phase2 擴展 + syn 混合路線
 //! Phase3 — lifetime、unsafe、async、stdlib、contracts、borrowck、trait/impl
 

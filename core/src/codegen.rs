@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! 代碼生成：由（求解出的）型別推導生成可編譯的 Rust 源碼。
 //! 可修改點：CodeGenConfig 的開關與 emit_* 函數的模板。
 

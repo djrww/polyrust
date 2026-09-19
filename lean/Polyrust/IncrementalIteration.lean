@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 /- # 增量迭代（第5類）
 
 本模組為第5類「增量迭代」：覆蓋解析/生成/型別檢查/借用/F4/F5 的迭代收斂性。

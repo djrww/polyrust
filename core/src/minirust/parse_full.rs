@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! parse_full.rs — FullType::Tuple/Array/Slice/BareFn 完整解析器
 //! 零第三方依賴，core 承諾
 //! 同時提供 FullProgram 中 const/static/type 的 ItemV2 解析增強（與 ast_v2.rs 互補）

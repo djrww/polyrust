@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! 極簡 JSON 序列化（無外部依賴），供 `--json` 出口與 LLM 接口使用。
 //!
 //! 只支援本專案需要的型態：字串、布林、整數、Option、Vec、以及手寫物件。

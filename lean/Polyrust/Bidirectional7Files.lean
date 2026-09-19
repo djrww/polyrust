@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 /- # 7文件雙向完備性（新增）
 
 本模組證明用戶指定的7文件雙向走環的完備性：

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! Mini-Rust 解析器：函式定義、macro_rules! 定義、表達式（優先級爬升）。
 
 use crate::minirust::ast::*;

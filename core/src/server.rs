@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! 極簡 HTTP server（std-only，零依賴）：把 `check` / `expand` 包成 Web UI。
 //!
 //! 路由：

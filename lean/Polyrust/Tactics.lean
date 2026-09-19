@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 /- # 小型多項式正規化策略（`int_ring`）
 
 Lean 4 core 沒有 `ring`／`ring_nf`（那是 Mathlib 的）。本專案刻意不依賴 Mathlib，

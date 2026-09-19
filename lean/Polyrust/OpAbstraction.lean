@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 /- # 運算子規則抽象（方案 (e)）：任意二元運算子規格上的端到端正確性
 
 對應 `docs/THEOREMS.md` §11（T9）泛化方案的**第 (e) 步**：把 `T9Generalized`

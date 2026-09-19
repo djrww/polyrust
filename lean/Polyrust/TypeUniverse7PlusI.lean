@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 /- # Phase1 — 型別宇宙 7+i：從固定 7 種到可擴展 N = 7 + i
 
 對應 Rust 側 `core/src/minirust/universe.rs` 的 `Universe`（7 基底 + i 擴展）。

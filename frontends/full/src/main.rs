@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! polyrust-full —— 全特性前端
 //! 支援 struct/enum/impl/trait、Vec/String/HashMap、loop/match、mod、async、I/O、unsafe、lifetime
 //!

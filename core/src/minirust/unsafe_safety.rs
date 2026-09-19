@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! Unsafe Safety 前移 — 真實檢查與可用功能 v0.2.1-real
 //! 
 //! 要求：

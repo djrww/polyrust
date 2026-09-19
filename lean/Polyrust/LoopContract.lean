@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 /-
 Phase3 — 迴圈契約與有界展開：@fuel, @invariant, @requires, @ensures
 對應 Rust：core/src/minirust/contracts.rs

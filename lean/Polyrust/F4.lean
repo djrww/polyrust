@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 /- # F4 演算法形式化 — 矩陣批量歸約
 
 Faugère F4 1999 的 Lean 形式化，零依賴，針對布爾稀疏系統。

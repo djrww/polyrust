@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! Phase2 — 前端 lower.rs：封裝 core 的 lower 模組，提供完整 lowering 流水線
 //! Phase3 — 擴展 trait/impl 方法表、lifetime、stdlib、async、contracts、effects、borrowck
 

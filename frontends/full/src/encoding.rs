@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! 多項式編碼擴展示例：展示 v0.2 新特性如何編為多項式
 //! Phase3 擴展：完整 9 特性家族 + 契約、效應、借用、QAP
 

@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 /- # 𝔽_p 嵌入引理（L0）——係數域選擇的正確性
 
 對應 docs/THEOREMS.md §2（引理 L0）：

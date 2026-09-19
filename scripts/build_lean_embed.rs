@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 // 共用建置邏輯（由各 crate 的 `build.rs` 以 `include!` 引入；非獨立編譯單元）。
 //
 // 職責：定位倉庫根的 `lean/`、確保靜態庫 `.a` 存在（缺則 `lake build`），

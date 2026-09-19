@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 use std::io::Read;
 use std::path::{Path, PathBuf};
 

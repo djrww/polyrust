@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! 階段2 迭代閉環 txt文件投喂，補齊缺失語義、語意、語法
 //! 零第三方，std only
 

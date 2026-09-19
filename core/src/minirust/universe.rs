@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! Phase1 — 型別宇宙 7+i：從固定 7 種到可擴展 N = 7 + i
 //! v0.1.5 的 `Type` 是平坦枚舉 7 種（i32, bool, (), &i32, &mut i32, &bool, &mut bool）。
 //! v0.2 Phase1 將其擴展為 `TypeV2`，保留 7 基底 + i 擴展（Vec, String, HashMap, Struct, Enum, RawPtr, Future, Option, Result 等）。

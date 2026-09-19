@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 use crate::cdcl::{self, CdclStats};
 use crate::codegen::{roundtrip_check, CodeGenConfig};
 use crate::frac::Frac;

@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 /- # 編碼可靠性/完備性與判定的微型實例（T1/T2/T6/T7 的全枚舉見證）
 
 對應 docs/THEOREMS.md §3（T1）、§4（T2）、§8（T6）、§9（T7）：

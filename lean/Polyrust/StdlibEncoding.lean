@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 /-
 Phase3 — Vec/String/HashMap 內建庫編碼
 對應 Rust：core/src/minirust/stdlib.rs

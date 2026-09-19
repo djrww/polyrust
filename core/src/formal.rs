@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! 內嵌的 Lean 4 形式化（`lean/Polyrust`）之執行期橋接。
 //!
 //! 建置時（`build.rs`）把 `lean/.lake/build/lib/libpolyrust_x2dformal_Polyrust.a`

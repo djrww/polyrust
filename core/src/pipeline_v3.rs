@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! Pipeline V3: 自进化商业深化管线 — 想不到效果 + 持续迭代
 //!
 //! 融合现有最前沿能力：

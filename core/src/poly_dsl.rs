@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! 多项式DSL — 80条函数表达90% Rust语义，识别性极强的语义编码
 //!
 //! 设计目标:

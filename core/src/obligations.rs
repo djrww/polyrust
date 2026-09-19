@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! 九條定理的機械化自證（義務自證）：
 //! 每條定理對應一個 obligation_tN()，在測試套件上實例化驗證其可判部分。
 //! 數學證明見 docs/THEOREMS.md；此處的程式檢查是證明的機械見證。

@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 /- # 鐵律核心命題（新增）
 
 本模組匯集 Polyrust 系統中不可違反的鐵律（iron laws）：

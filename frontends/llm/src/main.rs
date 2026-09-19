@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! polyrust-nl —— ureq 原生 TLS 傳輸的 LLM 前端
 //!
 //! 核心（`polyrust-core`）的 LLM 傳輸走「裸 TCP（http）＋系統 curl（https）」，

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! Native Bidirectional Closed Loop — 樣本投喂到原生器材上，雙向，Rust及Poly閉環
 //!
 //! 架構：

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! syn 前端：真 Rust 解析 -> ProgramV2
 //! 保持 core 零依賴，syn 僅在 frontend
 //! 混合路線：DSL metadata 仍用 # @key 解析，body 用 syn

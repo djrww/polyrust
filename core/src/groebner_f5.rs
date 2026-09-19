@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! F5 演算法設計與原型：簽名準則避免零歸約
 //! Faugère 2002，針對 polyrust 布爾系統增量求解優化
 //!

@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 /- # 次要引理（支撐性）
 
 對應任務四類中的「次要」：為鐵律與完備性提供底層支撐的純組合/位元引理。

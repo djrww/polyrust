@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! Phase2 — 前端 ty.rs：TyV2 宇宙構造與統一，封裝 core 的 ty 模組
 //! Phase3 — 擴展 lifetime 參數、outlives、泛型統一
 

@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 /- # Phase2 — match 決策樹：lower.rs match→decision tree→if chain -/
 
 import Polyrust.T9Generalized

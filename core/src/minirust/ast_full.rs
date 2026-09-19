@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! Phase3 — 完整 AST：兼容 shim，實際定義已合併至 ast.rs（AST 補齊）
 //! 保留 re-export 以兼容舊路徑。
 

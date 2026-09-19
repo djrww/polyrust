@@ -51,7 +51,7 @@ PolyRust 採用 **AGPL-3.0 + 商業授權** 雙重授權：
 
 ### 5. 如何取得商業授權？
 
-1. 發郵件至 `commercial@polyrust.example`（請替換為真實聯繫方式），標題 `[Commercial License Request] + 公司名`
+1. 經商業授權聯絡渠道申請（**TBA — 首次商業發佈前公佈；過渡期請開倉庫 issue，標題 `[Commercial License Request] + 公司名`**）
 2. 或在 GitHub 開 issue，標題 `[Commercial License Request]`，說明使用場景、是否修改 core、預計用戶數
 3. 我們將提供商業授權協議（MNDA + 商業許可），含授權費、支持範圍、擔保條款
 
@@ -69,7 +69,7 @@ PolyRust 採用 **AGPL-3.0 + 商業授權** 雙重授權：
 ### 7. 聯繫與爭議
 
 - 技術問題：GitHub Issues
-- 商業/法律：`legal@polyrust.example`
+- 商業/法律：**TBA（首次商業發佈前由維護者公佈；過渡期於倉庫開 issue）**
 - 管轄法律：香港特別行政區法律，爭議提交香港國際仲裁中心 (HKIAC)
 
 ---
@@ -115,7 +115,7 @@ Using PolyRust in closed-source or SaaS without complying with AGPL-3.0 and with
 
 ### 5. How to Obtain Commercial License
 
-1. Email `commercial@polyrust.example` (replace with real contact) with subject `[Commercial License Request] + Company`
+1. Use the commercial-licensing channel (**TBA — announced before first commercial release; meanwhile open a repository issue titled `[Commercial License Request] + Company`**)
 2. Or open GitHub issue titled `[Commercial License Request]` describing use case, core modifications, estimated users
 3. We will provide commercial agreement (MNDA + license) with fee, support, warranty
 
@@ -133,7 +133,7 @@ Indicative fees (negotiable):
 ### 7. Contact and Dispute
 
 - Technical: GitHub Issues
-- Commercial/Legal: `legal@polyrust.example`
+- Commercial/Legal: **TBA (announced before first commercial release; open an issue meanwhile)**
 - Governing law: HKSAR, disputes to HKIAC.
 
 ---

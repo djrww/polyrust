@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! 代數約束生成：把 Mini-Rust 的每條語法/型別規則編譯成多項式方程組，
 //! 並同步抽取 R1CS（QAP 用）與 CDCL 子句。
 //!

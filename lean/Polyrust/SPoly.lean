@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 /- # S-多項式與 Buchberger 準則（定理 T5）
 
 對應 docs/THEOREMS.md §7（T5）。原文的 (a)(b)(c) 說的是：

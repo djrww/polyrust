@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 /- # 監視文字移動的健全性（雙監視文字方案，v0.1.4 新增）
 
 形式化 `src/cdcl.rs` `propagate` 的**雙監視文字（two-watched-literal）
