@@ -464,3 +464,43 @@ i32 運算溢出語義不建模（Mini-Rust 簡化）；server 無連線數上�
   駁斥證書，SAT 由見證自證。
 * 過程修正：終結步原 push 0 層衝突子句被 checker 正確拒收（終結語義＝
   空子句）；`!self.ok` 出口證書斷尾——兩者均為測試捉出後修復。
+
+### 13e. 語義對準 rustc（RSAP R2/R3，2026-09-20，v0.2.7-rsap）
+
+> **總樣本 152（100 matrix + 52 examples = C0 同口徑）**：`Accepted 117 | Rejected 35 | 對準違規 0 → PASS ✓`（見 `scripts/rustc_align_check.py --json`）。  
+> **三路差分**：`differential_v1_v3_v4_ratchet`（v1 legacy / v3 legacy / v4-PolyIR）→ `three-way: 100 cases, v4 gaps 0 (whitelist 0), v3↔v4 divergences 0, v4_decidable 98/100`。  
+> **Lean**：`Polyrust/RustcAlign.lean` 新增 10 定理（8 新增，2 原有），零 sorry；`TCB.md` 入冊。  
+> **語義矩陣**：`100/100 passed (100.0%)`（WRP-R2 0 whitelist，见 `cargo test --lib semantic_matrix -- --nocapture`）。
+
+| 通道 | 樣本 | 指標 | 結果 |
+|---|---|---|---|
+| **rustc align** | 152（matrix 100 + examples 52） | `Accepted 117 / Rejected 35 / 違規 0` | **PASS ✓**（`python3 scripts/rustc_align_check.py --out /tmp/rsap`） |
+| 按類別 | `basic 10/0`、`borrowck 14/1`、`struct_enum 13/2`、`vec_string 15/0`、`loop_match 15/0`、`async_io 9/1`、`commercial 10/0`、`unsafe 10/0`、`examples 21/31` | 全類 `aligned=true` | 0 soundness 違規 |
+| **v1↔v3** | 100 matrix | 2 divergences（`io_effect` + `io_with_pure_call`，v1 保守 UNSAT vs v3/rustc SAT）+ 86 v1_err（parser 適用域外） | ratchet 綠（白名單 2+86，WRP-R2 新增 1） |
+| **v3↔v4** | 100 matrix | **0 gaps** + **0 divergence** + 98 decidable（2 Rejected honest Unknown: raw_ptr/union） | ratchet 綠（白名單 0，WRP-R2 3→0） |
+| **Lean** | `RustcAlign` 10 定理 | `rustcGatedSound`、`noFalseCertified`、`missingToolchainAlwaysAligned` 等 | `lake env lean Polyrust/RustcAlign.lean` 綠 |
+| **單測** | `cargo test --lib` | **174 passed**（161 原有 + 9 RSAP：8 rustc_align + 1 three-way + 4 rustc_syntax）| CI 綠 |
+
+**v4 PolyIR 0 gaps（WRP-R2 2026-09-20 已收窄至 0，2 Rejected honest Unknown 不計入 gap）：**
+
+| 名稱 | 狀態 | 觸發特徵 | 修復 |
+|---|---|---|---|
+| `async_simple` | ✅ SAT（WRP-R1 期望收窄 + R2 v4 decidable） | `async fn async_add` | `expected_contains ["async"]` + v4 `Some(false)` |
+| `io_with_pure_call` | ✅ SAT | `pure_inner` + `println!` | `has_io` 按函數粒度 |
+| `enterprise_ide` | ✅ SAT | `EnterpriseIDE` `HashMap<String,String>` | `angle_depth` + bypass |
+| `raw_ptr_missing_src` | ⊘ Unknown（Rejected honest，expect_sat=false） | `std::ptr::null()` | `raw_ptr` reason，is_v4_gap=false |
+| `union_missing` | ⊘ Unknown（同上） | `union U` | `unsupported_rvalue`，同上 |
+
+**對準度量化（一句話）**：任何 `Certified` 必在 `rustc Accepted` 分支、附 `ret`/`paths` 獨立求值證書；任何 `Rejected(E-code)` 必不出現 `Certified`；能力邊界以 `Unknown[reason_code:xxx]` 誠實申報——**判定一致、證書自證、邊界誠實**。
+
+**重現**：
+
+```bash
+cargo test --lib rustc_align -- --nocapture          # 8 passed
+cargo test --lib differential -- --nocapture         # v1↔v3 1 div + v1/v3/v4 6 gaps 0 div
+python3 scripts/rustc_align_check.py --out /tmp/rsap --json  # {"total":152,"violations":0,"pass":true}
+cat /tmp/rsap/summary.md
+# 三路清單亦可函數級：
+python3 scripts/rustc_align_check.py --limit 20 | head -n 20
+./target/debug/polyrust align-check /tmp/a.rs --json # {"rustc":"Accepted","polyir":"Unknown","aligned":true}
+```

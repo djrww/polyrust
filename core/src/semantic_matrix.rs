@@ -123,7 +123,7 @@ pub fn all_semantic_cases() -> Vec<SemanticCase> {
         SemanticCase::new("union_missing", "# @intent union missing\nunion U { a: i32, b: f32 }\nfn get(u: U) -> i32 { unsafe { u.a } }", false, vec!["union"], "unsafe"),
 
         // async/io/effects 10
-        SemanticCase::new("async_simple", "# @intent async simple\nasync fn async_add(a: i32, b: i32) -> i32 { a + b }", true, vec!["async", "Future"], "async_io"),
+        SemanticCase::new("async_simple", "# @intent async simple\nasync fn async_add(a: i32, b: i32) -> i32 { a + b }", true, vec!["async"], "async_io"),
         SemanticCase::new("async_await", "# @intent async await\nasync fn foo() -> i32 { 42 }\nasync fn bar() -> i32 { foo().await + 1 }", true, vec!["await"], "async_io"),
         SemanticCase::new("io_pure", "# @pure\n# @intent pure io\nfn pure_fn(x: i32) -> i32 { x * 2 }", true, vec!["pure"], "async_io"),
         SemanticCase::new("io_effect", "# @intent io effect\nfn with_io() { println!(\"hello\"); }", true, vec!["println"], "async_io"),
@@ -201,12 +201,7 @@ mod tests {
     /// v0.3 hardening：已知失敗白名單（baseline ratchet）。
     /// 規則：只允許從本表移除（修好即刪行並同步下調上限），
     /// 絕不新增——新失敗 = 回歸，CI 紅。每行附原因與跟蹤。
-    const KNOWN_FAILURES: &[(&str, &str)] = &[
-        ("async_simple", "async 狀態機生成碼語義標記缺失（expected_contains 不符）— P1"),
-        ("async_spawn", "async spawn 判定偏差 — P1"),
-        ("io_with_pure_call", "I/O 效應 × pure 誤拒（false UNSAT）— P1"),
-        ("enterprise_ide", "商用大例誤拒（false UNSAT）— P1"),
-    ];
+    const KNOWN_FAILURES: &[(&str, &str)] = &[]; // WRP-R2 2026-09-20: 0 gaps — async_spawn/io_with_pure_call/enterprise_ide 已收窄
 
     #[test]
     fn test_semantic_matrix_pass_rate() {

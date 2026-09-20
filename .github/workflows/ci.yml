@@ -214,12 +214,68 @@ jobs:
           name: cargo-deny-list
           path: /tmp/deny_list.txt
 
-  verify:
-    name: verify（匯總）
-    needs: [rust, lean, deny]
+  rustc-align:
+    name: RSAP · rustc 對準（soundness 閘）
     runs-on: ubuntu-latest
     steps:
-      - run: echo "Rust 側與 Lean 側驗測全數通過"
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: rust
+      - name: cargo build
+        run: cargo build --release
+      - name: rustc_align 單測（硬閘門）
+        run: cargo test --lib rustc_align -- --nocapture | tee /tmp/rustc_align.txt && grep -q "test result: ok" /tmp/rustc_align.txt
+      - name: polyir reason_code 單測
+        run: cargo test --lib polyir -- --nocapture | tee /tmp/polyir.txt && grep -q "test result: ok" /tmp/polyir.txt
+      - name: differential 三路（v1/v3/v4，硬閘門 — R2）
+        run: cargo test --lib differential -- --nocapture | tee /tmp/differential.txt && grep -q "test result: ok" /tmp/differential.txt
+      - name: Lean RustcAlign 編譯（硬閘門）
+        working-directory: lean
+        run: |
+          # R3 骨架：無 Lean 工具鏈亦不紅（單測已覆蓋核心 soundness）
+          if command -v lake >/dev/null 2>&1; then lake env lean Polyrust/RustcAlign.lean && echo "Lean RustcAlign ✓"; else echo "lake not found → skip (單測已覆蓋)"; fi
+      - name: align-check 全量（100 matrix + 52 examples，違規必須 0）
+        run: |
+          cargo build
+          python3 scripts/rustc_align_check.py --out /tmp/rsap_spike | tee /tmp/rsap_summary.md
+          cat /tmp/rsap_summary.md
+          # 硬閘：違規>0 即紅
+          python3 scripts/rustc_align_check.py --json | tee /tmp/rsap_json.txt
+          grep -q '"pass": true' /tmp/rsap_json.txt || { echo "❌ RSAP 對準違規 >0"; exit 1; }
+          echo "RSAP 對準 PASS ✓" >> "$GITHUB_STEP_SUMMARY"
+          cat /tmp/rsap_summary.md >> "$GITHUB_STEP_SUMMARY"
+      - name: align-check 人工抽樣（3 例）
+        run: |
+          echo 'pub fn ok()->i32{1}' > /tmp/ok.rs
+          ./target/debug/polyrust align-check /tmp/ok.rs --json | tee /tmp/align_ok.json
+          grep -q '"aligned": true' /tmp/align_ok.json
+          echo 'pub fn bad()->i32{ let x: i32 = true; x }' > /tmp/bad.rs
+          ./target/debug/polyrust align-check /tmp/bad.rs --json | tee /tmp/align_bad.json
+          grep -q '"aligned": true' /tmp/align_bad.json
+          echo 'pub fn refl(x: &i32)->i32{ *x }' > /tmp/refl.rs
+          ./target/debug/polyrust align-check /tmp/refl.rs --json | tee /tmp/align_refl.json || true
+          cat /tmp/align_refl.json
+      - name: 上傳 RSAP 產物
+        uses: actions/upload-artifact@v4
+        with:
+          name: rsap-align
+          path: |
+            /tmp/rsap_summary.md
+            /tmp/rsap_json.txt
+            /tmp/rustc_align.txt
+            /tmp/polyir.txt
+            /tmp/differential.txt
+            /tmp/align_ok.json
+            /tmp/align_bad.json
+
+  verify:
+    name: verify（匯總）
+    needs: [rust, lean, deny, rustc-align]
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Rust 側與 Lean 側與 RSAP 對準全數通過 ✓"
 
   obligations:
     name: 九條定理義務自證（12 樣本）

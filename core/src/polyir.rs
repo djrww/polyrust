@@ -12,6 +12,16 @@
 //! recursion。TCB 四重承擔：charon.pin／模板認形白名單（模板外降級）／
 //! 見證模擬＋溢出排除／見證模式逐槽恆等化編碼。
 //!
+//! **RSAP reason_code（R1）**：每個 `PirVerdict::Unknown{reason}` 末尾必帶
+//! `[reason_code:xxx]`，供 `rustc_align` 與 CI 量化：
+//! - `missing_decl`：`BodyKind::Error|Missing`（Charon has_errors）
+//! - `borrow_rustc_gated`：`Ref`/`AddressOf`/`Borrow` rvalue（rustc 已檢）
+//! - `raw_ptr`：`*const T`/`*mut T` 相關投影/操作
+//! - `dyn_async_rpit`：`dyn Trait`/`async`/`RPIT` 等不支援宣告
+//! - `template_outer`：Loop/Call/Switch 模板外形態
+//! - `unsupported_rvalue`：其他未識別 rvalue
+//! - `domain_cap`/`hard_cap`/`overflow`：值域/迭代/溢出上限
+//!
 //! 定位（藍圖 §3 分層）：
 //! ```text
 //!   .rs ──charon──▶ LLBC ──charon_llbc.rs parse──▶ PolyIR ──lowering──▶ 多項式系統
@@ -307,7 +317,27 @@ pub fn lower_fun(fun: &FunDeclRef) -> PirVerdict {
 pub fn lower_fun_in(types: &Value, funs: &[FunDeclRef], fun: &FunDeclRef) -> PirVerdict {
     match lower_fun_inner(types, funs, fun) {
         Ok(body) => PirVerdict::ValueTrace(body),
-        Err(reason) => PirVerdict::Unknown { reason },
+        Err(reason) => {
+            // RSAP：確保每個 Unknown 附 reason_code（缺失則補 template_outer）
+            let reason = if reason.contains("[reason_code:") {
+                reason
+            } else if reason.contains("缺失 body") || reason.contains("missing_decl") {
+                format!("{reason} [reason_code:missing_decl]")
+            } else if reason.contains("借用") || reason.contains("Borrow") {
+                format!("{reason} [reason_code:borrow_rustc_gated]")
+            } else if reason.contains("raw") || reason.contains("RawPtr") {
+                format!("{reason} [reason_code:raw_ptr]")
+            } else if reason.contains("溢出") || reason.contains("overflow") {
+                format!("{reason} [reason_code:overflow]")
+            } else if reason.contains("硬上限") || reason.contains("超限") {
+                format!("{reason} [reason_code:hard_cap]")
+            } else if reason.contains("值域") || reason.contains("DOMAIN") {
+                format!("{reason} [reason_code:domain_cap]")
+            } else {
+                format!("{reason} [reason_code:template_outer]")
+            };
+            PirVerdict::Unknown { reason }
+        }
     }
 }
 
@@ -329,13 +359,24 @@ fn lower_fun_inner(
             if pairs[0].0 == "Structured" {
                 &pairs[0].1
             } else {
-                // Error/Missing 同判：聲明在、body 缺
-                return fail(format!("{name}: body={}（缺失 body）", pairs[0].0));
+                // Error/Missing 同判：聲明在、body 缺 → rustc-gated missing_decl
+                return fail(format!(
+                    "{name}: body={}（缺失 body） [reason_code:missing_decl]",
+                    pairs[0].0
+                ));
             }
         }
         // C5 實證：opaque／內建函數 body = "Opaque" 等純字串 variant
-        Value::Str(tag) => return fail(format!("{name}: body={tag}（缺失 body，唔可模擬）")),
-        _ => return fail(format!("{name}: body 非單鍵 variant")),
+        Value::Str(tag) => {
+            return fail(format!(
+                "{name}: body={tag}（缺失 body，唔可模擬） [reason_code:missing_decl]"
+            ))
+        }
+        _ => {
+            return fail(format!(
+                "{name}: body 非單鍵 variant [reason_code:missing_decl]"
+            ))
+        }
     };
 
     // locals / arg_count
@@ -1486,9 +1527,22 @@ fn parse_rvalue(
                 let disc = resolve_adt_disc(types, fname, i, &arr[0])?;
                 Ok(PirStmtKind::Aggregate { fields, disc })
             }
-            (other, _) => Err(format!("{fname}: stmt[{i}] rvalue `{other}` 唔支援")),
+            ("Ref" | "Borrow" | "AddressOf", _) => Err(format!(
+                "{fname}: stmt[{i}] rvalue `Ref` 係借用語義（rustc 已檢，無需代數重檢） [reason_code:borrow_rustc_gated]"
+            )),
+            ("RawPtr" | "PtrFromRef", _) => Err(format!(
+                "{fname}: stmt[{i}] rvalue `RawPtr` 係裸指針（rustc 已檢） [reason_code:raw_ptr]"
+            )),
+            ("Len", _) | ("ShallowInitBox", _) | ("CopyForDeref", _) => Err(format!(
+                "{fname}: stmt[{i}] rvalue `Len/ShallowInitBox/CopyForDeref` 模板外（後續 slice） [reason_code:template_outer]"
+            )),
+            (other, _) => Err(format!(
+                "{fname}: stmt[{i}] rvalue `{other}` 唔支援 [reason_code:unsupported_rvalue]"
+            )),
         },
-        _ => Err(format!("{fname}: stmt[{i}] rvalue 非單鍵 variant")),
+        _ => Err(format!(
+            "{fname}: stmt[{i}] rvalue 非單鍵 variant [reason_code:unsupported_rvalue]"
+        )),
     }
 }
 

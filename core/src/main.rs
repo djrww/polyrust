@@ -249,6 +249,12 @@ fn main() {
         }
         std::process::exit(driver::cmd_expand(&args, json));
     }
+    if mode == "align-check" || mode == "align_check" || mode == "rustc-align" || mode == "rustc_align" {
+        if !json {
+            print_banner();
+        }
+        std::process::exit(driver::cmd_align_check(&args, json));
+    }
     if mode == "coverage" {
         if !json {
             print_banner();

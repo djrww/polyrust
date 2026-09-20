@@ -61,6 +61,8 @@ pub mod chalk_bridge;
 pub mod certify;
 pub mod composition;
 pub mod vanishing;
+pub mod rustc_align;
+pub mod rustc_syntax; // WRP-R2 后置：rustc 语法学习原型（zero-dep，与 syn 对照）
 
 /// 正式運作：core 文件清單 — 零依賴實際使用
 pub fn core_file_list() -> Vec<(&'static str, &'static str, &'static str)> {

@@ -2251,3 +2251,147 @@ pub fn cmd_commercial_pipeline(args: &[String], json: bool) -> i32 {
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// RSAP R0：rustc 對準檢查（rustc_align.rs）— 语义快速对准量尺
+// ---------------------------------------------------------------------------
+
+/// `polyrust align-check <file.rs> [--json]` — 單檔語義對準檢查。
+/// 無 Charon LLBC 時：rustc oracle + PolyIR Unknown 誠實降級 仍視為對準（0 違規）。
+/// 有 LLBC 時（`--llbc <file.llbc>`）：同時跑 LLBC→PolyIR Decision，比對 rustc。
+pub fn cmd_align_check(args: &[String], json: bool) -> i32 {
+    use crate::rustc_align::{AlignReport, RustcVerdict, rustc_oracle};
+    use crate::polyir_encode::Decision;
+    // 解析參數
+    let mut file: Option<String> = None;
+    let mut llbc_path: Option<String> = None;
+    let mut i = 2usize;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--llbc" => {
+                if let Some(v) = args.get(i + 1) {
+                    llbc_path = Some(v.clone());
+                    i += 1;
+                }
+            }
+            "--json" | "-j" | "--help" | "-h" => {}
+            s if s.starts_with("--") => {}
+            s => {
+                if file.is_none() {
+                    file = Some(s.to_string());
+                }
+            }
+        }
+        i += 1;
+    }
+    let Some(path) = file else {
+        let help = "用法: polyrust align-check <file.rs> [--llbc <file.llbc>] [--json]\n  --llbc <file.llbc>  同時比對 PolyIR 判定（缺省僅 rustc oracle，PolyIR=Unknown 對準通過）\n  --json            機讀 JSON（AlignReport）\n";
+        if json {
+            println!("{}", J::obj(vec![("error", J::s(help))]));
+        } else {
+            eprintln!("{help}");
+        }
+        return 2;
+    };
+    let (name, text, _) = match read_source(&path) {
+        Ok(x) => x,
+        Err(e) => {
+            if json {
+                println!("{}", error_json(&path, None, "align-check", &e));
+            } else {
+                eprintln!("error: {e}");
+            }
+            return 1;
+        }
+    };
+    // rustc oracle
+    let rv = rustc_oracle(&text);
+    // polyir decision（如有 LLBC）
+    let pd: Decision = if let Some(llbc) = llbc_path {
+        let llbc_text = match std::fs::read_to_string(&llbc) {
+            Ok(t) => t,
+            Err(e) => {
+                let msg = format!("read llbc {llbc} failed: {e}");
+                if json {
+                    println!("{}", error_json(&name, None, "align-check", &msg));
+                } else {
+                    eprintln!("{msg}");
+                }
+                return 1;
+            }
+        };
+        match crate::charon_llbc::LlbcRoot::parse(&llbc_text) {
+            Ok(root) => {
+                // 預設參數域：首函數 0..3 窮舉（如無 fun，視為 Unknown）
+                let fun_opt = root.funs.first().cloned();
+                if let Some(fun) = fun_opt {
+                    let types = root.raw_translated.get("type_decls").unwrap_or(&crate::charon_llbc::Value::Null);
+                    let verdict = crate::polyir::lower_fun_in(types, &root.funs, &fun);
+                    match verdict {
+                        crate::polyir::PirVerdict::ValueTrace(body) => {
+                            // 選小域作對準示例：單參數域 [0,1,2]
+                            let dom = vec![vec![0, 1, 2]];
+                            let dom_slice: Vec<Vec<i64>> = if body.arg_count == 1 { dom } else { vec![vec![0]; body.arg_count] };
+                            let dec = crate::polyir_encode::decide_fun(&fun, &dom_slice);
+                            dec
+                        }
+                        crate::polyir::PirVerdict::Unknown { reason } => Decision::Unknown { reason },
+                        crate::polyir::PirVerdict::NoBody { kind } => Decision::Unknown {
+                            reason: format!("body 缺失（{kind:?}） [reason_code:missing_decl]"),
+                        },
+                    }
+                } else {
+                    Decision::Unknown { reason: "無 fun decl [reason_code:missing_decl]".into() }
+                }
+            }
+            Err(e) => Decision::Unknown { reason: format!("LLBC parse 失敗: {} [reason_code:missing_decl]", e.msg) },
+        }
+    } else {
+        Decision::Unknown { reason: "無 LLBC（僅 rustc 量尺；PolyIR 誠實降級） [reason_code:missing_decl]".into() }
+    };
+    let rep = AlignReport::check(rv.clone(), pd.clone());
+    if json {
+        let j = J::obj(vec![
+            ("api_version", J::s("1.0")),
+            ("mode", J::s("align-check")),
+            ("source", J::s(&name)),
+            ("path", J::s(&path)),
+            ("rustc", J::s(rv.label())),
+            ("rustc_code", J::opt_str(rv.code())),
+            ("rustc_detail", J::s(&match &rv {
+                RustcVerdict::Accepted => "Accepted".to_string(),
+                RustcVerdict::Rejected { code, stderr } => format!("Rejected code={:?} {}", code, &stderr[..stderr.len().min(300)]),
+                RustcVerdict::MissingToolchain(s) => format!("MissingToolchain {s}"),
+                RustcVerdict::ExternalDep { stderr } => format!("ExternalDep {}", &stderr[..stderr.len().min(300)]),
+            })),
+            ("polyir", J::s(&match &pd {
+                Decision::Certified { .. } => "Certified".to_string(),
+                Decision::Unknown { reason } => format!("Unknown({reason})"),
+                Decision::Unsat => "Unsat".to_string(),
+            })),
+            ("aligned", J::Bool(rep.aligned)),
+            ("violation", J::opt_str(rep.violation.as_deref())),
+            ("reason_code", J::opt_str(rep.reason_code.as_deref())),
+        ]);
+        println!("{j}");
+    } else {
+        println!("# Align-Check — {name} ({path})");
+        println!("rustc  : {} {}", rv.label(), rv.code().unwrap_or("-"));
+        match &rv {
+            RustcVerdict::Rejected { stderr, .. } => println!("  detail: {}", &stderr[..stderr.len().min(400)]),
+            RustcVerdict::MissingToolchain(s) => println!("  toolchain: {s}"),
+            RustcVerdict::ExternalDep { stderr } => println!("  external: {}", &stderr[..stderr.len().min(400)]),
+            _ => {}
+        }
+        println!("polyir : {}", match &pd {
+            Decision::Certified { .. } => "Certified".to_string(),
+            Decision::Unknown { reason } => format!("Unknown {reason}"),
+            Decision::Unsat => "Unsat".to_string(),
+        });
+        println!("aligned: {} {}", if rep.aligned { "✓" } else { "✗" }, rep.violation.as_deref().unwrap_or(""));
+        if let Some(code) = rep.reason_code {
+            println!("reason_code: {code}");
+        }
+    }
+    if rep.aligned { 0 } else { 1 }
+}
