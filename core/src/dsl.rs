@@ -244,8 +244,12 @@ pub fn load_poly(text: &str) -> Result<PolySource, String> {
                         metadata.push((k.clone(), v.clone()));
                     }
                 }
+            } else if rest.starts_with('[') || rest.starts_with("![") {
+                // Rust 屬性如 #[pure] / #![allow]——保留為源碼，非 DSL 註釋
+                src_lines.push(raw);
+            } else {
+                // 普通註釋，忽略
             }
-            // 否則為普通註釋，忽略
         } else {
             src_lines.push(raw);
         }

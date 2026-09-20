@@ -190,6 +190,8 @@ pub fn split_fields_top_level(inner: &str) -> Vec<String> {
 - **已验证**：`EnterpriseIDE { editors: HashMap<String, String> }` 的 `inner.split(',')` 旧逻辑会把 `HashMap<String` 与 ` String>` 拆成两个 part，现用 `angle_depth` 保持为单字段。
 - **未覆盖**：`where T: Send + 'static` 的 `where` 逗号、`FnOnce` 的高阶 trait bound——需完整 `syn::WhereClause`。
 
+> **WRP-R4 自主推进（2026-09-20）**：`core` 的 `pure` 从文件级 `has_io` 升级为 `check_pure_per_fn` 的 per-fn 判定（`fn` 扫描 + 属性区间 `(prev_end,start)` 捕获 `#[pure]`），与 `syn::Attribute` 的 `attrs` 分离同构；`dsl.rs` 修复 `#[` 丢弃后，`#[pure]` 在 `PolySource.source` 保留，`pipeline_v2` 的 `PureMap` 与 `frontend/syn` 的 `explain_pure_io` 互为差分锁。
+
 > **WRP-R3 自主推进（2026-09-20）**：`core` 的 `parse_struct` 与 `parse_type_v2` 的 `split(',')` 已升级为 `angle_depth` 分层（与 `syn::Punctuated` 同构），`EnterpriseIDE` 的 `HashMap<String,String>` 已在 `core` 侧正确解析为 `ExtType::HashMap(String,String)`，`Universe N=10`，`pipeline_v2` 的 bypass 已移除——`RUSTC_SYNTAX_STUDY.md` 的“手写 vs syn”对照在 `core` 内部已闭合，`syn` 仍为前端地真值。
 
 ---

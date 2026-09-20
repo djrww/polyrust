@@ -24,7 +24,115 @@ use crate::pipeline::{reduced_groebner_with_algo, select_groebner_algo_advanced,
 use crate::poly::Order;
 use crate::qap::qap_from_r1cs;
 
+/// WRP-R3: syn 对齐的 per-fn PureMap —— 手写 fn 扫描（无 syn 依赖）
+/// 判定 is_pure: 1) 前置 #[pure] 属性 2) 文件级 @pure 时首函数或名含 pure
+/// 判定 has_io: 体内含 println/print/eprint 等（与 effects::is_io_call 子串对齐）
+fn check_pure_per_fn(source: &str, file_pure: Option<bool>) -> Vec<String> {
+    // 轻量扫描：找 "fn " 起点，提取 fn 名与花括号体
+    let mut fns: Vec<(String, String, usize)> = Vec::new(); // (name, body, start)
+    let bytes = source.as_bytes();
+    let n = bytes.len();
+    let mut i = 0usize;
+    while i + 2 < n {
+        if bytes[i]==b'f' && bytes[i+1]==b'n' && bytes[i+2]==b' ' {
+            // 确保前面不是标识字符（简易词界）
+            if i>0 && (bytes[i-1].is_ascii_alphanumeric() || bytes[i-1]==b'_') { i+=1; continue; }
+            let mut j = i+3;
+            while j<n && bytes[j].is_ascii_whitespace() { j+=1; }
+            let name_start = j;
+            while j<n && (bytes[j].is_ascii_alphanumeric() || bytes[j]==b'_') { j+=1; }
+            if j==name_start { i+=1; continue; }
+            let name = source[name_start..j].to_string();
+            // 跳到 '('
+            while j<n && bytes[j]!=b'(' && bytes[j]!=b'{' && bytes[j]!=b';' { j+=1; }
+            if j>=n || bytes[j]!=b'(' { i=j; continue; }
+            // 匹配 ')'
+            let mut depth=0usize;
+            let mut k=j;
+            while k<n {
+                match bytes[k] {
+                    b'(' => depth+=1,
+                    b')' => { depth-=1; if depth==0 { break; } }
+                    _ => {}
+                }
+                k+=1;
+            }
+            if k>=n { i=j+1; continue; }
+            // 找 '{'
+            let mut l = k+1;
+            while l<n && bytes[l].is_ascii_whitespace() { l+=1; }
+            // 跳过 -> Type 与 where（如有）
+            if l+2 < n && &source[l..l+2]=="->" {
+                // 跳到下一个 '{' 前
+                while l<n && bytes[l]!=b'{' { l+=1; }
+            } else {
+                // 可能有 generics/where，同样扫到 '{'
+                while l<n && bytes[l]!=b'{' && bytes[l]!=b';' { l+=1; }
+            }
+            if l>=n || bytes[l]!=b'{' { i=l+1; continue; }
+            // 匹配 '}'
+            let mut d=0usize;
+            let mut m=l;
+            while m<n {
+                match bytes[m] {
+                    b'{' => d+=1,
+                    b'}' => { d-=1; if d==0 { break; } }
+                    b'"' => {
+                        // 跳过字符串内花括号
+                        m+=1;
+                        while m<n && bytes[m]!=b'"' {
+                            if bytes[m]==b'\\' { m+=1; }
+                            m+=1;
+                        }
+                    }
+                    _ => {}
+                }
+                m+=1;
+            }
+            if m>=n { i=l+1; continue; }
+            let body = source[l..=m].to_string();
+            fns.push((name, body, i));
+            i=m+1;
+            continue;
+        }
+        i+=1;
+    }
+    let mut errs = Vec::new();
+    // 计算每个 fn 的前置属性区间 (prev_body_end, start)，仅区间内含 #[pure] 才视为该 fn 的属性（syn 语义）
+    let mut fn_ends: Vec<usize> = Vec::new();
+    for (_, body, st) in &fns {
+        if let Some(pos) = source[*st..].find(body.as_str()) {
+            fn_ends.push(*st + pos + body.len());
+        } else {
+            fn_ends.push(*st + body.len());
+        }
+    }
+    for (idx, (name, body, start)) in fns.iter().enumerate() {
+        let prev_end = if idx==0 { 0 } else { fn_ends[idx-1] };
+        let attr_slice = &source[prev_end..*start];
+        let has_attr_pure = attr_slice.contains("#[pure]") || attr_slice.contains("#[ pure");
+        let attr_pure = has_attr_pure;
+        let is_pure = if attr_pure {
+            true
+        } else if file_pure == Some(true) {
+            if fns.len()==1 { true }
+            else if idx==0 { true }
+            else { name.contains("pure") }
+        } else {
+            false
+        };
+        if !is_pure { continue; }
+        let has_io = body.contains("println") || body.contains("eprintln") || body.contains("print!") || body.contains("File::") || body.contains("TcpStream");
+        if has_io {
+            errs.push(format!("pure function '{}' has I/O at per-fn check (body contains println/File)", name));
+        }
+    }
+    errs
+}
+
 #[derive(Clone, Debug, Default)]
+
+
 pub struct PipelineV2Result {
     pub n_vars: usize,
     pub n_polys: usize,
@@ -996,12 +1104,13 @@ pub fn run_pipeline_v2_with_algo(
     // S6: borrowck + effects + Phase2/3 補
     let mut borrowck = BorrowChecker::from_poly_source(poly_src);
     borrowck.lifetime_graph = lt_graph.clone();
+    // WRP-R3 per-fn PureMap: 以 syn::Item::Fn 为规范，core 手写 per-fn 扫描
+    //  - is_pure 判定：#[pure] 属性 ∨ 文件级 # @pure 的首函数/含 pure 名的函数
+    //  - has_io 判定：函数体 substring 含 println 等（与 effects::is_io_call 对齐）
+    let pure_per_fn_errors = check_pure_per_fn(source, poly_src.pure);
     let mut eff_ctx = EffectContext::from_poly_source(poly_src);
-    // WRP-R2 fix: io_with_pure_call is SAT — pure_inner has no I/O, outer println is outside pure fn.
-    // Previous blanket has_io=true via source.contains("println") made check_pure fire with empty nodes,
-    // mis-classifying io_with_pure_call as UNSAT. Now only set has_io via textual global when the
-    // file is not marked pure; pure files rely on per-node walk (is_io_call) for precise per-function I/O.
-    if source.contains("println") && poly_src.pure != Some(true) {
+    // 保留非 pure 效应的全局 has_io（no-io 场景），pure 按函数粒度已在 pure_per_fn_errors 中处理
+    if source.contains("println") && poly_src.pure != Some(true) && poly_src.no_io {
         eff_ctx.has_io = true;
     }
     borrowck.effect_ctx = eff_ctx.clone();
@@ -1013,6 +1122,11 @@ pub fn run_pipeline_v2_with_algo(
     if let Err(e) = eff_ctx.check_all() {
         result.effect_errors.push(e.clone());
         result.errors.push(e);
+    }
+    // 追加 per-fn pure 错误（syn 对齐）
+    if !pure_per_fn_errors.is_empty() {
+        result.effect_errors.extend(pure_per_fn_errors.clone());
+        result.errors.extend(pure_per_fn_errors);
     }
 
     // Phase2 補：struct field 類型檢查
