@@ -1126,3 +1126,101 @@ loadFiles(); loadSafety(); updateStats();
 </html>
 "##.to_string()
 }
+
+// ── P1-D7：IDE handler 契約/回路測試（直調，tower/瀏覽器零需求） ───────────────
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_state() -> IdeState {
+        IdeState {
+            files: Arc::new(RwLock::new(HashMap::new())),
+            diagnostics: Arc::new(RwLock::new(Vec::new())),
+            version: Arc::new(RwLock::new(0)),
+            root: PathBuf::from("/tmp/polyrust-ide-test-root"),
+        }
+    }
+
+    async fn health_json(verbose: Option<bool>) -> serde_json::Value {
+        let resp = health_handler(State(test_state()), Query(HealthQuery { verbose }))
+            .await
+            .into_response();
+        let body = axum::body::to_bytes(resp.into_body(), 1 << 20).await.unwrap();
+        serde_json::from_slice(&body).unwrap()
+    }
+
+    #[tokio::test]
+    async fn health_minimal_reports_ok() {
+        let v = health_json(None).await;
+        assert_eq!(v["status"], serde_json::json!("ok"));
+        assert_eq!(v["service"], serde_json::json!("polyrust-ide"));
+        assert!(v.get("deps").is_none(), "非 verbose 不應含 deps");
+    }
+
+    #[tokio::test]
+    async fn health_verbose_adds_deps_all_commercial_friendly() {
+        let v = health_json(Some(true)).await;
+        let deps = v.get("deps").and_then(|d| d.as_array()).expect("verbose 應含 deps");
+        assert!(deps.len() >= 8, "deps 清單應完整");
+        for d in deps {
+            assert_eq!(d["commercial_friendly"], serde_json::json!(true),
+                "契約：IDE 依賴全部商業友好: {d}");
+        }
+    }
+
+    #[tokio::test]
+    async fn open_file_from_memory_beats_fs() {
+        let st = test_state();
+        st.files.write().await.insert("/virtual/a.rs".into(), "fn a() {}".into());
+        let resp = open_file_handler(State(st), Json(OpenFileReq { path: "/virtual/a.rs".into() })).await.into_response();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn open_file_missing_is_404() {
+        let resp = open_file_handler(State(test_state()), Json(OpenFileReq {
+            path: "/tmp/polyrust-ide-no-such-file.rs".into(),
+        })).await.into_response();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn save_file_bumps_version_and_caches() {
+        let st = test_state();
+        let path = "/tmp/polyrust-ide-save-test.rs";
+        let resp = save_file_handler(State(st.clone()), Json(SaveFileReq {
+            path: path.into(), content: "fn main() { let x = 1; }".into(),
+        })).await.into_response();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(*st.version.read().await, 1, "save 應推進版本號");
+        assert_eq!(st.files.read().await.get(path).map(|s| s.as_str()), Some("fn main() { let x = 1; }"));
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn build_file_tree_walks_nested_layout() {
+        let base = std::path::Path::new("/tmp/polyrust-ide-tree-test");
+        std::fs::create_dir_all(base.join("src")).unwrap();
+        std::fs::write(base.join("src").join("lib.rs"), "// t").unwrap();
+        let node = build_file_tree(base, 0, 2);
+        assert!(node.is_dir);
+        assert_eq!(node.name, "polyrust-ide-tree-test");
+        let src = node.children.iter().find(|c| c.name == "src").expect("應有 src 子節點");
+        let lib = src.children.iter().find(|c| c.name == "lib.rs").expect("應有 lib.rs 孫節點");
+        assert_eq!(lib.file_type, "rs");
+        let _ = std::fs::remove_dir_all(base);
+    }
+
+    #[tokio::test]
+    async fn compile_tiny_source_ok_with_risk_fields() {
+        let st = test_state();
+        let resp = compile_handler(State(st), Json(CompileReq {
+            path: None, content: Some("fn main() { let x = 1; }".into()), mode: None,
+        })).await.into_response();
+        assert_eq!(resp.status(), StatusCode::OK, "迷你源應編譯成功");
+        let body = axum::body::to_bytes(resp.into_body(), 1 << 20).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(v.get("risk_score").is_some(), "契約應載 risk_score: {v}");
+        assert!(v.get("elapsed_ms").is_some(), "契約應載 elapsed_ms");
+    }
+}

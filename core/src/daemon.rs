@@ -561,6 +561,7 @@ fn main() {
         let poly = "fn test() { let r1 = &mut x; let r2 = &mut x; }";
         let v2 = PipelineV2Result {
             bounded_unknown: None,
+            bounded: None,
             n_vars: 10,
             n_polys: 5,
             n_clauses: 0,

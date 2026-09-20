@@ -48,10 +48,10 @@
 | # | 缺口 | 具體任務 | 驗收標準 |
 |---|---|---|---|
 | P0-C1 ✅ | ~~v3 借用檢查弱化~~（2026-09-19 結案） | v1↔v3 **差分測試**（`core/src/differential.rs`）已納 CI-ratchet：100 案例，白名單 1（io_effect=v1 過嚴）+ v1 適用域 86；rustc 地真值查明：mut_borrow_exclusive 舊期望屬錯標（rustc 合法、v1 SAT）→ 矩陣改 SAT；ref_deref 為真缺口 → `check_deref_depth`（E0614 語義）補強。曾試行 Rule B 經差分**證偽回退** | 差分綠、矩陣 94→**96/100**、端到端 ref_deref=UNSAT+診斷、exclusive=SAT ✓ |
-| P0-C2 | **LRAT 接入 CDCL**（S1 後半）：lrat.rs 已備核，未接線 | cdcl.rs 學習子勺記錄為證明軌；UNSAT 時輸出 `proof.drat` 並以 lrat.rs 自檢；Lean `Polyrust.RupKernel` 可靠性定理（接受⇒CNF 無解） | 12 個 UNSAT 樣本全產證自檢過；AuditAll 仍 CLEAN；`1∈G` 證書退為 --audit 模式 |
+| P0-C2 ✅ | **LRAT 接入 CDCL**（S1 後半）（2026-09-20 結案） | cdcl.rs 學習子勺記錄為證明軌；UNSAT 時輸出 `proof.drat`（`POLY_LRAT_OUT`，配 `POLY_LRAT_CNF` 公式）並以 lrat.rs 自檢；Lean `Polyrust.RupKernel` 可靠性定理（接受⇒CNF 無解） | UNSAT 語料（7 合成 + matrix 全 should_sat=false 類）全產證自檢過（`lrat_unsat_certificates_across_unsat_corpus`）；AuditAll CLEAN（4269 受檢、0 sorry、0 非標準公理）；`1∈G` 證書退為 `--audit` 模式（=`--eager-gb` 別名，JSON 路線同生效）。修復一宗設計缺陷：證書基底原取 `clauses[..n_orig]`（剔除單元/空/恆真子句嘅入庫表）⟹ 基底≠實際輸入、輸入含空子句時偽失敗；改為構造輸入逐字鏡像 `cnf_base`（理論補理作可信公理入基底，對齊 SMT 實踐） |
 | P0-C3 ✅ | ~~授權不統一~~（2026-09-19 結案） | **決策：全產品 AGPL-3.0 + 商業雙授權**——唔做 permissive core。「core 咪最值錢既地方，core 畀人任用，其他嘢唔值錢」— 用戶原話；全部 142 源檔 SPDX `(AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)`、`license-scan.sh` CI 硬閘門、LICENSE.MIT 刪除、LICENSE.COMMERCIAL 轉 v1.0（聯絡 TBA）、Cargo.toml `license="AGPL-3.0-only"`、README 授權段 | license-scan 綠；無 *.example 殘留 ✓ **手尾：首次商業發佈前補真實聯絡（LICENSE.COMMERCIAL/COMMERCIAL_NOTICE.md 兩處 TBA）** |
-| P0-C4 | **Lazy 模式的 Lean 精化證明** | `Polyrust.LazyGb.lean`：lazy 判定 ≡ eager 判定（T3/T6 已具，補管線層精化） | 定理入庫、AuditAll CLEAN |
-| P0-C5 | **bounded-SAT 標記全鏈路**（U1 只覆蓋顯式 fuel） | 凡判定在 fuel/depth 有界模型內給出，JSON 必帶 `bounded:{kind,fuel}`；默認 fuel=3 路徑也納入 UNKNOWN 誠實三值；CI 閘門語義文件化（UNKNOWN=非通過） | v2/v3 JSON 契約 v0.3；文檔與測試齊 |
+| P0-C4 ✅ | **Lazy 模式的 Lean 精化證明**（2026-09-20 結案） | `Polyrust.LazyGb.lean`：立方體否句語義（`negCube_none_holds_iff_agree` 等）、迴圈步合法（`negCube_step_valid`）、合法補理鏈組合（`ValidChain`/`validChain_strengthens`）、主線 `lazy_unsat_sound` + `eager_sat_of_lazy_witness` ⟹ `lazy_refines_eager`（兩判定數學重合；鏈步理論前提如實申報由 GB 引擎承擔） | 定理入庫（7+1）；`eager_sat_of_lazy_witness` 零公理依賴，其餘全喺標準三公理內；AuditAll CLEAN |
+| P0-C5 ✅ | **bounded-SAT 標記全鏈路**（2026-09-20 結案） | v2/v3 JSON 新增 `bounded:{kind,fuel,insufficient}`（觸發條件同約束生成端一致：顯式 @fuel 或源含 loop/while/for ⟹ fuel 顯式值/3）；**默認 fuel=3 路徑納入 UNKNOWN 誠實三值**（兌現 P1-U2 承諾）；v2 `api_version` 0.2→0.3、v3 三值對齊穿透；CI fail-closed 語義文件化 | 契約文檔 `docs/JSON_CONTRACT_V03.md`；測試 4 新增全綠（純函數 2 + JSON 契約 2），核心 lib 131/131 綠零回歸 |
 
 ## 3. P1 — 性能與可用性（FPT 路線落地）
 
@@ -63,7 +63,7 @@
 | P1-D4 | 診斷訊息：`Diagnostic{span,code,help}`；UNSAT 衝突核映射回 .poly 行號 | check JSON 新增 diagnostics；IDE/前端可高亮 |
 | P1-D5 | v2 QAP 真見證：sigma_f 由手填 first-bit 改為真求解（對齊 Lazy+T8）；product/sum 跨節點約束入 R1CS | v2 QAP 覆蓋不再僅 field polys；「僅展示流程」註釋可刪 |
 | P1-D6 | 𝔽₂ 商環 + ZDD 多項式表示實驗（PolyBoRi 路線，std-only 新模組 zdd.rs）＋F4 並行稀疏消元（std::thread 分片） | PolyBoRi 類基準（乘法器實例）可解規模 ≥4×；audit 模式同答案 |
-| P1-D7 | 測試補齊：frontends/http、llm、ide 目前 **0 測試** | 各 ≥5 個契約/回路測試（LLM 走 mock provider） |
+| P1-D7 ✅ | ~~測試補齊：frontends/http、llm、ide 目前 0 測試~~（2026-09-20 結案） | http 6（health 契約／nl 400×2／nl mock 離線回路／funnel 404·422·200）、llm 5（mock 回落核心／名稱契約／自訂名 OpenAI 相容／環境敏感路徑／flag 契約，全零網絡）、ide 7（health×2／open memory·404／save 版本推進／檔案樹遍歷／compile 迷你源回路）。全部 handler 直調，無 tower/瀏覽器需求；workspace 測試 173/173 綠 |
 
 ## 4. P2 — 產品化與生態
 
@@ -75,8 +75,8 @@
 | P2-E4 | PolyCache 真增量（存真 basis/節點級失效；現僅計數）；IDE/LSP 實時基礎 |
 | P2-E5 | 發佈物：棄「分支即版本」、tag+Release、crates.io 發 core、Docker 鏡像、可攜 `-march=x86-64-v3` 變體 |
 | P2-E6 | 全 Rust 有界角落：d 界 trait 求解、const/macro 燃料化、三值全鏈路；Lean 三定理（DeterministicPropagation/TreewidthBound/ThreeValuedSound/BoundedTrait） |
-| P2-E7 | 對外基準：與 rustc/clippy/Kani/Prusti 判定一致率報告；TCB 白皮書（Lean↔Rust 映射、註解信任假設、擔保邊界） |
-| P2-E8 | warnings → 0（餘 14）；`cargo fmt` 一次性清倉 1294 行 + clippy 轉硬閘門（在獨立 PR 做，避免污染功能 diff） |
+| P2-E7 ⏭ | 對外基準：與 rustc/clippy/Kani/Prusti 判定一致率報告；~~TCB 白皮書~~ | **TCB 白皮書已由 C5.3 達成**（`docs/TCB_WHITEPAPER.md` 四層信任圖，2026-09-20）；一致率基準屬大型對外活動，待獨立排期 |
+| P2-E8 ⏭ | ~~warnings → 0~~；`cargo fmt` 一次性清倉 + clippy 轉硬閘門（在獨立 PR 做，避免污染功能 diff） | **warnings→0(lib) 已由 T5 審計達成**（style 級 ~87 項已認領於審計文檔 §4）；fmt 清倉與 CI 硬閘門按原註仍留獨立 PR |
 | P2-E9 | Lean 原生庫可攜化與 `-march=native` 分離（README 已自知不可攜） |
 
 ## 5. 指標看板（每 release 由 CI 產生）

@@ -284,6 +284,11 @@ pub struct PipelineResult {
     /// v0.3 hardening：Lazy 模式下為 true——最終全量規約基被推遲（未計算），
     /// 判定採 CDCL(T) 迴圈結果（見 GbBasisMode）。需要基與統計時用 `run_pipeline_eager`。
     pub gb_basis_deferred: bool,
+    /// P0-C2：UNSAT LRAT/RUP 自證結果 `(verified, accepted_steps)`。
+    /// `None` = 非 UNSAT 或 UNSAT 唔經 CDCL 布爾層拒絕（無證可出）；
+    /// `Some((false, 0))` = 自證失敗——**引擎事故級**，已經 stderr 如實申報，
+    /// 判決依法保留（證書唔存在而唔係偽造）。
+    pub lrat: Option<(bool, usize)>,
 }
 
 pub fn clause_to_poly(clause: &[cdcl::Lit], nvars: usize) -> Poly {
@@ -364,7 +369,28 @@ pub fn run_pipeline_with_mode(name: &str, source: &str, do_codegen: bool, algo: 
         cdcl_stats_acc.conflicts += solver.stats().conflicts;
         cdcl_stats_acc.learned += solver.stats().learned;
         for lc in solver.learned_clauses() { if !learned_total.contains(&lc) { learned_total.push(lc.clone()); } }
-        if !ok { cdcl_failed = true; break; }
+        if !ok {
+            cdcl_failed = true;
+            // P0-C2：UNSAT 證書自證——學習子勺 RUP 軌經 `lrat` 核逐步複核。
+            // 自證失敗唔會靜默：如實入 `res.lrat = Some((false, 0))` 兼 stderr 申報。
+            let (cnf, proof) = solver.rup_certificate();
+            if let Ok(path) = std::env::var("POLY_LRAT_OUT") {
+                let text = crate::lrat::to_drat_text(&proof);
+                let _ = std::fs::write(&path, text);
+            }
+            if let Ok(path) = std::env::var("POLY_LRAT_CNF") {
+                // 配套公式：POLY_LRAT_OUT 跌檔需同公式一齊先可交俾外部檢查器（drat-trim）。
+                let _ = std::fs::write(&path, crate::lrat::to_dimacs(&cnf));
+            }
+            match crate::lrat::check_rup_proof(&cnf, &proof) {
+                Ok(steps) => res.lrat = Some((true, steps)),
+                Err(e) => {
+                    eprintln!("[{name}] LRAT 自證失敗（引擎事故級，判決保留、證書作廢）：{e}");
+                    res.lrat = Some((false, 0));
+                }
+            }
+            break;
+        }
         let model = solver.model().unwrap();
         let mut subst = sys.polys.clone();
         for (vi, &cv) in clause_vars.iter().enumerate() {
@@ -508,3 +534,44 @@ pub fn pipeline_file_list() -> Vec<(&'static str, &'static str, &'static str)> {
     ]
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// P0-C2 驗收：凡 UNSAT 判決必附 LRAT/RUP 自證通過嘅證書。
+    /// 語料：(a) 語義矩陣 should_sat=false 全類；(b) 小型 UNSAT 合成例。
+    /// 規則：只要管線出 UNSAT 判決，`lrat` 必須係 Some((true, steps>0))；
+    /// 管線錯誤（Err）唔係判決，略過（唔用嚟做旗艦靶）。
+    #[test]
+    fn lrat_unsat_certificates_across_unsat_corpus() {
+        let synthetic: [(&str, &str); 7] = [
+            ("syn_add_bool", "fn f(x: i32) -> i32 { x + 1 }\nfn main() { let a: bool = f(1); }"),
+            ("syn_eq_type", "fn main() { let a: i32 = 1 == 2; }"),
+            ("syn_bool_arith", "fn main() { let b: i32 = true + 1; }"),
+            ("syn_if_cond", "fn main() { let x: i32 = if 3 { 1 } else { 2 }; }"),
+            ("syn_arg_type", "fn f(x: bool) -> i32 { 1 }\nfn main() { let y: i32 = f(3); }"),
+            ("syn_return_type", "fn f() -> i32 { true }\nfn main() { let z: i32 = f(); }"),
+            ("syn_ref_conflict", "fn main() { let mut v: i32 = 1; let r1: &mut i32 = &mut v; let r2: &mut i32 = &mut v; *r1 = 2; *r2 = 3; }"),
+        ];
+        let mut scripts: Vec<(String, String)> = Vec::new();
+        for c in crate::semantic_matrix::all_semantic_cases().into_iter().filter(|c| !c.should_sat) {
+            scripts.push((c.name.to_string(), c.poly_src.to_string()));
+        }
+        for (n, src) in synthetic {
+            scripts.push((n.to_string(), src.to_string()));
+        }
+        let mut n_checked = 0usize;
+        for (name, src) in &scripts {
+            let Ok(poly) = crate::dsl::resolve(src, None) else { continue };
+            let Ok(res) = run_pipeline(name, &poly.source, false) else { continue };
+            if !res.is_unsat { continue; }
+            match res.lrat {
+                Some((true, steps)) if steps > 0 => n_checked += 1,
+                other => panic!("{name}: UNSAT 判決但 LRAT 自證未過/缺證書: {:?}（checker={}）",
+                    other, res.checker_msg),
+            }
+        }
+        assert!(n_checked >= 5, "UNSAT LRAT 樣本數不足: {n_checked}");
+    }
+}

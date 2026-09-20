@@ -71,6 +71,10 @@ pub struct PipelineV2Result {
     /// `while X < N` 的估算迭代數（且無 @invariant）時為 Some(理由)，
     /// 此時判定應呈現為 UNKNOWN 而非 SAT（此前 *_unknown.poly 被誤標 SAT）。
     pub bounded_unknown: Option<String>,
+    /// P0-C5：bounded 標記——凡判定喺 fuel 有界展開模型內給出，JSON 必帶
+    /// `bounded:{kind,fuel,insufficient}`；無 fuel 有界語義時為 None。
+    /// 契約：docs/JSON_CONTRACT_V03.md。
+    pub bounded: Option<BoundedMark>,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -460,6 +464,18 @@ fn check_deref_depth(source: &str) -> Vec<String> {
     errors
 }
 
+/// P0-C5：有界判定標記（DEV_PLAN_V03 P0-C5）。中文文件見字段註解。
+#[derive(Clone, Debug)]
+pub struct BoundedMark {
+    /// 有界種類：現時得 `"loop_fuel"`（顯式 @fuel / 默認 fuel=3 展開）；
+    /// 預留 `"unroll_depth"` 等——新增種類時同步契約文檔與測試。
+    pub kind: &'static str,
+    /// 有效界度：顯式 @fuel 值或默認 3。
+    pub fuel: i64,
+    /// 估算所需迭代超界 ⟹ 誠實 UNKNOWN（理由喺 `bounded_unknown`）。
+    pub insufficient: bool,
+}
+
 /// v0.3 hardening：估算 `while X < N`（配 `X = X + D` / `X += D`）所需迭代數；
 /// 有效 fuel（@fuel 或默認 3）不足且無 @invariant 時，回傳 UNKNOWN 理由。
 /// 僅在可確認「不足」時回傳 Some——寧可漏報 UNKNOWN 也不誤報（保守原則）。
@@ -504,10 +520,9 @@ fn estimate_fuel_insufficiency(poly_src: &PolySource, source: &str) -> Option<St
     if d <= 0 {
         return None;
     }
-    // 僅處理**顯式 @fuel**：用戶已聲明預算，引擎有責任在預算不足時說 UNKNOWN；
-    // 未指定時（默認 fuel 3）維持現行 bounded-SAT 行為不變（保守，無回歸），
-    // 對應策略見 DEV_PLAN_V03 P1-U2（後續將把默認路徑也納入誠實三值）。
-    let eff_fuel = poly_src.fuel? as i64;
+    // P0-C5 兌現 DEV_PLAN_V03 P1-U2 嘅後續承諾：默認 fuel=3 路徑**照樣納入**
+    // 誠實三值——顯式 @fuel 與默認展開一視同仁，估算超界即 UNKNOWN。
+    let eff_fuel = poly_src.fuel.unwrap_or(3) as i64;
     let iter_needed = (n + d - 1) / d; // ceil(n/d)，假設初值 0（保守下界）
     if iter_needed > eff_fuel {
         return Some(format!(
@@ -516,6 +531,19 @@ fn estimate_fuel_insufficiency(poly_src: &PolySource, source: &str) -> Option<St
         ));
     }
     None
+}
+
+/// P0-C5：有效 fuel 界度——`Some(f)` 表示判定喺 fuel=`f` 嘅有界展開模型內給出。
+/// 觸發條件與約束生成端（`run_pipeline_v2` 內 `gen_loop_fuel_constraints` 分支）
+/// 嚴格一致：顯式 `@fuel` 優先，否則源文本含 loop/while/for 即默認 3。
+pub fn effective_fuel(poly_src: &PolySource, source: &str) -> Option<i64> {
+    if let Some(f) = poly_src.fuel {
+        Some(f as i64)
+    } else if source.contains("loop") || source.contains("while") || source.contains("for") {
+        Some(3)
+    } else {
+        None
+    }
 }
 
 fn check_loop_contracts(poly_src: &PolySource, source: &str) -> Vec<String> {
@@ -1203,8 +1231,16 @@ pub fn run_pipeline_v2_with_algo(
     // Phase B: errors -> diagnostics 帶 span/code/help/lean_ref
     result.diagnostics = crate::diagnostic::errors_to_diagnostics(_name, source, &result.errors);
     // v0.3 hardening：誠實三值——fuel 不足時標記 UNKNOWN（不翻盤既有 SAT/UNSAT，只補中間態）
+    // P0-C5：bounded 標記全鏈路——凡 fuel 有界判定必占位（UNSAT 都照標，
+    // 因 UNSAT 同樣只喺有界模型內成立）；insufficient 對齊 UNKNOWN 估算。
+    let insuff = estimate_fuel_insufficiency(poly_src, source);
+    result.bounded = effective_fuel(poly_src, source).map(|f| BoundedMark {
+        kind: "loop_fuel",
+        fuel: f,
+        insufficient: insuff.is_some(),
+    });
     if !result.is_unsat {
-        result.bounded_unknown = estimate_fuel_insufficiency(poly_src, source);
+        result.bounded_unknown = insuff;
     }
 
     // S11: QAP 集成 — Phase3 補
@@ -1348,5 +1384,42 @@ mod borrowck_v03_tests {
         // match 綁定未知深度 → 保守放行
         let src3 = "fn borrow_match(o: &Option<i32>) -> i32 { match o { Some(v) => *v, None => 0 } }";
         assert!(check_deref_depth(src3).is_empty());
+    }
+
+    // ── P0-C5：bounded 標記全鏈路（純函數層） ────────────────────────────────
+
+    #[test]
+    fn p0c5_effective_fuel_triggers() {
+        // 顯式 @fuel 優先
+        let ps = PolySource { fuel: Some(7), ..Default::default() };
+        assert_eq!(effective_fuel(&ps, "fn main() {}"), Some(7));
+        // 默認：源含迴圈關鍵字 ⟹ 3（與約束生成端分支同條件）
+        let ps0 = PolySource::default();
+        for kw in ["loop", "while", "for"] {
+            let src = format!("fn main() {{ {kw} {{}} }}");
+            assert_eq!(effective_fuel(&ps0, &src), Some(3), "{kw} 應觸發默認 fuel 3");
+        }
+        // 無迴圈無註解 ⟹ None（判定並非喺有界模型給出）
+        assert_eq!(effective_fuel(&ps0, "fn main() { let x = 1; }"), None);
+    }
+
+    #[test]
+    fn p0c5_default_fuel_folded_into_unknown() {
+        // P0-C5 核心行為變更：默認 fuel=3 路徑照樣納入誠實三值。
+        // `while` 需企喺行首（對齊 estimate 解析器同 loop_unknown.poly 真實形狀）
+        let src = "fn main() {\n  let mut x = 0;\n  while x < 100 { x = x + 1; }\n}";
+        let ps0 = PolySource::default(); // 無 @fuel ⟹ 默認 3，100 次迭代遠超界
+        let r = estimate_fuel_insufficiency(&ps0, src);
+        let r = r.expect("默認 fuel 3 唔夠 100 次迭代，應報 UNKNOWN 理由");
+        assert!(r.contains("@fuel=3"), "理由應申報有效默認界度，got: {r}");
+        // 顯式足額 @fuel ⟹ 無 UNKNOWN
+        let ps_ok = PolySource { fuel: Some(100), ..Default::default() };
+        assert!(estimate_fuel_insufficiency(&ps_ok, src).is_none());
+        // 默認界內小迴圈 ⟹ 無 UNKNOWN（但 bounded 標記照樣會有，見 effective_fuel）
+        let small = "fn main() {\n  let mut x = 0;\n  while x < 2 { x = x + 1; }\n}";
+        assert!(estimate_fuel_insufficiency(&ps0, small).is_none());
+        // @invariant 豁免（既有口徑保留）
+        let ps_inv = PolySource { invariants: vec!["x < 100".to_string()], ..Default::default() };
+        assert!(estimate_fuel_insufficiency(&ps_inv, src).is_none());
     }
 }

@@ -136,3 +136,79 @@ async fn main() {
         std::process::exit(1);
     }
 }
+
+// ── P1-D7：契約/回路測試（handler 直調，tower/網絡零需求） ────────────────────
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn nl_req(description: &str, provider: Option<&str>) -> NlReq {
+        NlReq {
+            description: description.into(),
+            provider: provider.map(|p| p.into()),
+            model: None,
+            base_url: None,
+            api_key: None,
+            attempts: None,
+            do_gen: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn health_reports_ok_and_crate() {
+        let Json(v) = health().await;
+        assert_eq!(v["ok"], serde_json::json!(true));
+        assert_eq!(v["crate"], serde_json::json!("polyrust-http"));
+        assert!(v.get("formal_report").is_some(), "health 契約應載 formal_report");
+    }
+
+    #[tokio::test]
+    async fn nl_empty_description_is_400_error() {
+        let (sc, Json(v)) = nl(Json(nl_req("   ", None))).await;
+        assert_eq!(sc, StatusCode::BAD_REQUEST);
+        assert_eq!(v["status"], serde_json::json!("error"));
+        assert_eq!(v["verdict"], serde_json::json!("ERROR"));
+    }
+
+    #[tokio::test]
+    async fn nl_unknown_provider_is_400_error() {
+        let (sc, Json(v)) = nl(Json(nl_req("x", Some("__no_such_provider__")))).await;
+        assert_eq!(sc, StatusCode::BAD_REQUEST);
+        assert_eq!(v["status"], serde_json::json!("error"));
+    }
+
+    #[tokio::test]
+    async fn nl_mock_provider_round_trip_is_200() {
+        // mock provider 離線確定性（核心內建），可做完整回路不設網絡。
+        let (sc, Json(v)) = nl(Json(nl_req("寫一個 i32 加法函數", Some("mock")))).await;
+        assert_eq!(sc, StatusCode::OK, "mock 回路應 200，got {v}");
+        assert!(v.get("status").is_some(), "契約應有 status 欄位: {v}");
+    }
+
+    #[tokio::test]
+    async fn funnel_missing_file_is_404() {
+        let mut q = HashMap::new();
+        q.insert("path".into(), "/tmp/polyrust-test-no-such-funnel.ndjson".into());
+        let (sc, Json(v)) = funnel(Query(q)).await;
+        assert_eq!(sc, StatusCode::NOT_FOUND);
+        assert_eq!(v["status"], serde_json::json!("error"));
+    }
+
+    #[tokio::test]
+    async fn funnel_garbage_is_422_and_valid_line_is_200() {
+        let bad = "/tmp/polyrust-test-funnel-bad.ndjson";
+        std::fs::write(bad, "呢行唔係 JSON\n").unwrap();
+        let mut q = HashMap::new();
+        q.insert("path".into(), bad.to_string());
+        let (sc, _) = funnel(Query(q)).await;
+        assert_eq!(sc, StatusCode::UNPROCESSABLE_ENTITY, "垃圾行應 422");
+
+        let good = "/tmp/polyrust-test-funnel-ok.ndjson";
+        std::fs::write(good, "{\"status\":\"ok\",\"provider\":\"mock\"}\n").unwrap();
+        let mut q2 = HashMap::new();
+        q2.insert("path".into(), good.to_string());
+        let (sc2, Json(v)) = funnel(Query(q2)).await;
+        assert_eq!(sc2, StatusCode::OK, "合法 ndjson 應 200: {v}");
+        assert_eq!(v["runs"], serde_json::json!(1), "單行日誌 runs 應為 1: {v}");
+    }
+}

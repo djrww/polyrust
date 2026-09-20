@@ -212,6 +212,9 @@ pub struct IterationStep {
 pub struct PipelineV3Result {
     pub source_name: String,
     pub final_is_unsat: bool,
+    /// P0-C5：bounded 契約穿透——內層最終 v2 結果嘅有界標記原樣上拋；
+    /// v3 JSON 帶 `bounded:{kind,fuel,insufficient}`（判決層對齊三值）。
+    pub bounded: Option<crate::pipeline_v2::BoundedMark>,
     pub final_n_vars: usize,
     pub final_n_polys: usize,
     pub final_n_clauses: usize,
@@ -1192,6 +1195,7 @@ pub fn run_pipeline_v3_with_config(
 
         source_name: name.to_string(),
         final_is_unsat: v2_final.is_unsat,
+        bounded: v2_final.bounded.clone(),
         final_n_vars: v2_final.n_vars,
         final_n_polys: v2_final.n_polys,
         final_n_clauses: v2_final.n_clauses,
@@ -1289,7 +1293,18 @@ pub fn pipeline_v3_to_json(p: &PipelineV3Result) -> J {
         ("mode", J::s("check-v3")),
         ("source", J::s(&p.source_name)),
         ("status", J::s("ok")),
-        ("verdict", J::s(if p.final_is_unsat { "UNSAT" } else { "SAT" })),
+        // P0-C5：三值判決對齊——bounded.insufficient ⟹ UNKNOWN（不得降格為 SAT）。
+        ("verdict", J::s(if p.final_is_unsat { "UNSAT" }
+                         else if p.bounded.as_ref().is_some_and(|b| b.insufficient) { "UNKNOWN" }
+                         else { "SAT" })),
+        ("bounded", match &p.bounded {
+            Some(b) => J::obj(vec![
+                ("kind", J::s(b.kind)),
+                ("fuel", J::Int(b.fuel)),
+                ("insufficient", J::Bool(b.insufficient)),
+            ]),
+            None => J::Null,
+        }),
         ("converged", J::Bool(p.converged)),
         ("total_duration_ms", J::Int(p.total_duration_ms as i64)),
         ("final_stats", J::obj(vec![
@@ -1366,6 +1381,7 @@ fn main() {
         PipelineV3Result {
             source_name: "web3_audit_demo".to_string(),
             final_is_unsat: true,
+            bounded: None,
             final_n_vars: 0,
             final_n_polys: 0,
             final_n_clauses: 0,
@@ -1424,6 +1440,7 @@ fn main() {
         PipelineV3Result {
             source_name: "embedded_cert_demo".to_string(),
             final_is_unsat: true,
+            bounded: None,
             final_n_vars: 0,
             final_n_polys: 0,
             final_n_clauses: 0,
@@ -1513,6 +1530,7 @@ mod tests {
     fn test_risk_scoring() {
         let mut v2 = crate::pipeline_v2::PipelineV2Result {
             bounded_unknown: None,
+            bounded: None,
             is_unsat: false,
             n_vars: 100,
             n_polys: 200,

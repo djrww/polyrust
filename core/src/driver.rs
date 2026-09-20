@@ -81,6 +81,8 @@ pub(crate) fn pipeline_to_json(name: &str, poly: &PolySource, p: &PipelineResult
             ("gb_basis_adds", J::Int(p.gb_stats.basis_adds as i64)),
             ("reduced_basis_size", J::Int(p.reduced_basis.len() as i64)),
             ("gb_mode", J::s(if p.gb_basis_deferred { "lazy (basis deferred; --eager-gb 或 POLY_EAGER_GB=1 求全基)" } else { "eager" })),
+            ("lrat_verified", match p.lrat { Some((v, _)) => J::Bool(v), None => J::Null }),
+            ("lrat_steps", match p.lrat { Some((_, n)) => J::Int(n as i64), None => J::Null }),
             ("r1cs_constraints", J::Int(p.r1cs_constraints as i64)),
             ("r1cs_wires", J::Int(p.r1cs_wires as i64)),
             ("qap_max_degree", J::Int(p.qap_max_degree as i64)),
@@ -207,7 +209,8 @@ fn pipeline_v2_to_json(name: &str, poly: &PolySource, p: &crate::pipeline_v2::Pi
     }).collect();
     let diagnostics: Vec<J> = p.diagnostics.iter().map(|d| d.to_json()).collect();
     J::obj(vec![
-        ("api_version", J::s("0.2")),
+        // 契約 v0.3：新增 `bounded:{kind,fuel,insufficient}`（P0-C5 有界標記全鏈路）。
+        ("api_version", J::s("0.3")),
         ("mode", J::s("check-v2")),
         ("source", J::s(name)),
         ("intent", J::opt_str(poly.intent.as_deref())),
@@ -215,6 +218,15 @@ fn pipeline_v2_to_json(name: &str, poly: &PolySource, p: &crate::pipeline_v2::Pi
         ("status", J::s("ok")),
         ("verdict", J::s(verdict_v2(p))),
         ("unknown_reason", J::opt_str(p.bounded_unknown.as_deref())),
+        // P0-C5：有界判定契約——有界時帶 {kind,fuel,insufficient}，否則 null。
+        ("bounded", match &p.bounded {
+            Some(b) => J::obj(vec![
+                ("kind", J::s(b.kind)),
+                ("fuel", J::Int(b.fuel)),
+                ("insufficient", J::Bool(b.insufficient)),
+            ]),
+            None => J::Null,
+        }),
         ("features_used", J::Arr(p.features_used.iter().map(|s| J::s(s)).collect())),
         ("type_universe_size", J::Int(p.type_universe_size as i64)),
         ("per_node_bits", J::Arr(per_node_bits)),
@@ -313,17 +325,22 @@ pub fn cmd_check_v2(args: &[String], json: bool) -> i32 {
 }
 
 pub fn check_text_json(name: &str, text: &str, base: Option<&Path>) -> (J, bool) {
-    check_text_json_with_algo(name, text, base, None)
+    check_text_json_with_mode(name, text, base, None, false)
 }
 
 pub fn check_text_json_with_algo(name: &str, text: &str, base: Option<&Path>, algo: Option<GroebnerAlgo>) -> (J, bool) {
+    check_text_json_with_mode(name, text, base, algo, false)
+}
+
+/// `eager=true` ⇒ 走 eager 全基（1∈G 完整複核，P0-C2 嘅 --audit 口徑）。
+pub fn check_text_json_with_mode(name: &str, text: &str, base: Option<&Path>, algo: Option<GroebnerAlgo>, eager: bool) -> (J, bool) {
     let poly = match resolve(text, base) {
         Ok(p) => p,
         Err(e) => return (error_json(name, None, "check", &e), false),
     };
     let r = if let Some(a) = algo {
         run_pipeline_with_algo(name, &poly.source, true, Some(a))
-    } else if std::env::var("POLY_EAGER_GB").is_ok() {
+    } else if eager || std::env::var("POLY_EAGER_GB").is_ok() {
         crate::pipeline::run_pipeline_eager(name, &poly.source, true)
     } else {
         run_pipeline(name, &poly.source, true)
@@ -378,7 +395,10 @@ pub fn cmd_check(args: &[String], json: bool) -> i32 {
         }
     };
     if json {
-        let (j, ok) = check_text_json_with_algo(&name, &text, base.as_deref(), algo);
+        // `--audit` 係 `--eager-gb` 嘅稽核別名（P0-C2）：LRAT 接管 UNSAT 熱路線，
+        // 全量 1∈G 複核（eager 全基）退居按需稽核模式。JSON 路線一視同仁。
+        let eager_flag = args.iter().any(|a| a == "--eager-gb" || a == "--audit") || std::env::var("POLY_EAGER_GB").is_ok();
+        let (j, ok) = check_text_json_with_mode(&name, &text, base.as_deref(), algo, eager_flag);
         println!("{}", j);
         return if ok { 0 } else { 1 };
     }
@@ -386,7 +406,9 @@ pub fn cmd_check(args: &[String], json: bool) -> i32 {
         Ok(p) => p,
         Err(e) => { eprintln!("error: {}", e); return 1; }
     };
-    let eager_flag = args.iter().any(|a| a == "--eager-gb") || std::env::var("POLY_EAGER_GB").is_ok();
+    // `--audit` 係 `--eager-gb` 嘅稽核別名（P0-C2 驗收口徑）：LRAT 接管咗 UNSAT
+    // 熱路線嘅證書，全量 1∈G 複核（eager 全基）退居按需稽核模式。
+    let eager_flag = args.iter().any(|a| a == "--eager-gb" || a == "--audit") || std::env::var("POLY_EAGER_GB").is_ok();
     let res = if let Some(a) = algo { run_pipeline_with_algo(&name, &poly.source, true, Some(a)) }
         else if eager_flag { crate::pipeline::run_pipeline_eager(&name, &poly.source, true) }
         else { run_pipeline(&name, &poly.source, true) };
@@ -2249,5 +2271,74 @@ pub fn cmd_commercial_pipeline(args: &[String], json: bool) -> i32 {
             }
             0
         }
+    }
+}
+
+// ── P0-C5：bounded JSON 契約驗收（v0.3） ─────────────────────────────────────
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 四案橫掃：顯式超界 UNKNOWN / 默認超界 UNKNOWN / 默認界內 SAT+標記 / 無迴圈 null。
+    /// 契約文本：docs/JSON_CONTRACT_V03.md。
+    #[test]
+    fn p0c5_bounded_json_contract() {
+        // `while` 需企喺行首（對齊解析器鐵律；同 loop_unknown.poly 形狀一致）
+        let unknown_src = "# @fuel: 1\nfn main() {\n  let mut x = 0;\n  while x < 100 { x = x + 1; }\n}";
+        let default_unknown_src = "fn main() {\n  let mut x = 0;\n  while x < 100 { x = x + 1; }\n}";
+        let bounded_ok_src = "fn main() {\n  let mut x = 0;\n  while x < 2 { x = x + 1; }\n}";
+        let plain_src = "fn main() { let x = 1; }";
+
+        for (src, expect_unknown, expect_bounded_fuel) in [
+            (unknown_src, true, 1),
+            (default_unknown_src, true, 3),
+            (bounded_ok_src, false, 3),
+        ] {
+            let (j, _ok) = check_v2_text_json("p0c5", src, None);
+            let js = format!("{j}");
+            assert!(js.contains("\"api_version\":\"0.3\""), "契約版本缺失: {js}");
+            if expect_unknown {
+                assert!(js.contains("\"verdict\":\"UNKNOWN\""),
+                    "超界案應 UNKNOWN（默認路徑照納入）: {js}");
+            }
+            let want = format!("\"bounded\":{{\"kind\":\"loop_fuel\",\"fuel\":{expect_bounded_fuel},\"insufficient\":{expect_unknown}}}");
+            assert!(js.replace(' ', "").contains(&want.replace(' ', "")),
+                "bounded 標記不符 {want}: {js}");
+        }
+
+        let (j, _) = check_v2_text_json("p0c5", plain_src, None);
+        let js = format!("{j}");
+        assert!(js.contains("\"bounded\":null"), "無迴圈案 bounded 應為 null: {js}");
+        assert!(!js.contains("\"verdict\":\"UNKNOWN\""), "無迴圈案不得 UNKNOWN: {js}");
+    }
+
+    /// v3 契約穿透：bounded 標記同三值判決喺 v3 JSON 同樣成立。
+    #[test]
+    fn p0c5_bounded_json_contract_v3_passthrough() {
+        let res = crate::pipeline_v3::PipelineV3Result {
+            source_name: "t".into(),
+            final_is_unsat: false,
+            bounded: Some(crate::pipeline_v2::BoundedMark {
+                kind: "loop_fuel", fuel: 3, insufficient: true,
+            }),
+            final_n_vars: 0, final_n_polys: 0, final_n_clauses: 0,
+            iterations: vec![], converged: true, total_duration_ms: 0,
+            commercial: crate::pipeline_v3::CommercialAudit {
+                risk_score: 0.0,
+                risk_level: crate::pipeline_v3::RiskLevel::Low,
+                compliance: std::collections::HashMap::new(),
+                lean_proof_refs: vec![], qap_certificate: None, qap_tamper_proof: false,
+                remediation: vec![], audit_report_json: "{}".into(), audit_report_md: String::new(),
+                business_value: String::new(), estimated_loss_avoided: String::new(),
+                iso26262_level: String::new(),
+            },
+            qap_onchain_payload: None, deepened_poly: None, generated_rust: None,
+            self_verification_passed: None, features_used: vec![], per_node_bits: vec![],
+            lowering_report: String::new(), final_groebner_algo: "none".into(),
+            incremental_cache_hits: 0, poly_deepening_chain: vec![],
+        };
+        let js = format!("{}", crate::pipeline_v3::pipeline_v3_to_json(&res));
+        assert!(js.contains("\"verdict\":\"UNKNOWN\""), "bounded.insufficient ⟹ v3 verdict UNKNOWN: {js}");
+        assert!(js.contains("\"bounded\":{"), "v3 契約缺 bounded: {js}");
     }
 }

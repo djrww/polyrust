@@ -45,6 +45,17 @@ pub struct Solver {
     stats: CdclStats,
     ok: bool,
     model: Option<Vec<bool>>,
+    /// P0-C2：RUP 證明軌——依學習序記錄每條學習子句（DIMACS 編碼），
+    /// UNSAT 收尾時補空子勺；供 `lrat::check_rup_proof` 獨立複核。
+    rup_trace: Vec<crate::lrat::Clause>,
+    /// P0-C2：證書基底公式——**構造器輸入嘅逐字鏡像**（DIMACS 編碼）。
+    /// 與 `self.clauses` 有別：單元/恆真/空子句喺 `add_clause_raw` 唔入庫，
+    /// 若證書閂返 `self.clauses[..n_orig]` 會令基底公式 ≠ 求解實際輸入
+    /// （例：輸入得條空子句時基底變 CNF 0 0，自證必偽失敗）。
+    /// 定理：solve()=false ⟹ 令 F = 此鏡像 ∪ 軌前綴，RUP 鏈於 F 成立。
+    /// CDCL(T) 口徑：含前輪 GB 理論補理子勺——佢哋作為可信公理入基底，
+    /// RUP 核只證布爾骨架（理論有效性由 GB 引擎承擔，同 SMT 證書實踐一致）。
+    cnf_base: Vec<crate::lrat::Clause>,
 }
 
 impl Solver {
@@ -66,8 +77,12 @@ impl Solver {
             stats: CdclStats::default(),
             ok: true,
             model: None,
+            rup_trace: Vec::new(),
+            cnf_base: Vec::new(),
         };
         for clause in clauses {
+            // 逐字鏡像入證書基底（先鏡像後入庫：學習期新增者唔入基底）
+            s.cnf_base.push(clause.iter().map(|&l| Self::lit_to_dimacs(l)).collect());
             s.add_clause_raw(clause);
         }
         s.n_orig = s.clauses.len();
@@ -353,6 +368,7 @@ impl Solver {
 
     pub fn solve(&mut self) -> bool {
         if !self.ok {
+            self.finish_unsat();
             return false;
         }
         loop {
@@ -366,9 +382,13 @@ impl Solver {
                     );
                     self.stats.conflicts += 1;
                     if self.current_level() == 0 {
+                        // UNSAT 收尾：db 單元傳播已自相矛盾 ⇒ 空子勺 RUP 成立
+                        self.finish_unsat();
                         return false;
                     }
                     let (learnt, lvl) = self.analyze(confl);
+                    // 學習序記錄（RUP 性質由 1-UIP 構造保證，記錄時序同 db 時序一致）
+                    self.rup_trace.push(learnt.iter().map(|&l| Self::lit_to_dimacs(l)).collect());
                     debug_assert!(
                         learnt.iter().skip(1).all(|&l| self.value_of(l) == Some(false)),
                         "學習子句尾文字並非全假：{:?} 賦值={:?} 層級={:?}",
@@ -379,11 +399,13 @@ impl Solver {
                     self.var_inc /= 0.95;
                     self.cancel_until(lvl);
                     if learnt.is_empty() {
+                        self.finish_unsat(); // trace 頂部已是空學習，冇重複
                         return false;
                     }
                     self.stats.learned += 1;
                     let ci = self.add_clause_raw(learnt.clone());
                     if !self.ok {
+                        self.finish_unsat();
                         return false;
                     }
                     if let Some(ci) = ci {
@@ -421,6 +443,28 @@ impl Solver {
 
     pub fn stats(&self) -> &CdclStats {
         &self.stats
+    }
+
+    /// UNSAT 收尾統一收口：確保證明軌以空子勺結尾（RUP 喺所有 finish 點成立——
+    /// level-0 enqueue 衝突 / 層 0 衝突 / 空學習 都係「db 單元傳播已矛盾」）。
+    fn finish_unsat(&mut self) {
+        if self.rup_trace.last().is_some_and(|c| !c.is_empty()) || self.rup_trace.is_empty() {
+            self.rup_trace.push(Vec::new());
+        }
+    }
+
+    /// Lit(2v/2v+1) → DIMACS 文字（v+1，正負號）。
+    fn lit_to_dimacs(l: Lit) -> i32 {
+        let v = lit_var(l) as i32 + 1;
+        if lit_positive(l) { v } else { -v }
+    }
+
+    /// P0-C2：RUP 證書——(原始 CNF 鏡像, 學習子勺證明軌)。
+    /// 只喺 `solve()` 回傳 false（UNSAT）後有意義；基底公式 = `cnf_base`
+    /// （構造輸入逐字鏡像，含單元/空/恆真子句）。
+    pub fn rup_certificate(&self) -> (crate::lrat::Cnf, Vec<crate::lrat::Clause>) {
+        let cnf = crate::lrat::Cnf::new(self.n_vars, self.cnf_base.clone());
+        (cnf, self.rup_trace.clone())
     }
 
     /// 學習子句（問題子句之後加入者）。

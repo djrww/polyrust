@@ -10,6 +10,8 @@
 | `Polyrust.ClauseDuality` | T3(a) | 子句滿足 ⟺ 子句多項式歸零；域多項式 x²−x 刻畫 {0,1}ⁿ；CNF 對偶 |
 | `Polyrust.ClauseAlgebra` | T3(b) | 消解恆等式（逐點、無條件）；學習子句保留模型集/零集；UNSAT ⟺ 無零點多項式 |
 | `Polyrust.WatchMove` | T3(b) 旁路：CDCL 傳播資料結構層 | 監視文字**交換**移動保持子句語義（`watch_move0/1_preserves_sat`）；全假子句不滿足（衝突偵測健全性）；**覆寫版反例**（v0.1.4 @brute 抓到的缺陷紀錄） |
+| `Polyrust.RupKernel` | P0-C2 | RUP 證書核健全性：UP 閉包可靠、RUP 步保模型、合法鏈 + 空子句 ⟹ CNF 無解（接受⇒無解） |
+| `Polyrust.LazyGb` | P0-C4 | lazy≡eager 管線層精化：立方體否句語義、合法補理鏈組合、lazy UNSAT 健全 + SAT 緊緻 ⟹ 兩判定數學重合 |
 | `Polyrust.UniPoly` | T8 | 求值環同態；構造性線性餘式定理；互異根 vanishing ⇒ ∏(X−tᵢ) 整除；QAP 對偶主定理 |
 | `Polyrust.Squarefree` | T4 | 標準單項式 ⇒ 平方自由（域多項式入基）；平方自由 ↔ 位串雙射；恰 2ⁿ 個 ⇒ Buchberger 終止 |
 | `Polyrust.Embedding` | L0 | 𝔽_p（p=2⁶¹−1）嵌入保真：小係數多項式 0/1 點求值模零 ⟺ 整數零 |
@@ -49,6 +51,8 @@ import Polyrust.Monomial
 import Polyrust.Tactics
 import Polyrust.ClauseDuality
 import Polyrust.ClauseAlgebra
+import Polyrust.RupKernel
+import Polyrust.LazyGb
 import Polyrust.WatchMove
 import Polyrust.UniPoly
 import Polyrust.Squarefree

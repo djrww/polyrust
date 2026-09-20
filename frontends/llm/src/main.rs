@@ -280,3 +280,77 @@ fn main() {
     }
     std::process::exit(if result.ok { 0 } else { 1 });
 }
+
+// ── P1-D7：provider 路由與契約測試（純邏輯，零網絡） ──────────────────────────
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn cfg(provider: &str) -> llm::LlmConfig {
+        let mut c = llm::LlmConfig::default();
+        c.provider = provider.into();
+        c
+    }
+
+    #[test]
+    fn mock_provider_falls_back_to_core() {
+        let p = build_frontend_provider(&cfg("mock")).expect("mock 必可離線構建");
+        assert!(p.name().starts_with("mock"), "mock 應回落核心 mock provider，got {}", p.name());
+    }
+
+    #[test]
+    fn ureq_provider_name_carries_model_and_base() {
+        let mut c = cfg("openai");
+        c.base_url = Some("https://example.invalid/v1".into());
+        c.api_key = Some("sk-test".into());
+        c.model = Some("unit-model".into());
+        let p = build_frontend_provider(&c).expect("顯式端點應可構建");
+        let n = p.name();
+        assert!(n.contains("unit-model"), "契約：名稱含模型: {n}");
+        assert!(n.contains("example.invalid/v1"), "契約：名稱含端點: {n}");
+        assert!(n.starts_with("ureq-openai-compatible"), "前綴契約: {n}");
+    }
+
+    #[test]
+    fn unknown_custom_name_with_base_treated_as_openai_compat() {
+        // 契約：自訂名（非 anthropic/gemini/mock）一律走 ureq OpenAI 相容路線。
+        let mut c = cfg("acme-internal-llm");
+        c.base_url = Some("https://acme.invalid/api".into());
+        let p = build_frontend_provider(&c).expect("自訂名 + 端點應可構建");
+        assert!(p.name().starts_with("ureq-openai-compatible"), "got {}", p.name());
+    }
+
+    #[test]
+    fn env_dependent_paths() {
+        // 呢啲路徑讀環境變量：同一測試函數內順序執行，避免與其他測試並行競爭。
+        for k in ["POLYRUST_LLM_BASE_URL", "OPENAI_BASE_URL", "POLYRUST_LLM_API_KEY",
+                  "OPENAI_API_KEY", "POLYRUST_LLM_MODEL", "OPENAI_MODEL"] {
+            std::env::remove_var(k);
+        }
+        // 1) 自訂 provider 無端點 → 清晰報錯
+        let mut c = cfg("my-private-llm");
+        c.api_key = Some("k".into());
+        let e = match build_frontend_provider(&c) {
+            Ok(_) => panic!("自訂 provider 無端點應失敗"),
+            Err(e) => e,
+        };
+        assert!(e.contains("端點"), "應提示端點設定: {e}");
+        // 2) ollama 免設定 → 內建 localhost 端點
+        let p = build_frontend_provider(&cfg("ollama")).expect("ollama 有內建端點");
+        assert!(p.name().contains("127.0.0.1:11434"), "got {}", p.name());
+        // 3) openai 免設定 → 官方端點
+        let p = build_frontend_provider(&cfg("openai")).expect("openai 有內建端點");
+        assert!(p.name().contains("api.openai.com"), "got {}", p.name());
+    }
+
+    #[test]
+    fn flag_extraction_contract() {
+        let args: Vec<String> = ["polyrust-nl", "需求X", "--attempts", "7", "--json"]
+            .iter().map(|s| s.to_string()).collect();
+        assert_eq!(flag(&args, "--attempts"), Some("7"));
+        assert_eq!(flag(&args, "--model"), None, "缺席旗標應 None");
+        // 旗標值在尾端缺失（truncated）→ None 而非 panic
+        let tailed: Vec<String> = ["polyrust-nl", "--model"].iter().map(|s| s.to_string()).collect();
+        assert_eq!(flag(&tailed, "--model"), None);
+    }
+}
