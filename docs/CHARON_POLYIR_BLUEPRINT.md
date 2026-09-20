@@ -127,7 +127,7 @@ core/polyir_lower.rs   語義降糖：
 | P1-D2 FPT 前置消解 / P1-D3 切塊 | **不變**，輸入改由 PolyIR 餵 |
 | v1 parser 擴闊（P2 類 86-case 適用域下沉） | **作廢**——最大收益：parser 維護成本歸零 |
 | P0-C1 上線嘅 DerefLint / 借用 lint | 新鏈冗餘；legacy 保留標「rustc-gated」 |
-| Eurydice（Charon→C）旁路 | **留意**——之後可以做「證書版 C 輸出」，商業故事更大 |
+| Eurydice（Charon→C）旁路 | **留意**——之後可以做「證書版 C 輸出」，商業故事更大（具體評估 2026-09-20：Eurydice＝AeneasVerif 嘅 Rust→C transpiler，~5k 行 OCaml，經 KaRaMeL 30+ nano-passes 出 C，同樣以 Charon LLBC 為入口；**佢自帶 pinned charon**（`make setup-charon`／`eurydice#charon`）——LLBC JSON 本身非穩定接口×雙 charon 版本漂移＝雙重 TCB 風險，同我哋 0.1.265＋`--no-dedup-serialized-ast` 口徑唔保證互通。可行路徑＝**唔改 Eurydice、唔共享工具鏈**：用我哋 `certify` 通過嘅函數清單→另行用 Eurydice 自己 pinned 嘅 charon 重生成→C 輸出附「認證函數對照表」（認證同轉譯解耦，最低耦合）；前提係認證模板覆蓋面對齊 Eurydice 支援子集，屬 M4 後商業化選項 |
 
 ## 7. 一句話總結
 

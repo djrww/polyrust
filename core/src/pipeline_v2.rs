@@ -3,21 +3,26 @@
 //! 混合路線：DSL + syn 前端，core 零依賴
 //! Phase2/3/4 補齊：unify、lower、borrowck 衝突、QAP 集成、前端 N 展示
 
+use crate::dsl::PolySource;
+use crate::fp::Fp;
 use crate::frac::Frac;
 use crate::groebner::field_polys;
-use crate::pipeline::{GroebnerAlgo, select_groebner_algo_advanced, reduced_groebner_with_algo};
-use crate::poly::Order;
 use crate::minirust::ast_v2::{ItemV2, ProgramV2};
 use crate::minirust::borrowck::BorrowChecker;
-use crate::minirust::constraints_v2::{gen_constraints_v2, gen_lifetime_constraints, gen_unsafe_constraint, gen_loop_fuel_constraints, gen_trait_impl_constraints, gen_stdlib_constraints, gen_async_constraints, to_r1cs_v2};
+use crate::minirust::constraints_v2::{
+    gen_async_constraints, gen_constraints_v2, gen_lifetime_constraints, gen_loop_fuel_constraints,
+    gen_stdlib_constraints, gen_trait_impl_constraints, gen_unsafe_constraint, to_r1cs_v2,
+};
 use crate::minirust::effects::EffectContext;
 use crate::minirust::lifetime::LifetimeGraph;
-use crate::minirust::lower::{lower_program, lower_trait_impl_method_table, lower_lifetimes, lower_stdlib_usage};
+use crate::minirust::lower::{
+    lower_lifetimes, lower_program, lower_stdlib_usage, lower_trait_impl_method_table,
+};
 use crate::minirust::ty::{build_universe_from_program, unify, UnifyResult};
-use crate::minirust::universe::{TypeV2, BaseType, ExtType};
-use crate::dsl::PolySource;
-use crate::qap::{qap_from_r1cs};
-use crate::fp::Fp;
+use crate::minirust::universe::{BaseType, ExtType, TypeV2};
+use crate::pipeline::{reduced_groebner_with_algo, select_groebner_algo_advanced, GroebnerAlgo};
+use crate::poly::Order;
+use crate::qap::qap_from_r1cs;
 
 #[derive(Clone, Debug, Default)]
 pub struct PipelineV2Result {
@@ -85,21 +90,29 @@ fn infer_lit_type(expr: &str) -> Option<TypeV2> {
     if e.parse::<i64>().is_ok() {
         return Some(TypeV2::Base(BaseType::I32));
     }
-    if (e.starts_with('"') && e.ends_with('"')) || (e.starts_with("String::from") || e.starts_with("String_from")) {
+    if (e.starts_with('"') && e.ends_with('"'))
+        || (e.starts_with("String::from") || e.starts_with("String_from"))
+    {
         return Some(TypeV2::Ext(ExtType::String));
     }
     if e.starts_with("Vec::") || e.starts_with("Vec_") || e.contains("Vec_new") {
-        return Some(TypeV2::Ext(ExtType::Vec(Box::new(TypeV2::Base(BaseType::I32)))));
+        return Some(TypeV2::Ext(ExtType::Vec(Box::new(TypeV2::Base(
+            BaseType::I32,
+        )))));
     }
     if e.starts_with("HashMap") {
-        return Some(TypeV2::Ext(ExtType::HashMap(Box::new(TypeV2::Ext(ExtType::String)), Box::new(TypeV2::Base(BaseType::I32)))));
+        return Some(TypeV2::Ext(ExtType::HashMap(
+            Box::new(TypeV2::Ext(ExtType::String)),
+            Box::new(TypeV2::Base(BaseType::I32)),
+        )));
     }
     None
 }
 
 fn check_struct_field_types(prog: &ProgramV2, source: &str) -> Vec<String> {
     let mut errors = Vec::with_capacity(4);
-    let mut struct_defs: std::collections::HashMap<String, Vec<(String, TypeV2)>> = std::collections::HashMap::with_capacity(prog.items.len());
+    let mut struct_defs: std::collections::HashMap<String, Vec<(String, TypeV2)>> =
+        std::collections::HashMap::with_capacity(prog.items.len());
     for item in &prog.items {
         if let ItemV2::Struct(s) = item {
             struct_defs.insert(s.name.clone(), s.fields.clone());
@@ -108,26 +121,47 @@ fn check_struct_field_types(prog: &ProgramV2, source: &str) -> Vec<String> {
     // 掃描所有 struct literal: 用遍歷找 "Name { ... }"
     for (sname, fields) in &struct_defs {
         let mut search_start = 0;
-        while let Some(pos) = source[search_start..].find(&format!("{} {{", sname)).or_else(|| source[search_start..].find(&format!("{}{{", sname))) {
+        while let Some(pos) = source[search_start..]
+            .find(&format!("{} {{", sname))
+            .or_else(|| source[search_start..].find(&format!("{}{{", sname)))
+        {
             let abs_pos = search_start + pos;
             // 找到 { 開始
-            let brace_start = source[abs_pos..].find('{').map(|p| abs_pos + p).unwrap_or(abs_pos);
+            let brace_start = source[abs_pos..]
+                .find('{')
+                .map(|p| abs_pos + p)
+                .unwrap_or(abs_pos);
             // 平衡括號找結束
             let mut depth = 0;
             let mut end = None;
             for (i, c) in source[brace_start..].char_indices() {
-                if c == '{' { depth += 1; }
-                if c == '}' { depth -= 1; if depth==0 { end = Some(brace_start + i); break; } }
+                if c == '{' {
+                    depth += 1;
+                }
+                if c == '}' {
+                    depth -= 1;
+                    if depth == 0 {
+                        end = Some(brace_start + i);
+                        break;
+                    }
+                }
             }
             if let Some(e) = end {
-                let inner = &source[brace_start+1..e];
+                let inner = &source[brace_start + 1..e];
                 for part in inner.split(',') {
                     let part = part.trim();
                     if let Some(colon) = part.find(':') {
-                        let fname = part[..colon].trim().trim_start_matches(|c: char| !c.is_alphanumeric() && c!='_').to_string();
-                        let fname = fname.split_whitespace().last().unwrap_or(&fname).to_string();
-                        let fval = part[colon+1..].trim().to_string();
-                        if let Some((_, expected_ty)) = fields.iter().find(|(n,_)| n==&fname) {
+                        let fname = part[..colon]
+                            .trim()
+                            .trim_start_matches(|c: char| !c.is_alphanumeric() && c != '_')
+                            .to_string();
+                        let fname = fname
+                            .split_whitespace()
+                            .last()
+                            .unwrap_or(&fname)
+                            .to_string();
+                        let fval = part[colon + 1..].trim().to_string();
+                        if let Some((_, expected_ty)) = fields.iter().find(|(n, _)| n == &fname) {
                             if let Some(inferred) = infer_lit_type(&fval) {
                                 let exp_name = expected_ty.name();
                                 let inf_name = inferred.name();
@@ -157,14 +191,15 @@ fn check_struct_field_types(prog: &ProgramV2, source: &str) -> Vec<String> {
 
 fn check_vec_type_errors(_prog: &ProgramV2, source: &str) -> Vec<String> {
     let mut errors = Vec::with_capacity(4);
-    let mut vec_tys: std::collections::HashMap<String, TypeV2> = std::collections::HashMap::with_capacity(8);
+    let mut vec_tys: std::collections::HashMap<String, TypeV2> =
+        std::collections::HashMap::with_capacity(8);
     for line in source.lines() {
         let t = line.trim();
         if t.starts_with("let ") && t.contains("Vec<") {
             if let Some(colon) = t.find(':') {
                 if let Some(eq) = t.find('=') {
                     let name_part = t[4..colon].trim().trim_start_matches("mut ").trim();
-                    let ty_part = t[colon+1..eq].trim();
+                    let ty_part = t[colon + 1..eq].trim();
                     if let Ok(ty) = crate::minirust::universe::parse_type_v2(ty_part) {
                         vec_tys.insert(name_part.to_string(), ty);
                     }
@@ -181,7 +216,11 @@ fn check_vec_type_errors(_prog: &ProgramV2, source: &str) -> Vec<String> {
                 if let Some(eq) = after_let.find('=') {
                     let name_part = after_let[..eq].trim();
                     // 默認 Vec<i32> 用於測試
-                    vec_tys.entry(name_part.to_string()).or_insert(TypeV2::Ext(ExtType::Vec(Box::new(TypeV2::Base(BaseType::I32)))));
+                    vec_tys
+                        .entry(name_part.to_string())
+                        .or_insert(TypeV2::Ext(ExtType::Vec(Box::new(TypeV2::Base(
+                            BaseType::I32,
+                        )))));
                 }
             }
         }
@@ -194,27 +233,48 @@ fn check_vec_type_errors(_prog: &ProgramV2, source: &str) -> Vec<String> {
             let (vec_name, elem_arg) = if t.contains(".push(") {
                 // v.push("hello")
                 if let Some(dot) = t.find(".push(") {
-                    let vname = t[..dot].trim().split_whitespace().last().unwrap_or("").trim().to_string();
+                    let vname = t[..dot]
+                        .trim()
+                        .split_whitespace()
+                        .last()
+                        .unwrap_or("")
+                        .trim()
+                        .to_string();
                     let start = t.find(".push(").unwrap() + 6;
                     let end = t.rfind(')').unwrap_or(t.len());
                     let elem = t[start..end].trim().to_string();
                     (vname, elem)
-                } else { (String::new(), String::new()) }
+                } else {
+                    (String::new(), String::new())
+                }
             } else {
                 // Vec_push(&mut v, "hi")
                 if let Some(start) = t.find('(') {
                     if let Some(end) = t.rfind(')') {
-                        let args = &t[start+1..end];
+                        let args = &t[start + 1..end];
                         let parts: Vec<&str> = args.split(',').collect();
                         if parts.len() >= 2 {
-                            let vec_arg = parts[0].trim().trim_start_matches("&mut ").trim_start_matches("&").trim().to_string();
+                            let vec_arg = parts[0]
+                                .trim()
+                                .trim_start_matches("&mut ")
+                                .trim_start_matches("&")
+                                .trim()
+                                .to_string();
                             let elem = parts[1].trim().to_string();
                             (vec_arg, elem)
-                        } else { (String::new(), String::new()) }
-                    } else { (String::new(), String::new()) }
-                } else { (String::new(), String::new()) }
+                        } else {
+                            (String::new(), String::new())
+                        }
+                    } else {
+                        (String::new(), String::new())
+                    }
+                } else {
+                    (String::new(), String::new())
+                }
             };
-            if vec_name.is_empty() { continue; }
+            if vec_name.is_empty() {
+                continue;
+            }
             if let Some(vec_ty) = vec_tys.get(&vec_name) {
                 if let Some(elem_inferred) = infer_lit_type(&elem_arg) {
                     if let TypeV2::Ext(ExtType::Vec(inner)) = vec_ty {
@@ -237,7 +297,10 @@ fn check_vec_type_errors(_prog: &ProgramV2, source: &str) -> Vec<String> {
             } else if t.contains("Vec<i32>") || source.contains("Vec<i32>") {
                 // fallback：若源碼有 Vec<i32> 且 push String
                 if elem_arg.starts_with('"') || elem_arg.contains("String") {
-                    errors.push(format!("Vec type mismatch: expected i32 got String in {}", t));
+                    errors.push(format!(
+                        "Vec type mismatch: expected i32 got String in {}",
+                        t
+                    ));
                 }
                 if elem_arg == "true" || elem_arg == "false" {
                     errors.push(format!("Vec type mismatch: expected i32 got bool in {}", t));
@@ -247,14 +310,23 @@ fn check_vec_type_errors(_prog: &ProgramV2, source: &str) -> Vec<String> {
         if t.contains("HashMap_insert") {
             if t.contains("true") || t.contains("false") {
                 if source.contains("HashMap<String,i32>") {
-                    errors.push(format!("HashMap insert type mismatch: expected i32 got bool in {}", t));
+                    errors.push(format!(
+                        "HashMap insert type mismatch: expected i32 got bool in {}",
+                        t
+                    ));
                 }
             }
-            if t.contains('"') && source.contains("HashMap<String,i32>") && t.matches(',').count() >= 2 {
+            if t.contains('"')
+                && source.contains("HashMap<String,i32>")
+                && t.matches(',').count() >= 2
+            {
                 // 第三個參數是 String 但期望 i32
                 let parts: Vec<&str> = t.split(',').collect();
                 if parts.len() >= 3 && parts[2].contains('"') {
-                    errors.push(format!("HashMap insert type mismatch: expected i32 got String in {}", t));
+                    errors.push(format!(
+                        "HashMap insert type mismatch: expected i32 got String in {}",
+                        t
+                    ));
                 }
             }
         }
@@ -262,34 +334,64 @@ fn check_vec_type_errors(_prog: &ProgramV2, source: &str) -> Vec<String> {
     errors
 }
 
+/// **rustc-gated on Charon path**（藍圖 supersede 裁決）：Charon/PolyIR
+/// 新鏈入面 rustc 已拒收借用衝突，本 lint 冗餘——僅 legacy `.poly` 路徑
+/// 保留（v1 parser 無 rustc 語義錨）。合法互斥借用嘅正確建模喺 P1（NLL
+/// region 圖，輸入改由 PolyIR 餵）。
 fn check_borrow_conflicts(source: &str) -> Vec<(usize, usize)> {
     // 僅檢測用戶主體中的 &mut 衝突，忽略 self / 標準庫
     // 2026-09-19：曾試行「簽名 ≥2 &mut 參數即衝突」（Rule B）——v1↔v3 差分測試
     // + rustc 地真值證明其為**錯誤規則**（rustc 合法、v1 SAT）；已回退。
     // 合法互斥借用嘅正確建模喺 P1（NLL region 圖）。
     let mut conflicts = vec![];
-    let mut declared_mut: std::collections::HashSet<String> = std::collections::HashSet::with_capacity(16);
+    let mut declared_mut: std::collections::HashSet<String> =
+        std::collections::HashSet::with_capacity(16);
     for line in source.lines() {
         let t = line.trim();
         if t.starts_with("let ") {
             let after = t[4..].trim().trim_start_matches("mut ").trim();
-            let name = after.split(|c: char| c == ':' || c == '=' || c == ' ' || c == ';').next().unwrap_or("").to_string();
-            if !name.is_empty() && name != "self" && name.chars().next().map(|c| c.is_alphabetic()).unwrap_or(false) {
+            let name = after
+                .split(|c: char| c == ':' || c == '=' || c == ' ' || c == ';')
+                .next()
+                .unwrap_or("")
+                .to_string();
+            if !name.is_empty()
+                && name != "self"
+                && name
+                    .chars()
+                    .next()
+                    .map(|c| c.is_alphabetic())
+                    .unwrap_or(false)
+            {
                 declared_mut.insert(name);
             }
         }
     }
-    let mut borrows: std::collections::HashMap<String, Vec<usize>> = std::collections::HashMap::new();
+    let mut borrows: std::collections::HashMap<String, Vec<usize>> =
+        std::collections::HashMap::new();
     for (idx, line) in source.lines().enumerate() {
         let t = line.trim();
-        if !t.contains("&mut") { continue; }
+        if !t.contains("&mut") {
+            continue;
+        }
         // 只檢測 let r = &mut x 這種長期借用，忽略函數參數 &mut v
-        if !t.starts_with("let ") { continue; }
-        if t.contains("fn ") { continue; }
+        if !t.starts_with("let ") {
+            continue;
+        }
+        if t.contains("fn ") {
+            continue;
+        }
         if let Some(pos) = t.find("&mut") {
-            let after = t[pos+4..].trim();
-            let var = after.split(|c: char| c == ';' || c == ',' || c == ' ' || c == ')' || c == '(').next().unwrap_or("").trim().to_string();
-            if var.is_empty() || var == "self" || var == "Self" { continue; }
+            let after = t[pos + 4..].trim();
+            let var = after
+                .split(|c: char| c == ';' || c == ',' || c == ' ' || c == ')' || c == '(')
+                .next()
+                .unwrap_or("")
+                .trim()
+                .to_string();
+            if var.is_empty() || var == "self" || var == "Self" {
+                continue;
+            }
             if declared_mut.contains(&var) || var.len() == 1 {
                 borrows.entry(var).or_default().push(idx);
             }
@@ -313,6 +415,9 @@ fn check_borrow_conflicts(source: &str) -> Vec<(usize, usize)> {
 /// 若使用點 `*{k} ident` 嘅 k > 已知深度 ⇒ 確定無效解引用 ⇒ UNSAT。
 /// 深度未知（match 綁定/raw pointer/`let x = *y`）一律保守放行——
 /// 寧漏報不誤報。對應 v1 口徑下 ref_deref 類案例嘅遺漏缺口。
+/// **rustc-gated on Charon path**（藍圖 supersede 裁決）：無效解引用
+/// （rustc E0614）喺 Charon/PolyIR 新鏈由 rustc 前置拒收，本 lint 僅
+/// legacy `.poly` 路徑保留。
 fn check_deref_depth(source: &str) -> Vec<String> {
     let mut errors = vec![];
     let mut depth: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
@@ -320,14 +425,19 @@ fn check_deref_depth(source: &str) -> Vec<String> {
     let is_ident = |s: &str| -> bool {
         !s.is_empty()
             && s.chars().all(|c| c.is_alphanumeric() || c == '_')
-            && s.chars().next().map(|c| c.is_alphabetic() || c == '_').unwrap_or(false)
+            && s.chars()
+                .next()
+                .map(|c| c.is_alphabetic() || c == '_')
+                .unwrap_or(false)
             && s != "mut"
             && s != "self"
             && s != "Self"
             && s != "const"
     };
     let ident_head = |s: &str| -> String {
-        s.chars().take_while(|&c| c.is_alphanumeric() || c == '_').collect()
+        s.chars()
+            .take_while(|&c| c.is_alphanumeric() || c == '_')
+            .collect()
     };
 
     // 1) 函數參數深度：逐一 fn 簽名，`name: &...&Type` 計 & 數
@@ -361,7 +471,12 @@ fn check_deref_depth(source: &str) -> Vec<String> {
                     let params = &source[j + 1..k];
                     for param in params.split(',').filter(|p| p.contains(':')) {
                         let mut it = param.splitn(2, ':');
-                        let name = it.next().unwrap_or("").trim().trim_start_matches("mut ").trim();
+                        let name = it
+                            .next()
+                            .unwrap_or("")
+                            .trim()
+                            .trim_start_matches("mut ")
+                            .trim();
                         let ty = it.next().unwrap_or("");
                         if is_ident(name) {
                             let nd = ty.matches('&').count();
@@ -385,7 +500,9 @@ fn check_deref_depth(source: &str) -> Vec<String> {
                 continue;
             }
             let rest = s[4..].trim().trim_start_matches("mut ").trim();
-            let Some((lhs, expr)) = rest.split_once('=') else { continue };
+            let Some((lhs, expr)) = rest.split_once('=') else {
+                continue;
+            };
             let name = lhs.split(':').next().unwrap_or("").trim().to_string();
             if !is_ident(&name) {
                 continue;
@@ -393,8 +510,16 @@ fn check_deref_depth(source: &str) -> Vec<String> {
             let expr = expr.trim();
             let a = expr.bytes().take_while(|b| *b == b'&').count();
             if a > 0 {
-                if is_ident(expr.trim_start_matches('&').trim_start_matches("mut ").trim()) {
-                    let id = expr.trim_start_matches('&').trim_start_matches("mut ").trim().to_string();
+                if is_ident(
+                    expr.trim_start_matches('&')
+                        .trim_start_matches("mut ")
+                        .trim(),
+                ) {
+                    let id = expr
+                        .trim_start_matches('&')
+                        .trim_start_matches("mut ")
+                        .trim()
+                        .to_string();
                     let base = depth.get(&id).copied().unwrap_or(0);
                     depth.insert(name.clone(), a + base);
                 } else {
@@ -527,28 +652,47 @@ fn check_loop_contracts(poly_src: &PolySource, source: &str) -> Vec<String> {
         // 解析 x < 5
         if inv_t.contains('<') && !inv_t.contains("<=") {
             let parts: Vec<&str> = inv_t.split('<').collect();
-            if parts.len()==2 {
+            if parts.len() == 2 {
                 let var = parts[0].trim().to_string();
                 if let Ok(bound) = parts[1].trim().parse::<i64>() {
                     // 檢查 body 是否有 var = var + delta 導致超過 bound
                     for line in source.lines() {
                         let lt = line.trim();
-                        if lt.contains(&format!("{} = {} +", var, var)) || lt.contains(&format!("{}={}+", var, var)) {
+                        if lt.contains(&format!("{} = {} +", var, var))
+                            || lt.contains(&format!("{}={}+", var, var))
+                        {
                             // 提取 delta
                             if let Some(plus) = lt.find('+') {
-                                let after = lt[plus+1..].trim().trim_end_matches(|c| c==';' || c=='}');
-                                if let Ok(delta) = after.split(|c: char| c==';' || c==',' || c==' ' || c=='}').next().unwrap_or("").trim().parse::<i64>() {
+                                let after = lt[plus + 1..]
+                                    .trim()
+                                    .trim_end_matches(|c| c == ';' || c == '}');
+                                if let Ok(delta) = after
+                                    .split(|c: char| c == ';' || c == ',' || c == ' ' || c == '}')
+                                    .next()
+                                    .unwrap_or("")
+                                    .trim()
+                                    .parse::<i64>()
+                                {
                                     if delta > 0 && bound < 10 {
                                         // while x < 10 且 invariant x <5 且 x+=10 必然違反
-                                        errors.push(format!("loop invariant violation: {} < {} violated by {}+={}", var, bound, var, delta));
+                                        errors.push(format!(
+                                            "loop invariant violation: {} < {} violated by {}+={}",
+                                            var, bound, var, delta
+                                        ));
                                     }
                                 }
                             }
                         }
                         // 簡化：若 while 條件為 x < 10 且 invariant x<5，直接報違反（用於測試）
-                        if inv_t == "x < 5" && lt.contains("while x < 10") && source.contains("x = x + 10") {
+                        if inv_t == "x < 5"
+                            && lt.contains("while x < 10")
+                            && source.contains("x = x + 10")
+                        {
                             if !errors.iter().any(|e| e.contains("invariant")) {
-                                errors.push(format!("loop invariant violation: {} violated in while", inv_t));
+                                errors.push(format!(
+                                    "loop invariant violation: {} violated in while",
+                                    inv_t
+                                ));
                             }
                         }
                     }
@@ -567,16 +711,34 @@ fn check_async_errors(source: &str) -> Vec<String> {
         if t.contains(".await") {
             // 檢查左側是否為字面量或非 Future
             // 模式： 5.await 或 true.await 或 "hi".await
-            if t.contains("5.await") || t.contains("true.await") || t.contains("false.await") || t.contains("1.await") || t.contains("0.await") {
-                errors.push(format!("async error: await on non-Future literal at '{}'", t));
+            if t.contains("5.await")
+                || t.contains("true.await")
+                || t.contains("false.await")
+                || t.contains("1.await")
+                || t.contains("0.await")
+            {
+                errors.push(format!(
+                    "async error: await on non-Future literal at '{}'",
+                    t
+                ));
             } else {
                 // 檢查 let x = 5.await
                 if let Some(pos) = t.find(".await") {
                     let before = t[..pos].trim();
                     // 取最後一個 token
-                    let token = before.split(|c: char| c=='=' || c==' ' || c=='(' || c==';').last().unwrap_or("").trim();
-                    if token.chars().all(|c| c.is_ascii_digit()) || token=="true" || token=="false" {
-                        errors.push(format!("async error: await on non-Future '{}' at '{}'", token, t));
+                    let token = before
+                        .split(|c: char| c == '=' || c == ' ' || c == '(' || c == ';')
+                        .last()
+                        .unwrap_or("")
+                        .trim();
+                    if token.chars().all(|c| c.is_ascii_digit())
+                        || token == "true"
+                        || token == "false"
+                    {
+                        errors.push(format!(
+                            "async error: await on non-Future '{}' at '{}'",
+                            token, t
+                        ));
                     }
                 }
             }
@@ -588,7 +750,9 @@ fn check_async_errors(source: &str) -> Vec<String> {
 fn check_match_errors(source: &str) -> Vec<String> {
     let mut errors = Vec::with_capacity(2);
     let has_match = source.contains("match");
-    if !has_match { return errors; }
+    if !has_match {
+        return errors;
+    }
     // 若 match 包含通配符 _ => 視為窮舉
     if let Some(m_pos) = source.find("match") {
         let after = &source[m_pos..];
@@ -597,7 +761,8 @@ fn check_match_errors(source: &str) -> Vec<String> {
         }
     }
     // 檢測 enum Option { Some(T), None } 且 match 只有 Some 分支
-    let has_option_enum = source.contains("Some") && source.contains("None") && source.contains("enum");
+    let has_option_enum =
+        source.contains("Some") && source.contains("None") && source.contains("enum");
     if has_option_enum {
         if let Some(m_pos) = source.find("match") {
             let after = &source[m_pos..];
@@ -606,7 +771,10 @@ fn check_match_errors(source: &str) -> Vec<String> {
             let match_block = after;
             // 簡單：若 match_block 中 Some 出現但 None 不在 => 臂之後
             let has_some_arm = match_block.contains("Some(") || match_block.contains("Some(v)");
-            let has_none_arm = match_block.contains("None =>") || match_block.contains("None=>") || match_block.contains("None {") || (match_block.matches("None").count() > 1);
+            let has_none_arm = match_block.contains("None =>")
+                || match_block.contains("None=>")
+                || match_block.contains("None {")
+                || (match_block.matches("None").count() > 1);
             // 更精確：統計 enum 定義外的 None
             // 若只有 Some 分支且無 wildcard，報錯
             if has_some_arm && !has_none_arm {
@@ -622,12 +790,17 @@ fn check_match_errors(source: &str) -> Vec<String> {
     if source.contains("Some(v) => v") {
         if let Some(m_pos) = source.find("match") {
             let after = &source[m_pos..];
-            if !after.contains("None") || after.matches("None").count() <= 1 && source.matches("None").count() <=1 {
+            if !after.contains("None")
+                || after.matches("None").count() <= 1 && source.matches("None").count() <= 1
+            {
                 // 已在上面處理，避免重複
                 if !errors.iter().any(|e| e.contains("None")) {
                     // 檢查是否已有 enum 定義的 None 但 match 沒有
-                    if after.find("Some(v) => v").is_some() && !after[after.find("Some(v) => v").unwrap()..].contains("None") {
-                        errors.push("match error: non-exhaustive pattern, missing None".to_string());
+                    if after.find("Some(v) => v").is_some()
+                        && !after[after.find("Some(v) => v").unwrap()..].contains("None")
+                    {
+                        errors
+                            .push("match error: non-exhaustive pattern, missing None".to_string());
                     }
                 }
             }
@@ -642,13 +815,19 @@ fn check_match_errors(source: &str) -> Vec<String> {
 fn check_mod_errors(source: &str) -> Vec<String> {
     let mut errors = Vec::with_capacity(2);
     // 檢測 mod geometry { struct Point { x: i32, y: i32 } } 且外部使用 geometry::Point
-    if source.contains("mod ") && source.contains("struct Point") && source.contains("geometry::Point") {
+    if source.contains("mod ")
+        && source.contains("struct Point")
+        && source.contains("geometry::Point")
+    {
         // 檢查 struct 是否為 pub
         for line in source.lines() {
             let t = line.trim();
             if t.contains("struct Point") && !t.contains("pub struct") && !t.contains("pub") {
                 // 在 mod 內部定義的非 pub 結構體被外部訪問
-                errors.push("module error: private struct Point accessed from outside module geometry".to_string());
+                errors.push(
+                    "module error: private struct Point accessed from outside module geometry"
+                        .to_string(),
+                );
                 break;
             }
         }
@@ -659,7 +838,8 @@ fn check_mod_errors(source: &str) -> Vec<String> {
 fn check_unsafe_errors(source: &str) -> Vec<String> {
     let mut errors = Vec::with_capacity(2);
     // 若有 *mut / *const 解引用但無 unsafe 塊
-    let has_raw_ptr_deref = source.contains("*p") || source.contains("*mut") || source.contains("*const");
+    let has_raw_ptr_deref =
+        source.contains("*p") || source.contains("*mut") || source.contains("*const");
     let has_unsafe = source.contains("unsafe");
     if has_raw_ptr_deref && !has_unsafe && source.contains("let p: *mut") {
         errors.push("unsafe error: raw pointer deref without unsafe block".to_string());
@@ -696,28 +876,78 @@ pub fn run_pipeline_v2_with_algo(
     // Phase2 補：per-node bits 展示 N
     for (node_id, kind) in lowered.program.universe.types.iter().enumerate() {
         // 這個只是示例，實際 node_type 在 SystemV2 中
-        result.per_node_bits.push((node_id, kind.name(), lowered.program.universe.n_types()));
+        result
+            .per_node_bits
+            .push((node_id, kind.name(), lowered.program.universe.n_types()));
     }
 
     // S4: 特性檢測 — 優化 with_capacity
     let mut features = Vec::with_capacity(12);
-    if !lowered.products.is_empty() { features.push("struct".to_string()); }
-    if !lowered.sums.is_empty() { features.push("enum".to_string()); }
-    if !lowered.program.items.iter().filter(|it| matches!(it, ItemV2::Impl(_))).collect::<Vec<_>>().is_empty() { features.push("impl".to_string()); }
-    if !lowered.program.items.iter().filter(|it| matches!(it, ItemV2::Trait(_))).collect::<Vec<_>>().is_empty() { features.push("trait".to_string()); }
-    if source.contains("Vec<") { features.push("Vec".to_string()); }
-    if source.contains("String") { features.push("String".to_string()); }
-    if source.contains("HashMap") { features.push("HashMap".to_string()); }
-    if source.contains("loop") || source.contains("while") || source.contains("for") { features.push("loop".to_string()); }
-    if source.contains("match") { features.push("match".to_string()); }
-    if source.contains("mod ") { features.push("mod".to_string()); }
-    if source.contains("async") || source.contains("await") { features.push("async".to_string()); }
-    if source.contains("println") || source.contains("File::") { features.push("io".to_string()); }
-    if source.contains("unsafe") || source.contains("*mut") || source.contains("*const") { features.push("unsafe".to_string()); }
-    if source.contains("'") && (source.contains("&'") || source.contains("<'")) { features.push("lifetime".to_string()); }
-    if !poly_src.lifetimes.is_empty() { features.push("lifetime".to_string()); }
-    if poly_src.unsafe_allowed { features.push("unsafe".to_string()); }
-    if poly_src.fuel.is_some() || !poly_src.invariants.is_empty() { features.push("loop_contract".to_string()); }
+    if !lowered.products.is_empty() {
+        features.push("struct".to_string());
+    }
+    if !lowered.sums.is_empty() {
+        features.push("enum".to_string());
+    }
+    if !lowered
+        .program
+        .items
+        .iter()
+        .filter(|it| matches!(it, ItemV2::Impl(_)))
+        .collect::<Vec<_>>()
+        .is_empty()
+    {
+        features.push("impl".to_string());
+    }
+    if !lowered
+        .program
+        .items
+        .iter()
+        .filter(|it| matches!(it, ItemV2::Trait(_)))
+        .collect::<Vec<_>>()
+        .is_empty()
+    {
+        features.push("trait".to_string());
+    }
+    if source.contains("Vec<") {
+        features.push("Vec".to_string());
+    }
+    if source.contains("String") {
+        features.push("String".to_string());
+    }
+    if source.contains("HashMap") {
+        features.push("HashMap".to_string());
+    }
+    if source.contains("loop") || source.contains("while") || source.contains("for") {
+        features.push("loop".to_string());
+    }
+    if source.contains("match") {
+        features.push("match".to_string());
+    }
+    if source.contains("mod ") {
+        features.push("mod".to_string());
+    }
+    if source.contains("async") || source.contains("await") {
+        features.push("async".to_string());
+    }
+    if source.contains("println") || source.contains("File::") {
+        features.push("io".to_string());
+    }
+    if source.contains("unsafe") || source.contains("*mut") || source.contains("*const") {
+        features.push("unsafe".to_string());
+    }
+    if source.contains("'") && (source.contains("&'") || source.contains("<'")) {
+        features.push("lifetime".to_string());
+    }
+    if !poly_src.lifetimes.is_empty() {
+        features.push("lifetime".to_string());
+    }
+    if poly_src.unsafe_allowed {
+        features.push("unsafe".to_string());
+    }
+    if poly_src.fuel.is_some() || !poly_src.invariants.is_empty() {
+        features.push("loop_contract".to_string());
+    }
     result.features_used = features;
 
     // S5: lifetime graph
@@ -728,7 +958,10 @@ pub fn run_pipeline_v2_with_algo(
     }
     for (longer, shorters) in dsl_graph.outlives {
         for shorter in shorters {
-            lt_graph.add_outlives(crate::minirust::lifetime::Outlives { longer: longer.clone(), shorter });
+            lt_graph.add_outlives(crate::minirust::lifetime::Outlives {
+                longer: longer.clone(),
+                shorter,
+            });
         }
     }
     result.lifetime_has_cycle = lt_graph.has_cycle();
@@ -740,7 +973,9 @@ pub fn run_pipeline_v2_with_algo(
     let mut borrowck = BorrowChecker::from_poly_source(poly_src);
     borrowck.lifetime_graph = lt_graph.clone();
     let mut eff_ctx = EffectContext::from_poly_source(poly_src);
-    if source.contains("println") { eff_ctx.has_io = true; }
+    if source.contains("println") {
+        eff_ctx.has_io = true;
+    }
     borrowck.effect_ctx = eff_ctx.clone();
 
     if let Err(errs) = borrowck.check_all() {
@@ -770,16 +1005,24 @@ pub fn run_pipeline_v2_with_algo(
     let borrow_conflicts = check_borrow_conflicts(source);
     if !borrow_conflicts.is_empty() {
         result.borrow_conflicts = borrow_conflicts.clone();
-        for (a,b) in borrow_conflicts {
-            result.errors.push(format!("borrow conflict: &mut at lines {} and {} overlap", a, b));
+        for (a, b) in borrow_conflicts {
+            result.errors.push(format!(
+                "borrow conflict: &mut at lines {} and {} overlap [rustc-gated on Charon path；legacy .poly lint]",
+                a, b
+            ));
         }
     }
 
     // Phase3 補（v0.3 P0-C1）：無效解引用深度（rustc E0614 語義）
+    // rustc-gated on Charon path（藍圖裁決）：legacy .poly 保留
     let deref_errors = check_deref_depth(source);
     if !deref_errors.is_empty() {
         result.borrowck_errors.extend(deref_errors.clone());
-        result.errors.extend(deref_errors);
+        result.errors.extend(
+            deref_errors
+                .into_iter()
+                .map(|e| format!("{e} [rustc-gated on Charon path；legacy .poly lint]")),
+        );
     }
 
     // Phase3 補：loop 契約
@@ -806,8 +1049,15 @@ pub fn run_pipeline_v2_with_algo(
     let method_table = lower_trait_impl_method_table(&prog);
     // Phase2 補：檢查 trait impl 方法存在性
     for (recv_ty, trait_name) in method_table.impl_map.keys() {
-        if !method_table.traits.iter().any(|(_, t)| &t.name == trait_name) {
-            result.warnings.push(format!("impl {} for {} but trait {} not defined", trait_name, recv_ty, trait_name));
+        if !method_table
+            .traits
+            .iter()
+            .any(|(_, t)| &t.name == trait_name)
+        {
+            result.warnings.push(format!(
+                "impl {} for {} but trait {} not defined",
+                trait_name, recv_ty, trait_name
+            ));
         }
     }
 
@@ -815,7 +1065,8 @@ pub fn run_pipeline_v2_with_algo(
     let _stdlib_reg = lower_stdlib_usage(&prog);
 
     // S9: constraints v2 + Phase3 + Phase2 unify
-    let mut sys = gen_constraints_v2(&lowered).map_err(|e| format!("constraints_v2 error: {}", e))?;
+    let mut sys =
+        gen_constraints_v2(&lowered).map_err(|e| format!("constraints_v2 error: {}", e))?;
 
     // Phase2 補：unify 發多項式
     let mut unify_count = 0;
@@ -879,7 +1130,10 @@ pub fn run_pipeline_v2_with_algo(
             match item {
                 ItemV2::Static(s) => {
                     // 檢查 static 類型是否為 RawPtr
-                    if format!("{:?}", s.ty).contains("RawPtr") || s.ty.name().contains("*const") || s.ty.name().contains("*mut") {
+                    if format!("{:?}", s.ty).contains("RawPtr")
+                        || s.ty.name().contains("*const")
+                        || s.ty.name().contains("*mut")
+                    {
                         has_raw_ptr_type = true;
                     }
                 }
@@ -906,7 +1160,11 @@ pub fn run_pipeline_v2_with_algo(
         if source.contains("*const") || source.contains("*mut") || has_raw_ptr_type {
             // 由 AST 固定：每個 *p 出現即為一次 deref，固定為 1
             let mut count = 0usize;
-            for (i, _) in source.match_indices("*const").chain(source.match_indices("*mut")).enumerate() {
+            for (i, _) in source
+                .match_indices("*const")
+                .chain(source.match_indices("*mut"))
+                .enumerate()
+            {
                 let (s, err) = gen_raw_ptr_safety_with_src(&mut sys, 9000 + i, source);
                 if let Some(e) = err {
                     safety_errors.push(e);
@@ -980,16 +1238,24 @@ pub fn run_pipeline_v2_with_algo(
         // 文本補充
         for (i, line) in source.lines().enumerate() {
             if line.contains("unsafe fn") {
-                let name = line.split_whitespace().find(|w| w.contains("fn")).map(|_| {
-                    // 提取 fn 名
-                    if let Some(pos) = line.find("fn ") {
-                        let after = &line[pos+3..];
-                        after.split(|c: char| c=='(' || c==' ' || c=='<').next().unwrap_or("unsafe_fn").to_string()
-                    } else {
-                        "unsafe_fn".to_string()
-                    }
-                }).unwrap_or_else(|| "unsafe_fn".to_string());
-                if !unsafe_fn_names.iter().any(|(_, n)| n==&name) {
+                let name = line
+                    .split_whitespace()
+                    .find(|w| w.contains("fn"))
+                    .map(|_| {
+                        // 提取 fn 名
+                        if let Some(pos) = line.find("fn ") {
+                            let after = &line[pos + 3..];
+                            after
+                                .split(|c: char| c == '(' || c == ' ' || c == '<')
+                                .next()
+                                .unwrap_or("unsafe_fn")
+                                .to_string()
+                        } else {
+                            "unsafe_fn".to_string()
+                        }
+                    })
+                    .unwrap_or_else(|| "unsafe_fn".to_string());
+                if !unsafe_fn_names.iter().any(|(_, n)| n == &name) {
                     unsafe_fn_names.push((9300 + i, name));
                 }
             }
@@ -1002,12 +1268,16 @@ pub fn run_pipeline_v2_with_algo(
                 }
                 sys.unsafe_fn_safety.push(s);
             }
-        } else if source.contains("unsafe") && (source.contains("fn ") || source.contains("call")) && source.contains("*mut") {
+        } else if source.contains("unsafe")
+            && (source.contains("fn ") || source.contains("call"))
+            && source.contains("*mut")
+        {
             // 通用 unsafe fn 調用（文本兜底，但仍需 AST 固定 call=1）
             // 僅當有 unsafe 塊且未被上面覆蓋時
             let has_unsafe_block = source.contains("unsafe {") || source.contains("unsafe{");
             if has_unsafe_block {
-                let (s, err) = gen_unsafe_fn_safety_with_src(&mut sys, 9301, "generic_unsafe_fn", source);
+                let (s, err) =
+                    gen_unsafe_fn_safety_with_src(&mut sys, 9301, "generic_unsafe_fn", source);
                 if let Some(e) = err {
                     safety_errors.push(e);
                 }
@@ -1026,7 +1296,10 @@ pub fn run_pipeline_v2_with_algo(
             if let ItemV2::Impl(im) = item {
                 if let Some(tr) = &im.trait_name {
                     // 若 impl 塊文本包含 unsafe，視為 unsafe trait impl
-                    if source.lines().any(|l| l.contains("unsafe") && l.contains(tr)) {
+                    if source
+                        .lines()
+                        .any(|l| l.contains("unsafe") && l.contains(tr))
+                    {
                         unsafe_trait_names.push((9400 + i, tr.clone()));
                     }
                 }
@@ -1035,11 +1308,16 @@ pub fn run_pipeline_v2_with_algo(
         for (i, line) in source.lines().enumerate() {
             if line.contains("unsafe trait") || (line.contains("impl") && line.contains("unsafe")) {
                 let trait_name = if line.contains("trait") {
-                    line.split_whitespace().last().unwrap_or("UnsafeTrait").trim_end_matches('{').trim().to_string()
+                    line.split_whitespace()
+                        .last()
+                        .unwrap_or("UnsafeTrait")
+                        .trim_end_matches('{')
+                        .trim()
+                        .to_string()
                 } else {
                     "GenericUnsafe".to_string()
                 };
-                if !unsafe_trait_names.iter().any(|(_, n)| n==&trait_name) {
+                if !unsafe_trait_names.iter().any(|(_, n)| n == &trait_name) {
                     unsafe_trait_names.push((9400 + i, trait_name));
                 }
             }
@@ -1084,17 +1362,27 @@ pub fn run_pipeline_v2_with_algo(
             if line.trim().starts_with("match ") || line.contains("match ") {
                 // 簡化：用整行作為 match src
                 if let Ok(tree) = crate::minirust::lower::parse_match_to_decision_tree(line) {
-                    let _ = crate::minirust::constraints_v2::gen_match_constraints(&mut sys, 7777, tree);
+                    let _ = crate::minirust::constraints_v2::gen_match_constraints(
+                        &mut sys, 7777, tree,
+                    );
                 }
             }
         }
     }
 
     // Phase2 補：per-node bits 詳細
-    result.per_node_bits = sys.node_type.iter().map(|(nid, bits)| {
-        let kind = sys.node_kind.get(nid).cloned().unwrap_or_else(|| "unknown".to_string());
-        ( *nid, kind, bits.len())
-    }).collect();
+    result.per_node_bits = sys
+        .node_type
+        .iter()
+        .map(|(nid, bits)| {
+            let kind = sys
+                .node_kind
+                .get(nid)
+                .cloned()
+                .unwrap_or_else(|| "unknown".to_string());
+            (*nid, kind, bits.len())
+        })
+        .collect();
 
     result.n_vars = sys.nvars;
     result.n_polys = sys.polys.len();
@@ -1118,7 +1406,12 @@ pub fn run_pipeline_v2_with_algo(
     for s in &sys.raw_ptr_safety {
         emit_texts.push(s.emit_text.clone());
         if let Some(vs) = &s.valid_src {
-            valid_srcs.push(format!("raw_ptr node {} {}: {}", s.node_id, vs.kind_str(), vs.detail()));
+            valid_srcs.push(format!(
+                "raw_ptr node {} {}: {}",
+                s.node_id,
+                vs.kind_str(),
+                vs.detail()
+            ));
         } else {
             valid_srcs.push(format!("raw_ptr node {} valid_src=missing", s.node_id));
         }
@@ -1126,7 +1419,12 @@ pub fn run_pipeline_v2_with_algo(
     for s in &sys.static_mut_safety {
         emit_texts.push(s.emit_text.clone());
         if let Some(vs) = &s.valid_src {
-            valid_srcs.push(format!("static_mut node {} {}: {}", s.node_id, vs.kind_str(), vs.detail()));
+            valid_srcs.push(format!(
+                "static_mut node {} {}: {}",
+                s.node_id,
+                vs.kind_str(),
+                vs.detail()
+            ));
         } else {
             valid_srcs.push(format!("static_mut node {} valid_src=missing", s.node_id));
         }
@@ -1134,7 +1432,12 @@ pub fn run_pipeline_v2_with_algo(
     for s in &sys.union_safety {
         emit_texts.push(s.emit_text.clone());
         if let Some(vs) = &s.valid_src {
-            valid_srcs.push(format!("union node {} {}: {}", s.node_id, vs.kind_str(), vs.detail()));
+            valid_srcs.push(format!(
+                "union node {} {}: {}",
+                s.node_id,
+                vs.kind_str(),
+                vs.detail()
+            ));
         } else {
             valid_srcs.push(format!("union node {} valid_src=missing", s.node_id));
         }
@@ -1142,17 +1445,35 @@ pub fn run_pipeline_v2_with_algo(
     for s in &sys.unsafe_fn_safety {
         emit_texts.push(s.emit_text.clone());
         if let Some(vs) = &s.valid_src {
-            valid_srcs.push(format!("unsafe_fn {} node {} {}: {}", s.fn_name, s.node_id, vs.kind_str(), vs.detail()));
+            valid_srcs.push(format!(
+                "unsafe_fn {} node {} {}: {}",
+                s.fn_name,
+                s.node_id,
+                vs.kind_str(),
+                vs.detail()
+            ));
         } else {
-            valid_srcs.push(format!("unsafe_fn {} node {} valid_src=missing", s.fn_name, s.node_id));
+            valid_srcs.push(format!(
+                "unsafe_fn {} node {} valid_src=missing",
+                s.fn_name, s.node_id
+            ));
         }
     }
     for s in &sys.unsafe_trait_safety {
         emit_texts.push(s.emit_text.clone());
         if let Some(vs) = &s.valid_src {
-            valid_srcs.push(format!("unsafe_trait {} node {} {}: {}", s.trait_name, s.node_id, vs.kind_str(), vs.detail()));
+            valid_srcs.push(format!(
+                "unsafe_trait {} node {} {}: {}",
+                s.trait_name,
+                s.node_id,
+                vs.kind_str(),
+                vs.detail()
+            ));
         } else {
-            valid_srcs.push(format!("unsafe_trait {} node {} valid_src=missing", s.trait_name, s.node_id));
+            valid_srcs.push(format!(
+                "unsafe_trait {} node {} valid_src=missing",
+                s.trait_name, s.node_id
+            ));
         }
     }
     result.emit_texts = emit_texts;
@@ -1165,7 +1486,11 @@ pub fn run_pipeline_v2_with_algo(
         // 基於實際多項式做自動選擇（稀疏度/塊數啟發式）
         let (adv_algo, reason) = select_groebner_algo_advanced(&sys.polys, sys.nvars);
         if std::env::var("GB_ALGO").is_ok() || std::env::var("PL_DBG").is_ok() {
-            eprintln!("[v2] Auto Groebner algo: {} reason: {}", adv_algo.as_str(), reason);
+            eprintln!(
+                "[v2] Auto Groebner algo: {} reason: {}",
+                adv_algo.as_str(),
+                reason
+            );
         }
         adv_algo
     };
@@ -1184,7 +1509,11 @@ pub fn run_pipeline_v2_with_algo(
             stats.basis_adds,
             stats.basis_final
         ));
-    } else if sys.polys.len() < 20 && sys.nvars < 20 && sys.product_constraints.is_empty() && sys.sum_constraints.is_empty() {
+    } else if sys.polys.len() < 20
+        && sys.nvars < 20
+        && sys.product_constraints.is_empty()
+        && sys.sum_constraints.is_empty()
+    {
         let mut all_polys = sys.polys.clone();
         all_polys.extend(field_polys(sys.nvars));
         let (gb, stats) = reduced_groebner_with_algo(&all_polys, Order::GrevLex, final_algo);
@@ -1218,7 +1547,8 @@ pub fn run_pipeline_v2_with_algo(
         // 僅用 field 多項式構造 R1CS（one-hot 已在 field 中，product/sum 約束另計）
         let r1cs = to_r1cs_v2(sys.nvars, &field);
         result.r1cs_wires = r1cs.n_wires;
-        result.r1cs_constraints = r1cs.constraints.len() + sys.product_constraints.len() + sys.sum_constraints.len();
+        result.r1cs_constraints =
+            r1cs.constraints.len() + sys.product_constraints.len() + sys.sum_constraints.len();
 
         if !result.is_unsat {
             // 見證：每個節點第一個位元為 1，滿足 field 多項式
@@ -1245,9 +1575,15 @@ pub fn run_pipeline_v2_with_algo(
             let z: Vec<Fp> = {
                 let mut w = vec![Fp::one()];
                 for f in &sigma_f {
-                    if f.is_one() { w.push(Fp::one()); } else { w.push(Fp::zero()); }
+                    if f.is_one() {
+                        w.push(Fp::one());
+                    } else {
+                        w.push(Fp::zero());
+                    }
                 }
-                while w.len() < r1cs.n_wires { w.push(Fp::zero()); }
+                while w.len() < r1cs.n_wires {
+                    w.push(Fp::zero());
+                }
                 w.truncate(r1cs.n_wires);
                 w
             };
@@ -1273,7 +1609,10 @@ pub fn run_pipeline_v2_with_algo(
 }
 
 /// 實際使用：獲取 AST 與 Parse 的 inventory，整合供 pipeline_v2 消費
-pub fn get_ast_and_parse_inventories() -> (Vec<(&'static str, &'static str, &'static str)>, Vec<(&'static str, &'static str, &'static str)>) {
+pub fn get_ast_and_parse_inventories() -> (
+    Vec<(&'static str, &'static str, &'static str)>,
+    Vec<(&'static str, &'static str, &'static str)>,
+) {
     let ast_inv = crate::minirust::ast::full_ast_file_list_static().to_vec();
     let parse_inv = crate::minirust::parse::parse_file_list_static().to_vec();
     (ast_inv, parse_inv)
@@ -1285,7 +1624,11 @@ pub fn pipeline_v2_inventory_summary() -> String {
     let parse_summary = crate::minirust::parse::parse_ast_syntax_inventory_summary();
     let mut out = String::with_capacity(4096 + ast_summary.len() + parse_summary.len());
     out.push_str("=== Pipeline V2 Inventory Summary (actual use) ===\n");
-    out.push_str(&format!("AST files: {}, Parse files: {}\n", ast_files.len(), parse_files.len()));
+    out.push_str(&format!(
+        "AST files: {}, Parse files: {}\n",
+        ast_files.len(),
+        parse_files.len()
+    ));
     out.push_str(&ast_summary);
     out.push_str("\n");
     out.push_str(&parse_summary);
@@ -1307,11 +1650,13 @@ pub fn pipeline_v2_inventory_json() -> String {
     out
 }
 
-pub fn run_pipeline_v2(_name: &str, source: &str, poly_src: &PolySource) -> Result<PipelineV2Result, String> {
+pub fn run_pipeline_v2(
+    _name: &str,
+    source: &str,
+    poly_src: &PolySource,
+) -> Result<PipelineV2Result, String> {
     run_pipeline_v2_with_algo(_name, source, poly_src, None)
 }
-
-
 
 #[cfg(test)]
 mod borrowck_v03_tests {
@@ -1324,7 +1669,10 @@ mod borrowck_v03_tests {
         // 差分測試亦證實 v1 判 SAT。舊矩陣期望 UNSAT 屬 aspirational 錯標，已修。
         let src = "fn exclusive(x: &mut i32, y: &mut i32) { *x = *x + 1; *y = *y + 2; }";
         let c = check_borrow_conflicts(src);
-        assert!(c.is_empty(), "兩個 &mut 參數不得視為衝突（rustc 合法、v1 SAT）");
+        assert!(
+            c.is_empty(),
+            "兩個 &mut 參數不得視為衝突（rustc 合法、v1 SAT）"
+        );
     }
 
     #[test]
@@ -1348,7 +1696,8 @@ mod borrowck_v03_tests {
         let src2 = "fn outlives<'a, 'b>(x: &'a i32, y: &'b i32) -> i32 where 'a: 'b { *x + *y }";
         assert!(check_deref_depth(src2).is_empty());
         // match 綁定未知深度 → 保守放行
-        let src3 = "fn borrow_match(o: &Option<i32>) -> i32 { match o { Some(v) => *v, None => 0 } }";
+        let src3 =
+            "fn borrow_match(o: &Option<i32>) -> i32 { match o { Some(v) => *v, None => 0 } }";
         assert!(check_deref_depth(src3).is_empty());
     }
 }
