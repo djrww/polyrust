@@ -8,7 +8,7 @@ name: c0-charon-spike
 on:
   workflow_dispatch:
   push:
-    branches: [c0-charon*, c0-spike*, v0.2.4]
+    branches: [c0-charon*, c0-spike*, v0.2.4, v0.2.5]
 
 permissions:
   contents: write   # 建 release / commit results 回傳需要
@@ -26,8 +26,9 @@ jobs:
           curl -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain none --profile minimal
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
           TOOLCHAIN=$(grep '^rust_toolchain:' charon.pin | awk '{print $2}')
-          # miri：C0 觀察 35 例 rustc_reject 日誌含 "cargo-miri is not installed"
-          # ——charon 內部以 cargo-miri 取 MIR；無 miri 會誤分類（v0.2.5 修）
+          # miri：v0.2.5 實證——裝 miri 前後 spike 分佈不變（112 ok / 5 ok_with_missing /
+          # 35 rustc_reject），35 例係 charon 對原生 async/trait 等 pattern 嘅真實能力
+          # 邊界，與 cargo-miri 環境無關。保留 miri 供後續 UB/語義檢查（藍圖 M3+）。
           rustup toolchain install "$TOOLCHAIN" --profile minimal \
             --component rust-src --component rustc-dev --component llvm-tools --component miri
 

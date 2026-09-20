@@ -15,12 +15,14 @@
 //! * 見證再經獨立認證（域成員 + 全多項式直接求值）方稱 `Certified`；
 //! * 任何降級（Switch/Loop/Call/L0′ 超限/域過大）都如實回報 `Unknown{reason}`。
 
-use crate::charon_llbc::{FunDeclRef, LlbcRoot};
+use crate::charon_llbc::{FunDeclRef, LlbcRoot, Value};
 use crate::fp::P;
 use crate::frac::Frac;
 use crate::minirust::mir_lower::{self, MirSystem};
 use crate::poly::Poly;
-use crate::polyir::{lower_fun, PirBinOp, PirBody, PirOperand, PirStmtKind, PirVerdict, Slot};
+use crate::polyir::{
+    lower_fun, lower_fun_in, PirBinOp, PirBody, PirOperand, PirStmtKind, PirVerdict, Slot,
+};
 use crate::vanishing::{l0_prime_params_of, vanishing_poly, L0PrimeParams};
 use std::collections::BTreeMap;
 
@@ -77,12 +79,41 @@ fn var_of(s: &Slot, slots: &mut BTreeMap<Slot, usize>, doms: &mut Vec<Vec<i64>>)
     id
 }
 
-fn get_dom(domains: &[Vec<i64>], s: &Slot, slot_var: &BTreeMap<Slot, usize>) -> Result<Vec<i64>, String> {
+fn get_dom(
+    domains: &[Vec<i64>],
+    s: &Slot,
+    slot_var: &BTreeMap<Slot, usize>,
+) -> Result<Vec<i64>, String> {
     let id = slot_var
         .get(s)
         .ok_or_else(|| format!("槽 {:?} 域未定義（使用先於定義？）", s))?;
     domains
         .get(*id)
+        .cloned()
+        .ok_or_else(|| format!("槽 {:?} 域索引越界", s))
+}
+
+/// 槽域讀取；未 intern 之參數 field 槽（C3：ADT 參數逐欄位獨立變量）先播種該
+/// 參數域。非參數槽讀取先於定義 → 照舊報錯（use-before-def，唔容許猜）。
+fn ensure_slot_dom(
+    s: &Slot,
+    slots: &mut BTreeMap<Slot, usize>,
+    domains: &mut Vec<Vec<i64>>,
+    arg_count: usize,
+    arg_domains: &[Vec<i64>],
+) -> Result<Vec<i64>, String> {
+    let id = match slots.get(s) {
+        Some(&id) => id,
+        None => {
+            let id = var_of(s, slots, domains);
+            if s.field.is_some() && s.local >= 1 && s.local <= arg_count {
+                domains[id] = arg_domains[s.local - 1].clone();
+            }
+            id
+        }
+    };
+    domains
+        .get(id)
         .cloned()
         .ok_or_else(|| format!("槽 {:?} 域索引越界", s))
 }
@@ -103,21 +134,21 @@ fn combine(a: &[i64], b: &[i64], f: impl Fn(i64, i64) -> i64) -> Result<Vec<i64>
 }
 
 fn operand_dom(
-    domains: &[Vec<i64>],
     op: &PirOperand,
-    slot_var: &BTreeMap<Slot, usize>,
+    slots: &mut BTreeMap<Slot, usize>,
+    domains: &mut Vec<Vec<i64>>,
+    arg_count: usize,
+    arg_domains: &[Vec<i64>],
 ) -> Result<Vec<i64>, String> {
     match op {
-        PirOperand::Slot(s) => get_dom(domains, s, slot_var),
+        PirOperand::Slot(s) => ensure_slot_dom(s, slots, domains, arg_count, arg_domains),
         PirOperand::Const(v) => Ok(vec![*v]),
     }
 }
 
 fn operand_poly(op: &PirOperand, slot_var: &BTreeMap<Slot, usize>, width: usize) -> Poly {
     match op {
-        PirOperand::Slot(s) => {
-            Poly::var(slot_var[s], Frac::ONE, width)
-        }
+        PirOperand::Slot(s) => Poly::var(slot_var[s], Frac::ONE, width),
         PirOperand::Const(v) => Poly::constant(Frac::from_i64(*v)),
     }
 }
@@ -133,7 +164,11 @@ fn binop_apply(op: PirBinOp, x: i64, y: i64) -> i64 {
 /// 𝔽_p 表示 → 最小絕對值有符代表 → i64（L0′ 保真下必落 i64 範圍）。
 fn fp_to_i64(v: &Frac) -> i64 {
     let raw = v.0 as i128;
-    let signed = if (v.0 as u64) > P / 2 { raw - P as i128 } else { raw };
+    let signed = if (v.0 as u64) > P / 2 {
+        raw - P as i128
+    } else {
+        raw
+    };
     signed as i64
 }
 
@@ -160,15 +195,28 @@ pub fn encode_body(b: &PirBody, arg_domains: &[Vec<i64>]) -> Result<Encoded, Str
 
     // 參數槽（LLBC：local 0 = return place，參數由 local 1 起）
     for (i, d) in arg_domains.iter().enumerate() {
-        let s = Slot { local: i + 1, field: None };
+        let s = Slot {
+            local: i + 1,
+            field: None,
+        };
         let id = var_of(&s, &mut slot_var, &mut domains);
         domains[id] = d.clone();
     }
 
     let mut eqs: Vec<Poly> = Vec::new();
     let mut ret_var: Option<usize> = None;
-    // Poly::var 需要上界；槽數 ≤ 參數 + 每語句產生數（寬鬆上界即可）
-    let width = b.arg_count + b.stmts.len() * 2 + 8;
+    // Poly::var 需要上界；逐語句精確計數產生槽數（C3 修：checked=3、
+    // Aggregate=k+1——舊 stmts×2 上界喺多 checked／大 Aggregate 時會爆）
+    let slot_bound: usize = b
+        .stmts
+        .iter()
+        .map(|st| match &st.kind {
+            PirStmtKind::Aggregate { fields, .. } => fields.len() + 1,
+            PirStmtKind::BinOp { checked: true, .. } => 3,
+            _ => 1,
+        })
+        .sum();
+    let width = b.arg_count + slot_bound + 8;
 
     for st in &b.stmts {
         match &st.kind {
@@ -181,7 +229,8 @@ pub fn encode_body(b: &PirBody, arg_domains: &[Vec<i64>]) -> Result<Encoded, Str
                 }
             }
             PirStmtKind::Copy { src } => {
-                let sd = get_dom(&domains, src, &slot_var)?;
+                let sd =
+                    ensure_slot_dom(src, &mut slot_var, &mut domains, b.arg_count, arg_domains)?;
                 let d = var_of(&st.dst, &mut slot_var, &mut domains);
                 domains[d] = sd;
                 let s = slot_var[src];
@@ -190,11 +239,19 @@ pub fn encode_body(b: &PirBody, arg_domains: &[Vec<i64>]) -> Result<Encoded, Str
                     ret_var = Some(d);
                 }
             }
-            PirStmtKind::BinOp { op, a, b: bop, checked } => {
-                let da = operand_dom(&domains, a, &slot_var)?;
-                let db = operand_dom(&domains, bop, &slot_var)?;
+            PirStmtKind::BinOp {
+                op,
+                a,
+                b: bop,
+                checked,
+            } => {
+                let da = operand_dom(a, &mut slot_var, &mut domains, b.arg_count, arg_domains)?;
+                let db = operand_dom(bop, &mut slot_var, &mut domains, b.arg_count, arg_domains)?;
                 let dom = combine(&da, &db, |x, y| binop_apply(*op, x, y))?;
-                let (pa, pb) = (operand_poly(a, &slot_var, width), operand_poly(bop, &slot_var, width));
+                let (pa, pb) = (
+                    operand_poly(a, &slot_var, width),
+                    operand_poly(bop, &slot_var, width),
+                );
                 let rhs = match op {
                     PirBinOp::Add => pa.add(&pb),
                     PirBinOp::Sub => pa.sub(&pb),
@@ -218,6 +275,42 @@ pub fn encode_body(b: &PirBody, arg_domains: &[Vec<i64>]) -> Result<Encoded, Str
                     }
                 }
             }
+            PirStmtKind::Aggregate { fields, .. } => {
+                // C3：ADT 建構。dst 整槽 = 不透明 ADT 值 → 登記空域
+                // （solve/certify 對空域跳過）；欄位逐一寫入 field 槽，
+                // 域 = 運算元域、恆等式 = dst_f = src（純資料流，零新變量）。
+                let w = var_of(&st.dst, &mut slot_var, &mut domains);
+                domains[w] = Vec::new();
+                for (k, f) in fields.iter().enumerate() {
+                    let fs = Slot::field(st.dst.local, k as u8);
+                    let d = var_of(&fs, &mut slot_var, &mut domains);
+                    match f {
+                        PirOperand::Slot(src) => {
+                            let sd = ensure_slot_dom(
+                                src,
+                                &mut slot_var,
+                                &mut domains,
+                                b.arg_count,
+                                arg_domains,
+                            )?;
+                            domains[d] = sd;
+                            let sv = slot_var[src];
+                            eqs.push(Poly::var(d, Frac::ONE, width).sub(&Poly::var(
+                                sv,
+                                Frac::ONE,
+                                width,
+                            )));
+                        }
+                        PirOperand::Const(v) => {
+                            domains[d] = vec![*v];
+                            eqs.push(
+                                Poly::var(d, Frac::ONE, width)
+                                    .sub(&Poly::constant(Frac::from_i64(*v))),
+                            );
+                        }
+                    }
+                }
+            }
             PirStmtKind::AssertFlagZero { flag } => {
                 let id = var_of(flag, &mut slot_var, &mut domains);
                 eqs.push(Poly::var(id, Frac::ONE, width));
@@ -235,8 +328,18 @@ pub fn encode_body(b: &PirBody, arg_domains: &[Vec<i64>]) -> Result<Encoded, Str
     }
 
     // L0′ 門檻（全系統保守界：最大項數 × 最大係數 × V^最大次數）
-    let v_max = domains.iter().flatten().map(|v| v.unsigned_abs()).max().unwrap_or(0);
-    let mut l0 = L0PrimeParams { n_terms: 0, max_abs_coeff: 0, max_abs_value: v_max, degree: 0 };
+    let v_max = domains
+        .iter()
+        .flatten()
+        .map(|v| v.unsigned_abs())
+        .max()
+        .unwrap_or(0);
+    let mut l0 = L0PrimeParams {
+        n_terms: 0,
+        max_abs_coeff: 0,
+        max_abs_value: v_max,
+        degree: 0,
+    };
     for p in &polys {
         let lp = l0_prime_params_of(p, v_max.max(1), u32::MAX);
         l0.n_terms = l0.n_terms.max(lp.n_terms);
@@ -267,8 +370,14 @@ pub fn encode_body(b: &PirBody, arg_domains: &[Vec<i64>]) -> Result<Encoded, Str
 }
 
 /// 對單一函數做代數判定：lower → encode → solve → certify。
+/// 唔帶 type_decls：enum Aggregate 判別值解析會如實降級。
 pub fn decide_fun(fun: &FunDeclRef, arg_domains: &[Vec<i64>]) -> Decision {
-    match lower_fun(fun) {
+    decide_fun_in(&Value::Null, fun, arg_domains)
+}
+
+/// 同上，另帶 root 嘅 type_decls（C3：enum Aggregate 判別值解析）。
+pub fn decide_fun_in(types: &Value, fun: &FunDeclRef, arg_domains: &[Vec<i64>]) -> Decision {
+    match lower_fun_in(types, fun) {
         PirVerdict::NoBody { kind } => Decision::Unknown {
             reason: format!("body 缺失（{:?}）", kind),
         },
@@ -313,19 +422,30 @@ pub fn decide_body(body: &PirBody, arg_domains: &[Vec<i64>]) -> Decision {
 }
 
 /// 在 crate root 內按名稱找函數並判定（name = path 最尾段）。
+/// 自動帶 root 嘅 type_decls。
 pub fn decide_entry(root: &LlbcRoot, name: &str, arg_domains: &[Vec<i64>]) -> Option<Decision> {
+    let types = root
+        .raw_translated
+        .get("type_decls")
+        .unwrap_or(&Value::Null);
     root.funs
         .iter()
         .find(|f| f.name == name)
-        .map(|f| decide_fun(f, arg_domains))
+        .map(|f| decide_fun_in(types, f, arg_domains))
 }
 
 /// 模組總覽：全部函數逐一報 lowering 判決（供 CLI `pir` 總表）。
+/// 唔帶 type_decls；要 enum Aggregate 支援用 [`survey_in`]。
 pub fn survey(root: &LlbcRoot) -> Vec<(String, String)> {
+    survey_in(&Value::Null, root)
+}
+
+/// 模組總覽（帶 type_decls）。
+pub fn survey_in(types: &Value, root: &LlbcRoot) -> Vec<(String, String)> {
     root.funs
         .iter()
         .map(|f| {
-            let line = match lower_fun(f) {
+            let line = match lower_fun_in(types, f) {
                 PirVerdict::ValueTrace(b) => format!(
                     "ValueTrace(stmts={} argc={} overflow_asserted={})",
                     b.stmts.len(),
@@ -349,8 +469,7 @@ mod tests {
 
     fn load(name: &str) -> LlbcRoot {
         let path = format!("{FIX_DIR}/{name}.llbc");
-        let text = std::fs::read_to_string(&path)
-            .unwrap_or_else(|e| panic!("fixture {name}: {e}"));
+        let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("fixture {name}: {e}"));
         LlbcRoot::parse(&text).unwrap_or_else(|e| panic!("fixture {name}: {e}"))
     }
 
@@ -364,7 +483,12 @@ mod tests {
         for (x, want) in [(3i64, 9i64), (5, 25), (0, 0), (-4, 16)] {
             let d = decide_entry(&root, "sqr", &dom(&[x])).expect("sqr 存在");
             match d {
-                Decision::Certified { ret, overflow_asserted, n_eqs, .. } => {
+                Decision::Certified {
+                    ret,
+                    overflow_asserted,
+                    n_eqs,
+                    ..
+                } => {
                     assert_eq!(ret, Some(want), "sqr({x})");
                     assert!(overflow_asserted, "checked mul 必帶溢出斷言");
                     assert!(n_eqs > 0);
@@ -379,7 +503,11 @@ mod tests {
         let root = load("add");
         let d = decide_entry(&root, "add", &dom(&[2, 5])).expect("add 存在");
         match d {
-            Decision::Certified { ret, overflow_asserted, .. } => {
+            Decision::Certified {
+                ret,
+                overflow_asserted,
+                ..
+            } => {
                 assert_eq!(ret, Some(7));
                 assert!(overflow_asserted);
             }
@@ -403,7 +531,10 @@ mod tests {
         let d = decide_entry(&root, "sqr", &vec![vec![2, 3, 4]]).expect("sqr 存在");
         match d {
             Decision::Certified { ret, .. } => {
-                assert!(ret == Some(4) || ret == Some(9) || ret == Some(16), "ret={ret:?}");
+                assert!(
+                    ret == Some(4) || ret == Some(9) || ret == Some(16),
+                    "ret={ret:?}"
+                );
             }
             other => panic!("多值域應 Certified，得到 {:?}", other),
         }
@@ -411,26 +542,261 @@ mod tests {
 
     #[test]
     fn unsupported_shapes_degrade_with_reasons() {
-        let cases: [(&str, &str, &str); 8] = [
+        let cases: [(&str, &str, &str); 6] = [
             ("max", "max", "Gt"),
             ("while_loop", "while_sum", "唔支援"),
-            ("match_option", "match_option", "唔支援"),
-            ("enum_option", "unwrap_or", "唔支援"),
+            // C3 起：match 輸入 enum 喺 Discriminant 判別值未知處降級
+            // （輸入 enum 判別式域 + 分支編碼屬後續 slice）
+            ("match_option", "match_option", "判別值未知"),
+            ("enum_option", "unwrap_or", "判別值未知"),
             ("phase3__loop_sat", "main", "唔支援"),
-            ("struct_point", "len", "Unknown"),
-            ("borrow_immut", "borrow_immut", "投影"),
             ("async_simple", "async_add", "缺失 body"),
         ];
         for (file, fun, needle) in cases {
             let root = load(file);
-            let d = decide_entry(&root, fun, &[])
-                .unwrap_or_else(|| panic!("{file}: fun {fun} 不存在"));
+            let d =
+                decide_entry(&root, fun, &[]).unwrap_or_else(|| panic!("{file}: fun {fun} 不存在"));
             assert!(!d.is_certified(), "{file}:{fun} 不應 Certified");
             let hit = match &d {
                 Decision::Unknown { reason } => reason.contains(needle) || needle == "Unknown",
                 _ => false,
             };
             assert!(hit, "{file}:{fun} → {:?}（期望含 `{needle}`）", d.reason());
+        }
+    }
+
+    #[test]
+    fn c3_aggregate_projection_deref_certify() {
+        // struct Point::new：Aggregate 建構（欄位變數）→ Certified，ret=None
+        // （ADT 整槽不透明，欄位恆等式承擔認證）
+        let root = load("struct_point");
+        let d = decide_entry(&root, "new", &dom(&[3, 4])).expect("new 存在");
+        match d {
+            Decision::Certified {
+                ret,
+                n_eqs,
+                overflow_asserted,
+                ..
+            } => {
+                assert_eq!(ret, None, "ADT ret 整槽不透明");
+                assert!(n_eqs >= 2, "至少兩條欄位恆等式，得到 eqs={n_eqs}");
+                assert!(!overflow_asserted);
+            }
+            other => panic!("new 應 Certified，得到 {:?}", other),
+        }
+        // Point::len(&self) = x*x + y*y：Deref 透明 + Field 投影 + checked 運算
+        // 單值域 {3}：x=y=3 → 18
+        let d = decide_entry(&root, "len", &dom(&[3])).expect("len 存在");
+        match d {
+            Decision::Certified {
+                ret,
+                overflow_asserted,
+                ..
+            } => {
+                assert_eq!(ret, Some(18), "3*3+3*3");
+                assert!(overflow_asserted, "checked mul 必帶溢出斷言");
+            }
+            other => panic!("len 應 Certified，得到 {:?}", other),
+        }
+        // borrow_immut：*(&x) 透明別位 → 恆等函數
+        let root2 = load("borrow_immut");
+        let d = decide_entry(&root2, "borrow_immut", &dom(&[7])).expect("borrow_immut 存在");
+        match d {
+            Decision::Certified { ret, .. } => assert_eq!(ret, Some(7)),
+            other => panic!("borrow_immut 應 Certified，得到 {:?}", other),
+        }
+    }
+
+    #[test]
+    fn c3_enum_aggregate_disc_propagates_to_switch_hint() {
+        // 合成 LLBC：let v = MyResult::Ok(42)（variant id 1、判別值 3——
+        // 刻意非平凡，證明判別值真係由 type_decls 解析，唔係 variant id 猜測）；
+        // d := Discriminant(v) → 常數傳播 → ret := d 應 Certified ret=3。
+        // 再加 Switch(Move d)：降級但原因附 scrutinee 判別值提示。
+        use crate::charon_llbc::{BodyKind, FunDeclRef as FDR, Value};
+        let n = |s: &str| Value::Num(s.to_string());
+        let int_const = |v: &str| {
+            Value::Obj(vec![(
+                "Value".to_string(),
+                Value::Arr(vec![
+                    Value::Null,
+                    Value::Arr(vec![
+                        Value::Obj(vec![(
+                            "Integer".to_string(),
+                            Value::Obj(vec![(
+                                "Signed".to_string(),
+                                Value::Arr(vec![
+                                    Value::Str("Isize".to_string()),
+                                    Value::Str(v.to_string()),
+                                ]),
+                            )]),
+                        )]),
+                        Value::Null,
+                    ]),
+                ]),
+            )])
+        };
+        let local_place = |idx: &str| {
+            Value::Obj(vec![
+                (
+                    "kind".to_string(),
+                    Value::Obj(vec![("Local".to_string(), n(idx))]),
+                ),
+                ("ty".to_string(), Value::Null),
+            ])
+        };
+        let agg_rv = Value::Obj(vec![(
+            "Aggregate".to_string(),
+            Value::Arr(vec![
+                // Adt id 0、variant id 1（判別值由 type_decls 查出 = 3）
+                Value::Obj(vec![(
+                    "Adt".to_string(),
+                    Value::Arr(vec![
+                        Value::Obj(vec![("id".to_string(), n("0"))]),
+                        n("1"),
+                        Value::Null,
+                    ]),
+                )]),
+                Value::Arr(vec![Value::Obj(vec![(
+                    "Const".to_string(),
+                    int_const("42"),
+                )])]),
+            ]),
+        )]);
+        // type_decls：enum #0，variant 0 判別值 0、variant 1 判別值 3
+        let variant = |id: &str, disc: &str| {
+            Value::Obj(vec![
+                ("id".to_string(), n(id)),
+                (
+                    "discriminant".to_string(),
+                    Value::Obj(vec![(
+                        "Signed".to_string(),
+                        Value::Arr(vec![
+                            Value::Str("Isize".to_string()),
+                            Value::Str(disc.to_string()),
+                        ]),
+                    )]),
+                ),
+            ])
+        };
+        let types = Value::Arr(vec![Value::Obj(vec![
+            ("def_id".to_string(), n("0")),
+            (
+                "kind".to_string(),
+                Value::Obj(vec![(
+                    "Enum".to_string(),
+                    Value::Arr(vec![variant("0", "0"), variant("1", "3")]),
+                )]),
+            ),
+        ])]);
+        let mk_fun = |name: &str, extra_switch: bool| FDR {
+            def_id: 0,
+            name: name.to_string(),
+            full_path: vec![name.to_string()],
+            body_kind: BodyKind::Structured,
+            raw: Value::Obj(vec![(
+                "body".to_string(),
+                Value::Obj(vec![(
+                    "Structured".to_string(),
+                    Value::Obj(vec![
+                        (
+                            "locals".to_string(),
+                            Value::Obj(vec![
+                                ("arg_count".to_string(), n("0")),
+                                ("locals".to_string(), Value::Arr(vec![Value::Null])),
+                            ]),
+                        ),
+                        (
+                            "body".to_string(),
+                            Value::Obj(vec![(
+                                "statements".to_string(),
+                                Value::Arr(vec![
+                                    Value::Obj(vec![(
+                                        "kind".to_string(),
+                                        Value::Obj(vec![(
+                                            "Assign".to_string(),
+                                            Value::Arr(vec![local_place("2"), agg_rv.clone()]),
+                                        )]),
+                                    )]),
+                                    Value::Obj(vec![(
+                                        "kind".to_string(),
+                                        Value::Obj(vec![(
+                                            "Assign".to_string(),
+                                            Value::Arr(vec![
+                                                local_place("3"),
+                                                Value::Obj(vec![(
+                                                    "Use".to_string(),
+                                                    Value::Arr(vec![Value::Obj(vec![(
+                                                        "Copy".to_string(),
+                                                        local_place("2"),
+                                                    )])]),
+                                                )]),
+                                            ]),
+                                        )]),
+                                    )]),
+                                    Value::Obj(vec![(
+                                        "kind".to_string(),
+                                        if extra_switch {
+                                            // Switch(Move L3)：scrutinee 判別值已知
+                                            Value::Obj(vec![(
+                                                "Switch".to_string(),
+                                                Value::Obj(vec![(
+                                                    "data".to_string(),
+                                                    Value::Obj(vec![(
+                                                        "scrutinee".to_string(),
+                                                        Value::Obj(vec![(
+                                                            "Value".to_string(),
+                                                            Value::Obj(vec![(
+                                                                "Move".to_string(),
+                                                                local_place("3"),
+                                                            )]),
+                                                        )]),
+                                                    )]),
+                                                )]),
+                                            )])
+                                        } else {
+                                            // L0 := Discriminant(L3) → 常數 3
+                                            Value::Obj(vec![(
+                                                "Assign".to_string(),
+                                                Value::Arr(vec![
+                                                    local_place("0"),
+                                                    Value::Obj(vec![(
+                                                        "Discriminant".to_string(),
+                                                        local_place("3"),
+                                                    )]),
+                                                ]),
+                                            )])
+                                        },
+                                    )]),
+                                    Value::Obj(vec![(
+                                        "kind".to_string(),
+                                        Value::Str("Return".to_string()),
+                                    )]),
+                                ]),
+                            )]),
+                        ),
+                    ]),
+                )]),
+            )]),
+        };
+
+        // 1）Discriminant 常數傳播 → Certified ret=3（非 variant id 1）
+        let fun = mk_fun("ctor_disc", false);
+        match decide_fun_in(&types, &fun, &[]) {
+            Decision::Certified { ret, .. } => assert_eq!(ret, Some(3), "判別值=3 非 variant id"),
+            other => panic!("ctor_disc 應 Certified，得到 {:?}", other),
+        }
+        // 2）Switch：降級 + scrutinee 判別值提示
+        let fun2 = mk_fun("ctor_switch", true);
+        match decide_fun_in(&types, &fun2, &[]) {
+            Decision::Unknown { reason } => {
+                assert!(reason.contains("Switch"), "reason={reason}");
+                assert!(
+                    reason.contains("判別值=3"),
+                    "應附 scrutinee 判別值=3 提示：{reason}"
+                );
+            }
+            other => panic!("ctor_switch 應 Unknown，得到 {:?}", other),
         }
     }
 
@@ -446,7 +812,11 @@ mod tests {
         // x = 10⁹ ⇒ x² = 10¹⁸；V=10⁹、d=2 ⇒ 界 ≈ 6·10³⁶ ≫ p ⇒ 如實降級
         let root = load("sqr");
         let d = decide_entry(&root, "sqr", &dom(&[1_000_000_000])).unwrap();
-        assert!(d.reason().map_or(false, |r| r.contains("L0")), "得到 {:?}", d.reason());
+        assert!(
+            d.reason().map_or(false, |r| r.contains("L0")),
+            "得到 {:?}",
+            d.reason()
+        );
     }
 
     #[test]
