@@ -129,7 +129,10 @@ struct Parser<'a> {
 }
 
 pub fn parse_json(src: &str) -> Result<Value, LlbcError> {
-    let mut p = Parser { src: src.as_bytes(), pos: 0 };
+    let mut p = Parser {
+        src: src.as_bytes(),
+        pos: 0,
+    };
     let v = p.value()?;
     p.skip_ws();
     if p.pos != p.src.len() {
@@ -140,7 +143,10 @@ pub fn parse_json(src: &str) -> Result<Value, LlbcError> {
 
 impl<'a> Parser<'a> {
     fn err(&self, msg: &str) -> LlbcError {
-        LlbcError { offset: self.pos, msg: msg.to_string() }
+        LlbcError {
+            offset: self.pos,
+            msg: msg.to_string(),
+        }
     }
     fn skip_ws(&mut self) {
         while let Some(&b) = self.src.get(self.pos) {
@@ -206,7 +212,9 @@ impl<'a> Parser<'a> {
             return Err(self.err("number without digits"));
         }
         Ok(Value::Num(
-            std::str::from_utf8(&self.src[start..self.pos]).unwrap_or("").to_string(),
+            std::str::from_utf8(&self.src[start..self.pos])
+                .unwrap_or("")
+                .to_string(),
         ))
     }
     fn string(&mut self) -> Result<String, LlbcError> {
@@ -270,7 +278,9 @@ impl<'a> Parser<'a> {
                     };
                     let start = self.pos - 1;
                     self.pos = (self.pos + n).min(self.src.len());
-                    out.push_str(std::str::from_utf8(&self.src[start..self.pos]).unwrap_or("\u{fffd}"));
+                    out.push_str(
+                        std::str::from_utf8(&self.src[start..self.pos]).unwrap_or("\u{fffd}"),
+                    );
                 }
             }
         }
@@ -395,14 +405,15 @@ pub struct LlbcRoot {
     pub raw_translated: Value,
 }
 
-fn keyset_check(
-    obj: &Value,
-    allowed: &[&str],
-    ctx: &str,
-) -> Result<(), LlbcError> {
+fn keyset_check(obj: &Value, allowed: &[&str], ctx: &str) -> Result<(), LlbcError> {
     let fields = match obj {
         Value::Obj(f) => f,
-        _ => return Err(LlbcError { offset: 0, msg: format!("{ctx}: expected object") }),
+        _ => {
+            return Err(LlbcError {
+                offset: 0,
+                msg: format!("{ctx}: expected object"),
+            })
+        }
     };
     let mut have: BTreeMap<&str, usize> = BTreeMap::new();
     for (k, _) in fields {
@@ -416,11 +427,17 @@ fn keyset_check(
     }
     for (k, n) in &have {
         if *n > 1 {
-            return Err(LlbcError { offset: 0, msg: format!("{ctx}: duplicate key `{k}`") });
+            return Err(LlbcError {
+                offset: 0,
+                msg: format!("{ctx}: duplicate key `{k}`"),
+            });
         }
     }
     for k in allowed.iter().copied().filter(|k| !have.contains_key(k)) {
-        return Err(LlbcError { offset: 0, msg: format!("{ctx}: missing key `{k}`") });
+        return Err(LlbcError {
+            offset: 0,
+            msg: format!("{ctx}: missing key `{k}`"),
+        });
     }
     Ok(())
 }
@@ -430,8 +447,10 @@ fn num_i64(v: Option<&Value>, ctx: &str) -> Result<i64, LlbcError> {
         offset: 0,
         msg: format!("{ctx}: expected number"),
     })?;
-    raw.parse::<i64>()
-        .map_err(|_| LlbcError { offset: 0, msg: format!("{ctx}: number `{raw}` not i64") })
+    raw.parse::<i64>().map_err(|_| LlbcError {
+        offset: 0,
+        msg: format!("{ctx}: number `{raw}` not i64"),
+    })
 }
 
 /// item_meta.name = [{Ident:[seg,did]}|…] → (full_path, last_or_defid)
@@ -457,57 +476,84 @@ impl LlbcRoot {
         let charon_version = root
             .get("charon_version")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| LlbcError { offset: 0, msg: "root.charon_version: expected string".into() })?
+            .ok_or_else(|| LlbcError {
+                offset: 0,
+                msg: "root.charon_version: expected string".into(),
+            })?
             .to_string();
         let has_errors = root
             .get("has_errors")
             .and_then(|v| v.as_bool())
-            .ok_or_else(|| LlbcError { offset: 0, msg: "root.has_errors: expected bool".into() })?;
-        let translated = root
-            .get("translated")
-            .ok_or_else(|| LlbcError { offset: 0, msg: "root.translated missing".into() })?;
+            .ok_or_else(|| LlbcError {
+                offset: 0,
+                msg: "root.has_errors: expected bool".into(),
+            })?;
+        let translated = root.get("translated").ok_or_else(|| LlbcError {
+            offset: 0,
+            msg: "root.translated missing".into(),
+        })?;
         keyset_check(translated, &TRANSLATED_KEYS, "translated")?;
         let crate_name = translated
             .get("crate_name")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| LlbcError { offset: 0, msg: "translated.crate_name: expected string".into() })?
+            .ok_or_else(|| LlbcError {
+                offset: 0,
+                msg: "translated.crate_name: expected string".into(),
+            })?
             .to_string();
         let n_list = |key: &str| -> Result<usize, LlbcError> {
             translated
                 .get(key)
                 .and_then(|v| v.as_arr())
                 .map(|a| a.len())
-                .ok_or_else(|| LlbcError { offset: 0, msg: format!("translated.{key}: expected array") })
+                .ok_or_else(|| LlbcError {
+                    offset: 0,
+                    msg: format!("translated.{key}: expected array"),
+                })
         };
         let fun_arr = translated
             .get("fun_decls")
             .and_then(|v| v.as_arr())
-            .ok_or_else(|| LlbcError { offset: 0, msg: "translated.fun_decls: expected array".into() })?;
+            .ok_or_else(|| LlbcError {
+                offset: 0,
+                msg: "translated.fun_decls: expected array".into(),
+            })?;
         let mut funs = Vec::with_capacity(fun_arr.len());
         for (i, f) in fun_arr.iter().enumerate() {
             let ctx = format!("fun_decls[{i}]");
             let def_id = num_i64(f.get("def_id"), &format!("{ctx}.def_id"))?;
             let (path, name) = extract_name(f.get("item_meta").and_then(|m| m.get("name")));
-            let body_kind = match f.get("body") {
-                Some(Value::Obj(b)) if b.len() == 1 => match b[0].0.as_str() {
-                    "Structured" => BodyKind::Structured,
-                    "Error" => BodyKind::Error,
-                    "Missing" => BodyKind::Missing,
-                    other => {
-                        return Err(LlbcError {
+            let body_kind =
+                match f.get("body") {
+                    // C5 實證（m0 corpus，charon 0.1.265 CI 回寫）：opaque／內建函數
+                    // 嘅 body 係純字串 variant（如 "Builtin"）——聲明在、無可讀 body，
+                    // 口徑同 Missing（C5 起可供 Call 對位其名稱並如實降級）。
+                    Some(Value::Str(_)) => BodyKind::Missing,
+                    Some(Value::Obj(b)) if b.len() == 1 => match b[0].0.as_str() {
+                        "Structured" => BodyKind::Structured,
+                        "Error" => BodyKind::Error,
+                        "Missing" => BodyKind::Missing,
+                        other => return Err(LlbcError {
                             offset: 0,
-                            msg: format!("{ctx}.body: unknown variant `{other}` — 硬錯（唔畀靜默語義漂移）"),
-                        })
-                    }
-                },
-                _ => {
-                    return Err(LlbcError {
+                            msg: format!(
+                                "{ctx}.body: unknown variant `{other}` — 硬錯（唔畀靜默語義漂移）"
+                            ),
+                        }),
+                    },
+                    _ => return Err(LlbcError {
                         offset: 0,
-                        msg: format!("{ctx}.body: expected 1-key object variant (Structured|Error|Missing)"),
-                    })
-                }
-            };
-            funs.push(FunDeclRef { def_id, name, full_path: path, body_kind, raw: f.clone() });
+                        msg: format!(
+                            "{ctx}.body: expected 1-key object variant (Structured|Error|Missing)"
+                        ),
+                    }),
+                };
+            funs.push(FunDeclRef {
+                def_id,
+                name,
+                full_path: path,
+                body_kind,
+                raw: f.clone(),
+            });
         }
         Ok(LlbcRoot {
             charon_version,
@@ -535,14 +581,38 @@ mod tests {
         ("sqr", include_str!("../tests/charon_fixtures/sqr.llbc")),
         ("add", include_str!("../tests/charon_fixtures/add.llbc")),
         ("max", include_str!("../tests/charon_fixtures/max.llbc")),
-        ("while_loop", include_str!("../tests/charon_fixtures/while_loop.llbc")),
-        ("match_option", include_str!("../tests/charon_fixtures/match_option.llbc")),
-        ("borrow_immut", include_str!("../tests/charon_fixtures/borrow_immut.llbc")),
-        ("enum_option", include_str!("../tests/charon_fixtures/enum_option.llbc")),
-        ("async_simple", include_str!("../tests/charon_fixtures/async_simple.llbc")),
-        ("phase3__loop_sat", include_str!("../tests/charon_fixtures/phase3__loop_sat.llbc")),
-        ("struct_point", include_str!("../tests/charon_fixtures/struct_point.llbc")),
-        ("io_pure", include_str!("../tests/charon_fixtures/io_pure.llbc")),
+        (
+            "while_loop",
+            include_str!("../tests/charon_fixtures/while_loop.llbc"),
+        ),
+        (
+            "match_option",
+            include_str!("../tests/charon_fixtures/match_option.llbc"),
+        ),
+        (
+            "borrow_immut",
+            include_str!("../tests/charon_fixtures/borrow_immut.llbc"),
+        ),
+        (
+            "enum_option",
+            include_str!("../tests/charon_fixtures/enum_option.llbc"),
+        ),
+        (
+            "async_simple",
+            include_str!("../tests/charon_fixtures/async_simple.llbc"),
+        ),
+        (
+            "phase3__loop_sat",
+            include_str!("../tests/charon_fixtures/phase3__loop_sat.llbc"),
+        ),
+        (
+            "struct_point",
+            include_str!("../tests/charon_fixtures/struct_point.llbc"),
+        ),
+        (
+            "io_pure",
+            include_str!("../tests/charon_fixtures/io_pure.llbc"),
+        ),
     ];
 
     #[test]
@@ -566,7 +636,14 @@ mod tests {
     #[test]
     fn async_fixture_is_error_body() {
         // pinned：async desugar 部分 body 抽唔到 → has_errors + body=Error variant
-        let root = LlbcRoot::parse(FIXTURES.iter().find(|(n, _)| *n == "async_simple").unwrap().1).unwrap();
+        let root = LlbcRoot::parse(
+            FIXTURES
+                .iter()
+                .find(|(n, _)| *n == "async_simple")
+                .unwrap()
+                .1,
+        )
+        .unwrap();
         assert!(root.has_errors);
         assert!(root.funs.iter().any(|f| f.body_kind == BodyKind::Error));
     }
@@ -581,7 +658,11 @@ mod tests {
     #[test]
     fn hard_error_on_unknown_body_variant() {
         // 攞真 fixture 細改 body variant → 必須 hard error（唔准靜默當 Missing）
-        let src = FIXTURES.iter().find(|(n, _)| *n == "max").unwrap().1
+        let src = FIXTURES
+            .iter()
+            .find(|(n, _)| *n == "max")
+            .unwrap()
+            .1
             .replacen(r#""Structured""#, r#""WatVariant""#, 1);
         let e = LlbcRoot::parse(&src).unwrap_err();
         assert!(e.msg.contains("unknown variant"), "{}", e.msg);
@@ -589,10 +670,18 @@ mod tests {
 
     #[test]
     fn hard_error_on_missing_translated_key() {
-        let src = FIXTURES.iter().find(|(n, _)| *n == "add").unwrap().1
+        let src = FIXTURES
+            .iter()
+            .find(|(n, _)| *n == "add")
+            .unwrap()
+            .1
             .replacen(r#""trait_impls""#, r#""trait_implz""#, 1);
         let e = LlbcRoot::parse(&src).unwrap_err();
-        assert!(e.msg.contains("unknown key") || e.msg.contains("missing key"), "{}", e.msg);
+        assert!(
+            e.msg.contains("unknown key") || e.msg.contains("missing key"),
+            "{}",
+            e.msg
+        );
     }
 
     #[test]

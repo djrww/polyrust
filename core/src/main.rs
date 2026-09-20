@@ -59,11 +59,20 @@ fn report(r: &PipelineResult, verbose_poly: bool) {
     for l in &r.expansion_log {
         println!("    {}", l);
     }
-    println!("□ Ground truth（直接型別檢查器，exists-arm 語義）：{}", r.checker_msg);
+    println!(
+        "□ Ground truth（直接型別檢查器，exists-arm 語義）：{}",
+        r.checker_msg
+    );
     println!("□ 代數編碼：變量 {} 個（型別位元 t_v:τ + 臂位元 a + 借用位元 b），多項式生成元 {} 條，子句 {} 條",
         r.n_vars, r.n_polys, r.n_clauses);
-    println!("□ CDCL(T) 迴圈：{} 輪 | 決策 {} 傳播 {} 衝突 {} | 學習子句 {} 條",
-        r.cdcl_rounds, r.cdcl_stats.decisions, r.cdcl_stats.propagations, r.cdcl_stats.conflicts, r.cdcl_stats.learned);
+    println!(
+        "□ CDCL(T) 迴圈：{} 輪 | 決策 {} 傳播 {} 衝突 {} | 學習子句 {} 條",
+        r.cdcl_rounds,
+        r.cdcl_stats.decisions,
+        r.cdcl_stats.propagations,
+        r.cdcl_stats.conflicts,
+        r.cdcl_stats.learned
+    );
     for lc in r.learned_clauses.iter().take(6) {
         let txt: Vec<String> = lc
             .iter()
@@ -78,8 +87,11 @@ fn report(r: &PipelineResult, verbose_poly: bool) {
     println!("□ Buchberger（grevlex，雙準則）：");
     println!("    生成元 {} | 配對 {} | 第一準則消除 {} | 第二準則消除 {} | 實算 S-多項式 {}（歸零 {}）| 基擴充 {} | 約化基 {} 條",
         s.generators, s.pairs_considered, s.crit1_skips, s.crit2_skips, s.s_polys, s.reductions_to_zero, s.basis_adds, r.reduced_basis.len());
-    println!("    化簡率：{} 條生成元 → {} 條約化基（規範形式）",
-        r.n_polys, r.reduced_basis.len());
+    println!(
+        "    化簡率：{} 條生成元 → {} 條約化基（規範形式）",
+        r.n_polys,
+        r.reduced_basis.len()
+    );
     if verbose_poly {
         println!("    （約化基元素展示略——見 obligations / 單元測試輸出）");
     }
@@ -101,27 +113,63 @@ fn report(r: &PipelineResult, verbose_poly: bool) {
             v.sort();
             v.into_iter().map(|(_, s)| s).take(14).collect()
         };
-        println!("    型別解碼（節點:型別）：{}{}", types.join(", "), if r.node_types.len() > 14 { " …" } else { "" });
+        println!(
+            "    型別解碼（節點:型別）：{}{}",
+            types.join(", "),
+            if r.node_types.len() > 14 { " …" } else { "" }
+        );
         if !r.arm_choice.is_empty() {
-            let arms: Vec<String> =
-                r.arm_choice.iter().map(|(k, v)| format!("invoke#{}→臂{}", k, v + 1)).collect();
+            let arms: Vec<String> = r
+                .arm_choice
+                .iter()
+                .map(|(k, v)| format!("invoke#{}→臂{}", k, v + 1))
+                .collect();
             println!("    臂選擇：{}", arms.join(", "));
         }
-        println!("□ QAP：R1CS 約束 {} 條 | 導線 {} 條 | wire 多項式次數 ≤ {} | 驗證 {}",
-            r.r1cs_constraints, r.r1cs_wires, r.qap_max_degree,
-            match r.qap_verified { Some(true) => "通過（Z | a·b−c）", Some(false) => "★失敗★", None => "?" });
-        println!("    竄改見證（位元 1→2）：{}",
-            match r.qap_tamper_rejected { Some(true) => "正確拒絕 ✓", Some(false) => "★未拒絕★", None => "?" });
+        println!(
+            "□ QAP：R1CS 約束 {} 條 | 導線 {} 條 | wire 多項式次數 ≤ {} | 驗證 {}",
+            r.r1cs_constraints,
+            r.r1cs_wires,
+            r.qap_max_degree,
+            match r.qap_verified {
+                Some(true) => "通過（Z | a·b−c）",
+                Some(false) => "★失敗★",
+                None => "?",
+            }
+        );
+        println!(
+            "    竄改見證（位元 1→2）：{}",
+            match r.qap_tamper_rejected {
+                Some(true) => "正確拒絕 ✓",
+                Some(false) => "★未拒絕★",
+                None => "?",
+            }
+        );
     }
     if let Some(f) = &r.generated_file {
-        println!("□ 代碼生成：{}（round-trip 重解析 ✓{}）",
+        println!(
+            "□ 代碼生成：{}（round-trip 重解析 ✓{}）",
             f,
-            match r.rustc_compiles { Some(true) => "，rustc 編譯 ✓", Some(false) => "，rustc 編譯 ✗", None => "" });
+            match r.rustc_compiles {
+                Some(true) => "，rustc 編譯 ✓",
+                Some(false) => "，rustc 編譯 ✗",
+                None => "",
+            }
+        );
     }
-    println!("□ 一致性：管線判定 {} ground truth {}",
+    println!(
+        "□ 一致性：管線判定 {} ground truth {}",
         if r.is_unsat { "UNSAT" } else { "SAT" },
-        if r.checker_ok { "接受" } else { "拒絕" });
-    println!("   ⇒ {}", if r.agrees { "一致 ✓（定理 1/2/6 的實例）" } else { "★不一致★（bug）" });
+        if r.checker_ok { "接受" } else { "拒絕" }
+    );
+    println!(
+        "   ⇒ {}",
+        if r.agrees {
+            "一致 ✓（定理 1/2/6 的實例）"
+        } else {
+            "★不一致★（bug）"
+        }
+    );
 }
 
 fn print_banner() {
@@ -160,7 +208,11 @@ fn main() {
         }
         std::process::exit(driver::cmd_txt_feedback(&args, json));
     }
-    if mode == "native-bidir" || mode == "native_bidir" || mode == "bidir" || mode == "native-bidirectional" {
+    if mode == "native-bidir"
+        || mode == "native_bidir"
+        || mode == "bidir"
+        || mode == "native-bidirectional"
+    {
         if !json {
             print_banner();
         }
@@ -216,7 +268,11 @@ fn main() {
         };
         let report = minirust::ast_full::HandwrittenParser::coverage_report(&src);
         if json {
-            println!(r#"{{"source": {:?}, "missing_count": {}}}"#, arg2, minirust::ast_full::HandwrittenParser::missing_syntax(&src).len());
+            println!(
+                r#"{{"source": {:?}, "missing_count": {}}}"#,
+                arg2,
+                minirust::ast_full::HandwrittenParser::missing_syntax(&src).len()
+            );
             for (k, present, desc) in &report {
                 println!("{}: {} - {}", k, present, desc);
             }
@@ -224,7 +280,12 @@ fn main() {
             println!("AST 語法覆蓋率報告 — 來源: {}", arg2);
             println!("{:-<80}", "");
             for (k, present, desc) in &report {
-                println!("{:<20} {:<6} {}", k, if *present { "✅" } else { "❌" }, desc);
+                println!(
+                    "{:<20} {:<6} {}",
+                    k,
+                    if *present { "✅" } else { "❌" },
+                    desc
+                );
             }
             println!("{:-<80}", "");
             let missing = minirust::ast_full::HandwrittenParser::missing_syntax(&src);
@@ -237,16 +298,15 @@ fn main() {
                 }
                 println!("\n獲取方式:");
                 println!("  - core 手寫：擴展 universe.rs::parse_type_v2 + parse_full.rs");
-                println!("  - 前端 syn：frontends/full/src/syn_bridge.rs 用 syn::parse_str::<File>");
+                println!(
+                    "  - 前端 syn：frontends/full/src/syn_bridge.rs 用 syn::parse_str::<File>"
+                );
             }
         }
         std::process::exit(0);
     }
     if mode == "serve" {
-        let port: u16 = args
-            .get(2)
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(8080);
+        let port: u16 = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(8080);
         if let Err(e) = server::serve(port) {
             eprintln!("server 錯誤：{}", e);
             std::process::exit(1);
@@ -297,7 +357,8 @@ fn main() {
     }
     if mode == "gen" {
         let arg2 = args.get(2).map(|s| s.as_str()).unwrap_or("A");
-        let is_file = arg2.contains('/') || arg2.ends_with(".poly") || arg2.ends_with(".rs") || arg2 == "-";
+        let is_file =
+            arg2.contains('/') || arg2.ends_with(".poly") || arg2.ends_with(".rs") || arg2 == "-";
         if is_file {
             if !json {
                 print_banner();
@@ -316,7 +377,11 @@ fn main() {
             ("demoD", DEMO_D, true),
         ];
         for (name, src, codegen) in demos {
-            hr(&format!("{}：{}", name, src.lines().nth(1).unwrap_or("").trim()));
+            hr(&format!(
+                "{}：{}",
+                name,
+                src.lines().nth(1).unwrap_or("").trim()
+            ));
             match pipeline::run_pipeline_eager(name, src, codegen) {
                 Ok(r) => report(&r, true),
                 Err(e) => println!("管線錯誤：{}", e),
@@ -326,14 +391,20 @@ fn main() {
 
     if mode == "debug" {
         let args2: Vec<String> = std::env::args().collect();
-        let src = std::fs::read_to_string(args2.get(2).expect("用法：polyrust debug <file>")).unwrap();
+        let src =
+            std::fs::read_to_string(args2.get(2).expect("用法：polyrust debug <file>")).unwrap();
         let p = minirust::parse::Parser::parse_program(&src).unwrap();
         let mut exp = minirust::macros::Expander::new(p.macros.clone(), p.next_id);
         let ds = minirust::checker::check_program(&p, &mut exp).unwrap();
         let d = &ds[0];
         println!("推導：main = {:?}, 臂 {:?}", d.ty, d.arm_choice);
         let sys = minirust::constraints::gen_constraints(&p, &mut exp).unwrap();
-        println!("系統：{} vars, {} polys, {} clauses", sys.nvars, sys.polys.len(), sys.clauses.len());
+        println!(
+            "系統：{} vars, {} polys, {} clauses",
+            sys.nvars,
+            sys.polys.len(),
+            sys.clauses.len()
+        );
         let mut sigma = vec![frac::Frac::ZERO; sys.nvars];
         for (node, t) in &d.node_types {
             if let Some(ts) = sys.node_type.get(node) {
@@ -354,27 +425,42 @@ fn main() {
             if !v.is_zero() {
                 bad += 1;
                 if bad <= 14 {
-                    println!("  違反 [{}] {} = 0（求值 = {}）", i, f.display(&sys.names), v);
+                    println!(
+                        "  違反 [{}] {} = 0（求值 = {}）",
+                        i,
+                        f.display(&sys.names),
+                        v
+                    );
                 }
             }
         }
         for i in 0..sys.nvars {
-            let f = poly::Poly::var(i, frac::Frac::ONE, sys.nvars).pow(2)
+            let f = poly::Poly::var(i, frac::Frac::ONE, sys.nvars)
+                .pow(2)
                 .sub(&poly::Poly::var(i, frac::Frac::ONE, sys.nvars));
             if !f.eval_full(&sigma).is_zero() {
                 println!("  違反域多項式 x{}", i);
             }
         }
         {
-            use poly::Order;
             use groebner::{field_polys, reduced_groebner, solve_boolean, Strategy};
+            use poly::Order;
             let mut all = sys.polys.clone();
             all.extend(field_polys(sys.nvars));
             let sol = solve_boolean(&all, sys.nvars);
-            println!("solve_boolean：{}", if sol.is_some() { "有解" } else { "無解" });
+            println!(
+                "solve_boolean：{}",
+                if sol.is_some() { "有解" } else { "無解" }
+            );
             let (g, s) = reduced_groebner(&all, Order::GrevLex, Strategy::Normal, true);
             let unsat = g.len() == 1 && g[0].is_constant().map_or(false, |c| c.is_one());
-            println!("GB：{}（基 {} 條；S={} 基擴充={}）", if unsat { "1∈G" } else { "可解" }, g.len(), s.s_polys, s.basis_adds);
+            println!(
+                "GB：{}（基 {} 條；S={} 基擴充={}）",
+                if unsat { "1∈G" } else { "可解" },
+                g.len(),
+                s.s_polys,
+                s.basis_adds
+            );
             if let Some(sol) = &sol {
                 let bad = all.iter().filter(|f| !f.eval_full(sol).is_zero()).count();
                 println!("見證違反 {} 條（應為 0）", bad);
@@ -383,7 +469,9 @@ fn main() {
                         let v = cdcl::lit_var(l);
                         sol[v] == frac::Frac::from_i64(cdcl::lit_positive(l) as i64)
                     });
-                    if !ok { println!("見證違反子句 [{}]", ci); }
+                    if !ok {
+                        println!("見證違反子句 [{}]", ci);
+                    }
                 }
             }
         }
@@ -394,7 +482,10 @@ fn main() {
             }
         }
         missing.sort();
-        println!("共 {} 條約束被 σ_D 違反；推導未覆蓋節點：{:?}", bad, missing);
+        println!(
+            "共 {} 條約束被 σ_D 違反；推導未覆蓋節點：{:?}",
+            bad, missing
+        );
         return;
     }
 
@@ -409,7 +500,12 @@ fn main() {
         };
         match pipeline::run_pipeline_eager("demo", src, cg) {
             Ok(r) => {
-                println!("{}", r.generated_code.clone().unwrap_or_else(|| "(no code)".to_string()));
+                println!(
+                    "{}",
+                    r.generated_code
+                        .clone()
+                        .unwrap_or_else(|| "(no code)".to_string())
+                );
             }
             Err(e) => println!("錯誤：{}", e),
         }
@@ -450,19 +546,46 @@ fn main() {
                 }
             }
         }
-        println!("crate: {}（charon {}）funs={}", root.crate_name, root.charon_version, root.funs.len());
+        println!(
+            "crate: {}（charon {}）funs={}",
+            root.crate_name,
+            root.charon_version,
+            root.funs.len()
+        );
         let mut all_ok = true;
+        // C3：帶 type_decls（enum Aggregate 判別值解析需要）
+        let types = root
+            .raw_translated
+            .get("type_decls")
+            .unwrap_or(&polyrust_core::charon_llbc::Value::Null);
         for f in &root.funs {
-            let doms = dom_map.iter().find(|(n, _)| *n == f.name).map(|(_, d)| d.clone());
-            let dec = polyrust_core::polyir_encode::decide_fun(f, doms.as_deref().unwrap_or(&[]));
+            let doms = dom_map
+                .iter()
+                .find(|(n, _)| *n == f.name)
+                .map(|(_, d)| d.clone());
+            let dec = polyrust_core::polyir_encode::decide_fun_in(
+                types,
+                &root.funs,
+                f,
+                doms.as_deref().unwrap_or(&[]),
+            );
             let verdict = match &dec {
-                polyrust_core::polyir_encode::Decision::Certified { ret, n_vars, n_eqs, overflow_asserted } => {
+                polyrust_core::polyir_encode::Decision::Certified {
+                    ret,
+                    n_vars,
+                    n_eqs,
+                    overflow_asserted,
+                    paths,
+                    excluded,
+                } => {
                     format!(
-                        "CERTIFIED ret={:?} vars={} eqs={} overflow_asserted={}",
-                        ret, n_vars, n_eqs, overflow_asserted
+                        "CERTIFIED ret={:?} vars={} eqs={} overflow_asserted={} paths={} excluded={}",
+                        ret, n_vars, n_eqs, overflow_asserted, paths, excluded
                     )
                 }
-                polyrust_core::polyir_encode::Decision::Unknown { reason } => format!("UNKNOWN({})", reason),
+                polyrust_core::polyir_encode::Decision::Unknown { reason } => {
+                    format!("UNKNOWN({})", reason)
+                }
                 polyrust_core::polyir_encode::Decision::Unsat => "UNSAT".to_string(),
             };
             let mark = if dec.is_certified() { "✓" } else { "·" };
@@ -482,14 +605,25 @@ fn main() {
         let results = obligations::run_all();
         let mut all_pass = true;
         for r in &results {
-            println!("\n[{}] {} — {}", r.id, r.name, if r.pass { "PASS ✓" } else { "FAIL ✗" });
+            println!(
+                "\n[{}] {} — {}",
+                r.id,
+                r.name,
+                if r.pass { "PASS ✓" } else { "FAIL ✗" }
+            );
             println!("    義務：{}", r.statement);
             println!("    見證：{}", r.detail);
             all_pass &= r.pass;
         }
         hr("總結");
-        println!("十條義務自證：{}",
-            if all_pass { "全部通過 ✓✓✓（命題 P 成立的機械見證；數學證明見 docs/THEOREMS.md）" } else { "有失敗項 ✗" });
+        println!(
+            "十條義務自證：{}",
+            if all_pass {
+                "全部通過 ✓✓✓（命題 P 成立的機械見證；數學證明見 docs/THEOREMS.md）"
+            } else {
+                "有失敗項 ✗"
+            }
+        );
         std::process::exit(if all_pass { 0 } else { 1 });
     }
 }

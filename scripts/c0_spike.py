@@ -69,6 +69,9 @@ def main():
     os.makedirs(args.out, exist_ok=True)
 
     results = []
+    # C6 前置：優先 --no-dedup-serialized-ast（LLBC 根冇 dedup 解表，
+    # Deduplicated 常數不可猜——鐵律）；舊 charon 無此 flag 時 fallback 無 flag。
+    nodedup_ok = True
     for name, cat, rs in corpus():
         if args.limit and len(results) >= args.limit:
             break
@@ -81,10 +84,22 @@ def main():
                 # 舊用法 `charon --crate-type=rlib file.rs` 會被 clap 拒絕（C0 首跑法證：152/152
                 # 全錯分為 rustc_reject）。
                 # --edition=2021 必需：rustc 單檔編譯預設 edition 2015，async/await 直接 E0670。
-                p = subprocess.run(
-                    [args.charon, "rustc", "--", inp, "--crate-type=rlib", "--edition=2021"],
-                    cwd=td, capture_output=True, text=True, timeout=120,
-                )
+                # C6 前置：優先 --no-dedup-serialized-ast；stderr 認
+                # "unexpected/unrecognized argument" → 記旗標、無 flag 重跑。
+                ca = [args.charon, "rustc"]
+                if nodedup_ok:
+                    ca.append("--no-dedup-serialized-ast")
+                ca += ["--", inp, "--crate-type=rlib", "--edition=2021"]
+                p = subprocess.run(ca, cwd=td, capture_output=True, text=True, timeout=120)
+                if p.returncode != 0 and nodedup_ok and (
+                    "unexpected argument" in (p.stderr or "")
+                    or "unrecognized argument" in (p.stderr or "")
+                ):
+                    nodedup_ok = False
+                    p = subprocess.run(
+                        [args.charon, "rustc", "--", inp, "--crate-type=rlib", "--edition=2021"],
+                        cwd=td, capture_output=True, text=True, timeout=120,
+                    )
             except subprocess.TimeoutExpired:
                 results.append({"name": name, "cat": cat, "status": "timeout"})
                 continue
