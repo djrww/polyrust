@@ -565,6 +565,7 @@ fn main() {
                 .map(|(_, d)| d.clone());
             let dec = polyrust_core::polyir_encode::decide_fun_in(
                 types,
+                &root.funs,
                 f,
                 doms.as_deref().unwrap_or(&[]),
             );

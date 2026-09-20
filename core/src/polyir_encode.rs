@@ -15,14 +15,14 @@
 //! * 見證再經獨立認證（域成員 + 全多項式直接求值）方稱 `Certified`；
 //! * 任何降級（Switch/Loop/Call/L0′ 超限/域過大）都如實回報 `Unknown{reason}`。
 
-use crate::charon_llbc::{FunDeclRef, LlbcRoot, Value};
+use crate::charon_llbc::{BodyKind, FunDeclRef, LlbcRoot, Value};
 use crate::fp::P;
 use crate::frac::Frac;
 use crate::minirust::mir_lower::{self, MirSystem};
 use crate::poly::Poly;
 use crate::polyir::{
-    concretize, lower_fun_in, ConcErr, ParamVal, Part, PirBinOp, PirBody, PirOperand,
-    PirPath, PirStmtKind, PirVerdict, Slot,
+    concretize, lower_fun_in, ConcErr, ParamVal, Part, PirBinOp, PirBody, PirOperand, PirPath,
+    PirStmtKind, PirVerdict, Slot,
 };
 use crate::vanishing::{l0_prime_params_of, vanishing_poly, L0PrimeParams};
 use std::collections::BTreeMap;
@@ -160,11 +160,7 @@ fn binop_apply(op: PirBinOp, x: i64, y: i64) -> i64 {
 /// 𝔽_p 表示 → 最小絕對值有符代表 → i64（L0′ 保真下必落 i64 範圍）。
 fn fp_to_i64(v: &Frac) -> i64 {
     let raw = v.0 as i128;
-    let signed = if v.0 > P / 2 {
-        raw - P as i128
-    } else {
-        raw
-    };
+    let signed = if v.0 > P / 2 { raw - P as i128 } else { raw };
     signed as i64
 }
 
@@ -281,6 +277,21 @@ pub fn encode_body(
             PirStmtKind::Discriminant { of } => {
                 // C4：動態判別值（enum 參數）。同上，見證模式恆等化。
                 let _ = of;
+                let w = require_witness(witness, &st.dst, &b.fun_name)?;
+                let d = var_of(&st.dst, &mut slot_var, &mut domains);
+                domains[d] = vec![w];
+                eqs.push(Poly::var(d, Frac::ONE, width).sub(&Poly::constant(Frac::from_i64(w))));
+                if st.dst.local == 0 && st.dst.part == Part::Whole {
+                    ret_var = Some(d);
+                }
+            }
+            PirStmtKind::Call { callee, args } => {
+                // C5：調用經見證模式恆等化（dst = 模擬 ret；語義由 concretize
+                // 遞迴模擬 callee 承擔）。直線無 witness → 降級。
+                for a in args {
+                    let _ = operand_dom(a, &mut slot_var, &mut domains, b.arg_count, arg_domains)?;
+                }
+                let _ = callee;
                 let w = require_witness(witness, &st.dst, &b.fun_name)?;
                 let d = var_of(&st.dst, &mut slot_var, &mut domains);
                 domains[d] = vec![w];
@@ -423,27 +434,56 @@ pub fn encode_body(
 /// 對單一函數做代數判定：lower → encode → solve → certify。
 /// 唔帶 type_decls：enum Aggregate 判別值解析會如實降級。
 pub fn decide_fun(fun: &FunDeclRef, arg_domains: &[Vec<i64>]) -> Decision {
-    decide_fun_in(&Value::Null, fun, arg_domains)
+    decide_fun_in(&Value::Null, &[], fun, arg_domains)
 }
 
-/// 同上，另帶 root 嘅 type_decls（C3：enum Aggregate 判別值解析）。
-pub fn decide_fun_in(types: &Value, fun: &FunDeclRef, arg_domains: &[Vec<i64>]) -> Decision {
-    match lower_fun_in(types, fun) {
+/// 同上，另帶 root 嘅 type_decls（C3：enum Aggregate 判別值解析）與
+/// 全 crate funs（C5：Call 對位+遞迴模擬）。判定前一次過預 lower 全部
+/// Structured fun（callee 模擬表；lower 失敗者唔入表——模擬時如實降級）。
+pub fn decide_fun_in(
+    types: &Value,
+    funs: &[FunDeclRef],
+    fun: &FunDeclRef,
+    arg_domains: &[Vec<i64>],
+) -> Decision {
+    let callees = prelower(funs, &fun.name);
+    match lower_fun_in(types, funs, fun) {
         PirVerdict::NoBody { kind } => Decision::Unknown {
             reason: format!("body 缺失（{:?}）", kind),
         },
         PirVerdict::Unknown { reason } => Decision::Unknown { reason },
-        PirVerdict::ValueTrace(body) => decide_body(&body, arg_domains),
+        PirVerdict::ValueTrace(body) => decide_body(&body, arg_domains, &callees),
     }
+}
+
+/// C5：全部 Structured fun → PirBody 表（`skip` = 判定對象自身，唔入表，
+/// 遞迴呼叫由模擬深限如實降級）。
+fn prelower(funs: &[FunDeclRef], skip: &str) -> BTreeMap<String, PirBody> {
+    funs.iter()
+        .filter(|f| f.body_kind == BodyKind::Structured && f.name != skip)
+        .filter_map(|f| match lower_fun_in(&Value::Null, funs, f) {
+            PirVerdict::ValueTrace(b) => Some((f.name.clone(), b)),
+            _ => None,
+        })
+        .collect()
 }
 
 /// 對已 lowering 之 body 做判定。
 /// 單路徑（直線）→ C2/C3 口徑：域多值一次系統、存在見證。
 /// 多路徑（C4 動態 switch）→ 逐組合見證模式：每組合模擬 → 攤平 →
 /// 單點域系統 → 求解 → 認證 → ret 比對模擬；全組合通過方 CERTIFIED。
-pub fn decide_body(body: &PirBody, arg_domains: &[Vec<i64>]) -> Decision {
-    if body.paths.len() > 1 {
-        return decide_paths(body, arg_domains);
+pub fn decide_body(
+    body: &PirBody,
+    arg_domains: &[Vec<i64>],
+    callees: &BTreeMap<String, PirBody>,
+) -> Decision {
+    let has_call = body.paths.iter().any(|p| {
+        p.stmts
+            .iter()
+            .any(|s| matches!(s.kind, PirStmtKind::Call { .. }))
+    });
+    if body.paths.len() > 1 || has_call {
+        return decide_paths(body, arg_domains, callees);
     }
     let enc = match encode_body(body, arg_domains, None) {
         Ok(e) => e,
@@ -481,7 +521,11 @@ pub fn decide_body(body: &PirBody, arg_domains: &[Vec<i64>]) -> Decision {
 }
 
 /// C4：多路徑 body 之逐組合判定。
-fn decide_paths(body: &PirBody, arg_domains: &[Vec<i64>]) -> Decision {
+fn decide_paths(
+    body: &PirBody,
+    arg_domains: &[Vec<i64>],
+    callees: &BTreeMap<String, PirBody>,
+) -> Decision {
     let name = body.fun_name.clone();
     let axes = match build_axes(body, arg_domains) {
         Ok(a) => a,
@@ -497,7 +541,7 @@ fn decide_paths(body: &PirBody, arg_domains: &[Vec<i64>]) -> Decision {
     let mut excluded = 0usize;
     let mut overflow_reason: Option<String> = None;
     for params in &combos {
-        let out = match concretize(body, params) {
+        let out = match concretize(body, params, callees) {
             Ok(o) => o,
             Err(ConcErr::Overflow) => {
                 excluded += 1;
@@ -653,7 +697,7 @@ pub fn decide_entry(root: &LlbcRoot, name: &str, arg_domains: &[Vec<i64>]) -> Op
     root.funs
         .iter()
         .find(|f| f.name == name)
-        .map(|f| decide_fun_in(types, f, arg_domains))
+        .map(|f| decide_fun_in(types, &root.funs, f, arg_domains))
 }
 
 /// 模組總覽：全部函數逐一報 lowering 判決（供 CLI `pir` 總表）。
@@ -667,7 +711,7 @@ pub fn survey_in(types: &Value, root: &LlbcRoot) -> Vec<(String, String)> {
     root.funs
         .iter()
         .map(|f| {
-            let line = match lower_fun_in(types, f) {
+            let line = match lower_fun_in(types, &root.funs, f) {
                 PirVerdict::ValueTrace(b) => format!(
                     "ValueTrace(stmts={} argc={} paths={} overflow_asserted={})",
                     b.paths.iter().map(|p| p.stmts.len()).sum::<usize>(),
@@ -1136,16 +1180,205 @@ mod tests {
 
         // 1）Discriminant 常數傳播 → Certified ret=3（非 variant id 1）
         let fun = mk_fun("ctor_disc", false);
-        match decide_fun_in(&types, &fun, &[]) {
+        match decide_fun_in(&types, &[], &fun, &[]) {
             Decision::Certified { ret, .. } => assert_eq!(ret, Some(3), "判別值=3 非 variant id"),
             other => panic!("ctor_disc 應 Certified，得到 {:?}", other),
         }
         // 2）Switch：降級 + scrutinee 判別值提示
         let fun2 = mk_fun("ctor_switch", true);
-        match decide_fun_in(&types, &fun2, &[]) {
+        match decide_fun_in(&types, &[], &fun2, &[]) {
             Decision::Certified { ret, .. } => assert_eq!(ret, Some(7), "靜態選臂：行常數 3 臂"),
             other => panic!("ctor_switch 應 Certified（靜態選臂），得到 {:?}", other),
         }
+    }
+
+    fn load_m0(name: &str) -> LlbcRoot {
+        let path = format!("../m0/spike_out/{name}.llbc");
+        let text =
+            std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("m0 fixture {name}: {e}"));
+        LlbcRoot::parse(&text).unwrap_or_else(|e| panic!("m0 fixture {name}: {e}"))
+    }
+
+    #[test]
+    fn c5_call_inline_certified() {
+        // 合成：inner(x) = x+1；outer(y) = inner(y)*2 —— 調用語義由模擬承擔，
+        // 編碼見證恆等化，認證鏈閉合
+        use crate::charon_llbc::{BodyKind, FunDeclRef as FDR, Value};
+        let o = |ps: Vec<(&str, Value)>| {
+            Value::Obj(ps.into_iter().map(|(k, v)| (k.to_string(), v)).collect())
+        };
+        let num = |s: &str| Value::Num(s.to_string());
+        let int_const = |v: &str| {
+            o(vec![(
+                "Value",
+                Value::Arr(vec![
+                    Value::Null,
+                    Value::Arr(vec![
+                        o(vec![(
+                            "Integer",
+                            o(vec![(
+                                "Signed",
+                                Value::Arr(vec![
+                                    Value::Str("I64".to_string()),
+                                    Value::Str(v.to_string()),
+                                ]),
+                            )]),
+                        )]),
+                        Value::Null,
+                    ]),
+                ]),
+            )])
+        };
+        let place = |idx: &str| {
+            o(vec![
+                ("kind", o(vec![("Local", num(idx))])),
+                ("ty", Value::Null),
+            ])
+        };
+        let assign = |dst: &str, rhs: Value| {
+            o(vec![(
+                "kind",
+                o(vec![("Assign", Value::Arr(vec![place(dst), rhs]))]),
+            )])
+        };
+        let binop = |op: &str, a: &str, c: &str| {
+            o(vec![(
+                "BinaryOp",
+                Value::Arr(vec![
+                    Value::Str(op.to_string()),
+                    Value::Obj(vec![("Copy".to_string(), place(a))]),
+                    Value::Obj(vec![("Const".to_string(), int_const(c))]),
+                ]),
+            )])
+        };
+        let locals = |argc: usize| {
+            o(vec![
+                ("arg_count", Value::Num(argc.to_string())),
+                (
+                    "locals",
+                    Value::Arr((0..=argc).map(|_| Value::Null).collect()),
+                ),
+            ])
+        };
+        let mk_fun = |def_id: i64, name: &str, stmts: Vec<Value>| FDR {
+            def_id,
+            name: name.to_string(),
+            full_path: vec![name.to_string()],
+            body_kind: BodyKind::Structured,
+            raw: o(vec![
+                ("signature", o(vec![("inputs", Value::Arr(vec![]))])),
+                (
+                    "body",
+                    o(vec![(
+                        "Structured",
+                        o(vec![
+                            ("locals", locals(1)),
+                            ("body", o(vec![("statements", Value::Arr(stmts))])),
+                        ]),
+                    )]),
+                ),
+            ]),
+        };
+
+        // inner：L0 := L1 + 1
+        let inner = mk_fun(0, "inner", vec![assign("0", binop("Add", "1", "1"))]);
+        // outer：L2 := inner(L1)；L0 := L2 * 2；Return
+        let call_inner = o(vec![(
+            "kind",
+            o(vec![(
+                "Call",
+                o(vec![(
+                    "call",
+                    o(vec![
+                        (
+                            "func",
+                            o(vec![(
+                                "Regular",
+                                o(vec![("kind", o(vec![("Fun", num("0"))]))]),
+                            )]),
+                        ),
+                        (
+                            "args",
+                            Value::Arr(vec![Value::Obj(vec![("Copy".to_string(), place("1"))])]),
+                        ),
+                        ("dest", place("2")),
+                    ]),
+                )]),
+            )]),
+        )]);
+        let outer = mk_fun(
+            1,
+            "outer",
+            vec![
+                call_inner,
+                assign("0", binop("Mul", "2", "2")),
+                Value::Obj(vec![("kind".to_string(), Value::Str("Return".to_string()))]),
+            ],
+        );
+        let funs = [inner, outer];
+        let outer_ref = &funs[1];
+        // 無域：int 參數組合軸空 → 如實降級（Call 強制組合模式）
+        let d = decide_fun_in(&Value::Null, &funs, outer_ref, &[]);
+        assert!(d.reason().is_some(), "無域應降級：{d:?}");
+        // 有域：全鏈認證 ret = (y+1)*2
+        for (y, want) in [(5, 12), (0, 2), (-3, -4)] {
+            let d = decide_fun_in(&Value::Null, &funs, outer_ref, &vec![vec![y]]);
+            match d {
+                Decision::Certified {
+                    ret,
+                    paths,
+                    excluded,
+                    ..
+                } => {
+                    assert_eq!(ret, Some(want), "outer({y})");
+                    assert_eq!(paths, 1);
+                    assert_eq!(excluded, 0);
+                }
+                other => panic!("outer({y}) 應 Certified，得到 {:?}", other),
+            }
+        }
+        // callee 自身直線判定不變
+        let d = decide_fun_in(&Value::Null, &funs, &funs[0], &vec![vec![9]]);
+        match d {
+            Decision::Certified { ret, .. } => assert_eq!(ret, Some(10)),
+            other => panic!("inner(9) 應 Certified，得到 {:?}", other),
+        }
+    }
+
+    #[test]
+    fn c5_m0_call_chain_degrades_honestly() {
+        // 真檔（charon 0.1.265 CI 回寫）：outer 調 pure_inner 之後仲調
+        // Opaque 嘅 display/print（body="Opaque"）→ 模擬降級如實申報；
+        // pure_inner 自身直線 → CERTIFIED
+        let root = load_m0("io_with_pure_call");
+        let d = decide_entry(&root, "outer", &[]).expect("outer 存在");
+        // outer 嘅呼叫鏈會撞 Opaque callee／Ref rvalue 等能力邊界——
+        // 重點：如實降級（非 panic、非錯誤 CERTIFIED）
+        assert!(
+            !d.is_certified(),
+            "outer 應 Unknown（opaque 呼叫鏈），得到 {d:?}"
+        );
+        let d = decide_entry(&root, "pure_inner", &dom(&[5])).expect("pure_inner 存在");
+        match d {
+            Decision::Certified { ret, .. } => assert_eq!(ret, Some(6), "pure_inner(5)=5+1"),
+            other => panic!("pure_inner 應 Certified，得到 {:?}", other),
+        }
+    }
+
+    #[test]
+    fn c5_recursion_degrades_honestly() {
+        // 真檔 fact：自遞迴（Call def_id=自己）→ lowering 階段如實降級
+        let root = load_m0("fact");
+        let d = decide_entry(&root, "fact", &dom(&[3])).expect("fact 存在");
+        // fact 嘅降級點：遞迴 self-call（或先撞 Deduplicated 常數——同屬
+        // 能力邊界如實申報）
+        let reason = d
+            .reason()
+            .unwrap_or_else(|| panic!("fact 應 Unknown（遞迴），得到 {d:?}"));
+        assert!(
+            reason.contains("遞迴") || reason.contains("Deduplicated"),
+            "reason={reason}"
+        );
     }
 
     #[test]

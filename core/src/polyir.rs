@@ -202,6 +202,13 @@ pub enum PirStmtKind {
     /// dst := 判別值(of)（C4 動態形態：of 為 enum 參數）。靜態已建構者
     /// 直接摺成 Const；此 variant 只喺見證模式編碼（恆等式 dst = 模擬值）。
     Discriminant { of: Slot },
+    /// dst := callee(args…)（C5：本地 crate 純函數調用）。語義由
+    /// concretize 模擬（callee body 遞迴模擬，深限）承擔；編碼側見證模式
+    /// 恆等化 dst = 模擬 ret。`callee` = 函數名（def_id 對位後之最尾段）。
+    Call {
+        callee: String,
+        args: Vec<PirOperand>,
+    },
     /// dst := ADT 聚合建構（C3：struct／tuple／enum variant）。欄位逐一寫入
     /// `dst.local` 嘅 field 槽（域 = 運算元域，恆等式 = dst_f = src）；
     /// `disc = Some(c)` 表示 enum variant 建構，判別值 c 已由 type_decls 解析，
@@ -264,18 +271,22 @@ pub enum PirVerdict {
 /// 由 raw fun_decl JSON 語義 lowering（直線值軌跡；其餘 → Unknown{reason}）。
 /// 唔帶 type_decls：enum Aggregate 嘅判別值解析會如實降級。
 pub fn lower_fun(fun: &FunDeclRef) -> PirVerdict {
-    lower_fun_in(&Value::Null, fun)
+    lower_fun_in(&Value::Null, &[], fun)
 }
 
 /// 同上，另帶 root 嘅 type_decls（C3：enum Aggregate 判別值解析需要）。
-pub fn lower_fun_in(types: &Value, fun: &FunDeclRef) -> PirVerdict {
-    match lower_fun_inner(types, fun) {
+pub fn lower_fun_in(types: &Value, funs: &[FunDeclRef], fun: &FunDeclRef) -> PirVerdict {
+    match lower_fun_inner(types, funs, fun) {
         Ok(body) => PirVerdict::ValueTrace(body),
         Err(reason) => PirVerdict::Unknown { reason },
     }
 }
 
-fn lower_fun_inner(types: &Value, fun: &FunDeclRef) -> Result<PirBody, String> {
+fn lower_fun_inner(
+    types: &Value,
+    funs: &[FunDeclRef],
+    fun: &FunDeclRef,
+) -> Result<PirBody, String> {
     let name = fun.name.clone();
     let fail = |reason: String| -> Result<PirBody, String> { Err(reason) };
 
@@ -292,6 +303,10 @@ fn lower_fun_inner(types: &Value, fun: &FunDeclRef) -> Result<PirBody, String> {
                 // Error/Missing 同判：聲明在、body 缺
                 return fail(format!("{name}: body={}（缺失 body）", pairs[0].0));
             }
+        }
+        // C5 實證：opaque／內建函數 body = "Opaque" 等純字串 variant
+        Value::Str(tag) => {
+            return fail(format!("{name}: body={tag}（缺失 body，唔可模擬）"))
         }
         _ => return fail(format!("{name}: body 非單鍵 variant")),
     };
@@ -335,6 +350,13 @@ fn lower_fun_inner(types: &Value, fun: &FunDeclRef) -> Result<PirBody, String> {
             .map(|e| (e.local, e.variants.iter().map(|v| v.0).collect::<Vec<_>>()))
             .collect(),
         disc_dst_of: BTreeMap::new(),
+        // C5：本地可調用對位表（def_id → 名；只收 Structured body——
+        // Opaque/Builtin fun 唔可模擬）
+        callee_names: funs
+            .iter()
+            .filter(|f| f.body_kind == BodyKind::Structured)
+            .map(|f| (f.def_id, f.name.clone()))
+            .collect(),
         cmp_dst: std::collections::BTreeSet::new(),
         overflow_asserted: false,
         ret_slot: None,
@@ -381,6 +403,8 @@ struct LowerCtx {
     disc_domain: BTreeMap<usize, Vec<i64>>,
     /// Discriminant(enum param) 產物（dst local → enum param local）
     disc_dst_of: BTreeMap<usize, usize>,
+    /// C5：本地可調用對位表（def_id → 名；Structured body only）
+    callee_names: BTreeMap<i64, String>,
     /// 比較結果槽（Switch scrutinee 域 = {0,1} 之依據）
     cmp_dst: std::collections::BTreeSet<Slot>,
     overflow_asserted: bool,
@@ -672,14 +696,78 @@ fn lower_seq(
                 // 主流程到此終止（各 path 已含 post）
                 return Ok(SeqEnd::Returned);
             }
+            "Call" => {
+                // C5：本地純函數調用。實證形態（charon 0.1.265）：
+                // {"Call": {"call": {"func": {"Regular": {"kind": {"Fun": id}, …}},
+                //           "args": [operand…], "dest": place}, "on_unwind": …}}
+                let call = payload
+                    .get("call")
+                    .ok_or_else(|| format!("{name}: stmt[{i}] Call 缺 call"))?;
+                let func = call
+                    .get("func")
+                    .ok_or_else(|| format!("{name}: stmt[{i}] Call 缺 func"))?;
+                let fun_id = func
+                    .get("Regular")
+                    .and_then(|r| r.get("kind"))
+                    .and_then(|k| k.get("Fun"))
+                    .and_then(|v| v.as_num())
+                    .and_then(|s| s.parse::<i64>().ok());
+                let Some(fun_id) = fun_id else {
+                    let kind_txt = func
+                        .get("Regular")
+                        .and_then(|r| r.get("kind"))
+                        .map(|k| {
+                            k.as_str().map(|s| s.to_string()).unwrap_or_else(|| {
+                                if k.get("Builtin").is_some() {
+                                    "Builtin".to_string()
+                                } else {
+                                    "未知".to_string()
+                                }
+                            })
+                        })
+                        .unwrap_or_else(|| "非 Regular".to_string());
+                    return fail(format!(
+                        "{name}: stmt[{i}] Call callee `{kind_txt}` 唔支援（只做本地函數）"
+                    ));
+                };
+                let callee = ctx.callee_names.get(&fun_id).cloned().ok_or_else(|| {
+                    format!(
+                        "{name}: stmt[{i}] Call def_id={fun_id} 唔係本地可模擬函數（Opaque／缺失 body）"
+                    )
+                })?;
+                if callee == name {
+                    return fail(format!(
+                        "{name}: stmt[{i}] 遞迴呼叫唔支援（不動點屬後續 slice）"
+                    ));
+                }
+                let arg_vals = call
+                    .get("args")
+                    .and_then(|v| v.as_arr())
+                    .ok_or_else(|| format!("{name}: stmt[{i}] Call args 缺失"))?;
+                let mut args = Vec::with_capacity(arg_vals.len());
+                for a in arg_vals {
+                    args.push(parse_operand(&name, i, a)?);
+                }
+                let dst = parse_place(
+                    &name,
+                    i,
+                    call.get("dest")
+                        .ok_or_else(|| format!("{name}: stmt[{i}] Call 缺 dest"))?,
+                )?;
+                if dst.part != Part::Whole {
+                    return fail(format!("{name}: stmt[{i}] Call dest 非整槽"));
+                }
+                if dst.local == 0 && ctx.ret_slot.is_none() {
+                    ctx.ret_slot = Some(dst.clone());
+                }
+                out.push(PirStmt {
+                    dst,
+                    kind: PirStmtKind::Call { callee, args },
+                });
+            }
             "Loop" => {
                 return fail(format!(
                     "{name}: stmt[{i}] Loop 唔支援（invariant 路線屬後續 slice）"
-                ))
-            }
-            "Call" => {
-                return fail(format!(
-                    "{name}: stmt[{i}] Call 唔支援（函數契約屬後續 slice）"
                 ))
             }
             other => return fail(format!("{name}: stmt[{i}] 未知語句 `{other}`")),
@@ -1185,7 +1273,11 @@ pub enum ConcErr {
 
 /// 參數組合 → 路徑選擇 + 全程模擬。路徑選擇：guard 值查表（enum 判別值軸
 /// ／比較 {0,1}），fallback path 接收唔中任何 branch 常數嘅值。
-pub fn concretize(body: &PirBody, params: &[ParamVal]) -> Result<ConcOut, ConcErr> {
+pub fn concretize(
+    body: &PirBody,
+    params: &[ParamVal],
+    callees: &BTreeMap<String, PirBody>,
+) -> Result<ConcOut, ConcErr> {
     if params.len() != body.arg_count {
         return Err(ConcErr::Reason(format!(
             "參數值數量 {} ≠ arg_count {}",
@@ -1193,41 +1285,59 @@ pub fn concretize(body: &PirBody, params: &[ParamVal]) -> Result<ConcOut, ConcEr
             body.arg_count
         )));
     }
-    let name = body.fun_name.clone();
-    let err = |m: String| ConcErr::Reason(m);
 
-    // 逐 path 嘗試：模擬該 path 語句流；guard 驗證（scrutinee 槽值 == path.value）。
-    // guard 值由模擬確定（Discriminant／比較語句），每組合只會匹配一條 path。
-
-    // 組合只提供參數值；每 path 之參數預填相同 → 預填表只建一次
-    let mut tried: Option<Result<ConcOut, ConcErr>> = None;
-    for (idx, path) in body.paths.iter().enumerate() {
-        let mut values: BTreeMap<Slot, i64> = BTreeMap::new();
-        // 參數預填
-        for (k, pv) in params.iter().enumerate() {
-            match pv {
-                ParamVal::Int(v) => {
-                    values.insert(Slot::whole(k + 1), *v);
-                }
-                ParamVal::Enum { disc, field } => {
-                    values.insert(Slot::disc(k + 1), *disc);
-                    if let Some(fv) = field {
-                        values.insert(Slot::field(k + 1, 0), *fv);
-                    }
+    // 參數預填（每 path 相同 → 只建一次）
+    let mut init: BTreeMap<Slot, i64> = BTreeMap::new();
+    for (k, pv) in params.iter().enumerate() {
+        match pv {
+            ParamVal::Int(v) => {
+                init.insert(Slot::whole(k + 1), *v);
+            }
+            ParamVal::Enum { disc, field } => {
+                init.insert(Slot::disc(k + 1), *disc);
+                if let Some(fv) = field {
+                    init.insert(Slot::field(k + 1, 0), *fv);
                 }
             }
         }
-        match simulate(&name, &path.stmts, &mut values, body.ret_slot.as_ref()) {
+    }
+    simulate_body(body, &init, callees, 0)
+}
+
+/// C5 調用鏈模擬深度上限（超限 = 遞迴／超深調用，如實降級）。
+const CALL_DEPTH_CAP: usize = 4;
+
+/// 核心：逐 path 嘗試模擬 + guard 驗證（scrutinee 槽值 == path.value；
+/// fallback path 接收唔中任何 branch 常數嘅值）。guard 值由模擬確定。
+/// 溢出唔立即傳——試晒所有 path 先報（避免誤判「真正行嘅 path」以外嘅溢出）。
+fn simulate_body(
+    body: &PirBody,
+    init: &BTreeMap<Slot, i64>,
+    callees: &BTreeMap<String, PirBody>,
+    depth: usize,
+) -> Result<ConcOut, ConcErr> {
+    let name = body.fun_name.clone();
+    let err = |m: String| ConcErr::Reason(m);
+    let mut last: Option<ConcErr> = None;
+    for (idx, path) in body.paths.iter().enumerate() {
+        let mut values = init.clone();
+        match simulate(
+            &name,
+            &path.stmts,
+            &mut values,
+            body.ret_slot.as_ref(),
+            callees,
+            depth,
+        ) {
             Ok(ret) => {
                 // guard 驗證
                 if let (Some(s), Some(v)) = (&path.scrutinee, path.value) {
                     match values.get(s) {
                         Some(&actual) if actual == v => {}
                         Some(_) if path.fallback => {}
-                        other => {
-                            tried = Some(Err(err(format!(
-                                "path[{idx}] guard 驗證失敗：scrutinee 值 {other:?} ≠ {v}"
-                            ))));
+                        _ => {
+                            last =
+                                Some(err(format!("path[{idx}] guard 驗證失敗（唔係呢條 path）")));
                             continue;
                         }
                     }
@@ -1239,24 +1349,29 @@ pub fn concretize(body: &PirBody, params: &[ParamVal]) -> Result<ConcOut, ConcEr
                 });
             }
             Err(ConcErr::Overflow) => {
-                tried = Some(Err(ConcErr::Overflow));
+                // 記住但試下一 path：真正行嘅 path 未必係呢條
+                last = Some(ConcErr::Overflow);
                 continue;
             }
             Err(e) => {
-                tried = Some(Err(e));
+                last = Some(e);
                 continue;
             }
         }
     }
-    tried.unwrap_or_else(|| Err(ConcErr::Reason("無路徑可模擬".to_string())))
+    Err(last.unwrap_or_else(|| ConcErr::Reason("無路徑可模擬".to_string())))
 }
 
 /// 直線語句模擬（真語義；C2 口徑：checked 溢出 → Overflow、旗標非零 → Overflow）。
+/// C5：Call 遞迴模擬（callee 經 callees lookup，深限 CALL_DEPTH_CAP）。
+#[allow(clippy::too_many_arguments)]
 fn simulate(
     name: &str,
     stmts: &[PirStmt],
     values: &mut BTreeMap<Slot, i64>,
     ret_slot: Option<&Slot>,
+    callees: &BTreeMap<String, PirBody>,
+    depth: usize,
 ) -> Result<Option<i64>, ConcErr> {
     for st in stmts {
         match &st.kind {
@@ -1309,6 +1424,46 @@ fn simulate(
                     .get(of)
                     .ok_or_else(|| ConcErr::Reason(format!("{name}: 模擬讀取未定義判別值")))?;
                 values.insert(st.dst.clone(), *d);
+            }
+            PirStmtKind::Call { callee, args } => {
+                // C5：本地純函數調用——遞迴模擬 callee body（值語義），
+                // ret 寫入 dst 槽。enum 值傳參／ADT ret 屬後續 slice。
+                if depth >= CALL_DEPTH_CAP {
+                    return Err(ConcErr::Reason(format!(
+                        "{name}: 調用鏈深度超限 {CALL_DEPTH_CAP}（遞迴／超深調用）"
+                    )));
+                }
+                let cb = callees.get(callee).ok_or_else(|| {
+                    ConcErr::Reason(format!("{name}: callee `{callee}` 唔可模擬（body 缺失）"))
+                })?;
+                if !cb.enum_params.is_empty() {
+                    return Err(ConcErr::Reason(format!(
+                        "{name}: callee `{callee}` 帶 enum 參數（enum 值傳參屬後續 slice）"
+                    )));
+                }
+                if args.len() != cb.arg_count {
+                    return Err(ConcErr::Reason(format!(
+                        "{name}: 實參數 {} ≠ callee `{callee}` 參數數 {}",
+                        args.len(),
+                        cb.arg_count
+                    )));
+                }
+                let mut init: BTreeMap<Slot, i64> = BTreeMap::new();
+                for (k, a) in args.iter().enumerate() {
+                    let v = slot_or_const(a, values).ok_or_else(|| {
+                        ConcErr::Reason(format!(
+                            "{name}: 實參 {k} 無模擬值（enum 值傳參屬後續 slice）"
+                        ))
+                    })?;
+                    init.insert(Slot::whole(k + 1), v);
+                }
+                let out = simulate_body(cb, &init, callees, depth + 1)?;
+                let rv = out.ret.ok_or_else(|| {
+                    ConcErr::Reason(format!(
+                        "{name}: callee `{callee}` 無模擬 ret 值（ADT ret 屬後續 slice）"
+                    ))
+                })?;
+                values.insert(st.dst.clone(), rv);
             }
             PirStmtKind::Aggregate { fields, .. } => {
                 for (k, f) in fields.iter().enumerate() {
