@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
+
+[package]
+name = "polyrust-llbc"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+description = "polyrust 的 LLBC 前端：真 serde_json 文本解析 → core 零依賴 Value 樹（core [dependencies] 仍為空）"
+
+[lib]
+name = "polyrust_llbc"
+path = "src/lib.rs"
+
+[dependencies]
+polyrust-core = { path = "../../core" }
+serde_json = { workspace = true }

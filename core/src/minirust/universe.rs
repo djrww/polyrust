@@ -685,7 +685,7 @@ pub fn parse_type_v2(s: &str) -> Result<TypeV2, String> {
             }
         }
         parts.push(inner[start..].trim());
-        let tys: Result<Vec<TypeV2>, String> = parts.into_iter().filter(|p| !p.is_empty()).map(|p| parse_type_v2(p)).collect();
+        let tys: Result<Vec<TypeV2>, String> = parts.into_iter().filter(|p| !p.is_empty()).map(parse_type_v2).collect();
         return Ok(TypeV2::Ext(ExtType::Tuple(tys?)));
     }
     if s.starts_with('[') && s.ends_with(']') {

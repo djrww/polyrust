@@ -27,3 +27,9 @@ path = "src/bench_f4f5.rs"
 
 [dependencies]
 # 刻意留空——這是本核心不變的承諾。
+
+[dev-dependencies]
+# 測試行真 serde_json 解析（同 `frontends/llbc` 嘅產品入口同源邏輯）；
+# dev-only，釋出物 [dependencies] 仍然為空，零第三方依賴承諾不變。
+# （曾試 dev-dep 循環 core→frontends/llbc：型別雙實例唔 unify，棄用。）
+serde_json = { workspace = true }

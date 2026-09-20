@@ -186,7 +186,7 @@ pub fn parse_impl_def(text: &str) -> Option<ImplDef> {
         let parts: Vec<&str> = rest.splitn(2, " for ").collect();
         let trait_part = parts[0].trim();
         // 去掉泛型參數
-        let trait_name = trait_part.split('<').next().unwrap().trim().split_whitespace().last().unwrap_or(trait_part).to_string();
+        let trait_name = trait_part.split('<').next().unwrap().split_whitespace().last().unwrap_or(trait_part).to_string();
         let for_ty = parts[1].split('{').next().unwrap().trim().to_string();
         (Some(trait_name), for_ty)
     } else {

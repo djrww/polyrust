@@ -468,7 +468,7 @@ pub fn div_rem(f: &Poly, gs: &[Poly], ord: Order) -> Poly {
     let mut guard = 0usize;
     while !terms.is_empty() {
         guard += 1;
-        if std::env::var("GB_DBG").is_ok() && guard % 20_000 == 0 {
+        if std::env::var("GB_DBG").is_ok() && guard.is_multiple_of(20_000) {
             eprintln!("    div_rem step {} terms {}", guard, terms.len());
         }
         assert!(guard < 2_000_000, "除法步數超限");

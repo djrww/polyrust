@@ -213,7 +213,7 @@ test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 
 
 stderr:    Compiling reactive_ui_request_txt v0.1.0 (/tmp/polyrust_native/cargo_check_reactive_ui_request_txt)
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
      Running unittests src/main.rs (/tmp/polyrust_native/cargo_check_reactive_ui_request_txt/target/debug/deps/reactive_ui_request_txt-dc0b9e8b2d3d53c5)
 
 ```

@@ -10,7 +10,6 @@
 //! ensure 子句：C4 只**收集+報告**（檢查面統計）——屬性證明（UNS/premise 反證）屬後續里程碑，
 //! 唔准喺度扮已 enforce。
 
-use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ClauseKind {
@@ -66,7 +65,7 @@ fn try_exact_eq(expr: &str, param_names: &[String]) -> Option<(String, i128)> {
 }
 
 fn has_arith_term_shape(side: &str, param_names: &[String]) -> bool {
-    let mut parts = side.split(|c| c == '+' || c == '-' || c == '*' || c == '/' || c == '%');
+    let mut parts = side.split(['+', '-', '*', '/', '%']);
     side.chars().all(|c| c.is_whitespace() || c.is_alphabetic() || c=='_' || c.is_ascii_digit() || "+-*/%()".contains(c))
         && parts.all(|p| is_term(p, param_names) || p.trim().parse::<i128>().is_ok())
 }

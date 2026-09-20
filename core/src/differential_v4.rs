@@ -40,10 +40,10 @@ pub const BASIC_FIXTURES: [(&str, &str); 10] = [
     ("sum_range", include_str!("../tests/charon_fixtures/sum_range.llbc")),
 ];
 
-pub fn run_case(name: &'static str, fixture: &str) -> DiffRow {
-    let root = LlbcRoot::parse(fixture).expect("fixture parse");
+/// 差分一行：接收已 parse 好嘅樹（文本→樹喺 `polyrust_llbc` 前端，core lib 不碰文本）。
+pub fn run_case(name: &'static str, root: &LlbcRoot) -> DiffRow {
     let t0 = Instant::now();
-    let out = analyze_module(&root).expect("analyze");
+    let out = analyze_module(root).expect("analyze");
     DiffRow {
         case: name,
         v3_sat: true, // basic 全類 expected SAT（semantic_matrix should_sat=true）
@@ -53,6 +53,15 @@ pub fn run_case(name: &'static str, fixture: &str) -> DiffRow {
         npolys: out.npolys,
         markers: out.bounded_markers,
         ms: t0.elapsed().as_millis(),
+    }
+}
+
+/// rustc E-code reject → v4 判定（UNSatisfied，同 legacy 口徑）
+pub fn reject_to_verdict(rustc_rejected: bool) -> V4Verdict {
+    if rustc_rejected {
+        V4Verdict::Unsat
+    } else {
+        V4Verdict::Unknown("not-rejected placeholder".into())
     }
 }
 
@@ -66,7 +75,8 @@ mod tests {
         let mut fail = Vec::new();
         let mut rows = Vec::new();
         for (name, fixture) in BASIC_FIXTURES {
-            let row = run_case(name, fixture);
+            let root = crate::charon_llbc::root_for_test(fixture).expect("fixture parse");
+            let row = run_case(name, &root);
             let v4_sat = matches!(row.v4, V4Verdict::Sat);
             eprintln!(
                 "DIFF {case:<10} v3=SAT v4={v4:?} 一致={ok} paths={paths} vars={nvars} polys={npolys} markers={markers:?} {ms}ms",
@@ -128,7 +138,7 @@ mod tests {
         ];
         let mut fail = Vec::new();
         for (n, f) in STRUCT15 {
-            let root = LlbcRoot::parse(f).unwrap_or_else(|e| panic!("{n} parse: {e}"));
+            let root = crate::charon_llbc::root_for_test(f).unwrap_or_else(|e| panic!("{n} parse: {e}"));
             let o = analyze_module(&root).unwrap_or_else(|e| panic!("{n} analyze: {e}"));
             eprintln!("C4-STRUCT {n:<22} v4={:?} vars={} paths={} asserts={:?} markers={:?}",
                 o.verdict, o.nvars, o.paths, o.assert_obligations, o.bounded_markers);
@@ -157,7 +167,7 @@ mod tests {
         ];
         let mut judged = 0;
         for (n, f) in COMMERCIAL10 {
-            let root = LlbcRoot::parse(f).unwrap();
+            let root = crate::charon_llbc::root_for_test(f).unwrap();
             let o = analyze_module(&root).unwrap();
             eprintln!("C4-COMMERCIAL {n:<16} v4={:?} vars={} assert-面={:?} markers={:?}",
                 o.verdict, o.nvars, o.assert_obligations, o.bounded_markers);
@@ -178,7 +188,7 @@ mod tests {
         let src = "# @intent square\n# @require x == 3\n# @ensure result == x * x\nfn sqr(x: i32) -> i32 { x * x }";
         let contract = parse_contract(src, &["x".to_string(), "result".to_string()]);
         assert_eq!(contract.requires[0].kind, ClauseKind::ExactEq);
-        let root = LlbcRoot::parse(include_str!("../tests/charon_fixtures/sqr.llbc")).unwrap();
+        let root = crate::charon_llbc::root_for_test(include_str!("../tests/charon_fixtures/sqr.llbc")).unwrap();
         let mut opts = V4Opts::default();
         opts.contract = Some(contract);
         let o = analyze_module_with(&root, opts).unwrap();
@@ -208,7 +218,7 @@ mod tests {
     fn lazy_eager_timing_table() {
         eprintln!("--- lazy/eager 時延對表（報告，非斷言）---");
         for (name, fixture) in BASIC_FIXTURES {
-            let root = LlbcRoot::parse(fixture).unwrap();
+            let root = crate::charon_llbc::root_for_test(fixture).unwrap();
             let t0 = Instant::now();
             let _ = analyze_module(&root).unwrap();
             let cold = t0.elapsed().as_micros();
@@ -217,14 +227,5 @@ mod tests {
             let warm = t1.elapsed().as_micros();
             eprintln!("TIMING {name:<10} cold={cold}us warm={warm}us");
         }
-    }
-}
-
-/// rustc E-code reject → v4 判定（UNSatisfied，同 legacy 口徑）
-pub fn reject_to_verdict(rustc_rejected: bool) -> V4Verdict {
-    if rustc_rejected {
-        V4Verdict::Unsat
-    } else {
-        V4Verdict::Unknown("not-rejected placeholder".into())
     }
 }

@@ -29,7 +29,7 @@ impl UniPoly {
         p
     }
     fn trim(&mut self) {
-        while self.c.last().map_or(false, |k| k.is_zero()) {
+        while self.c.last().is_some_and(|k| k.is_zero()) {
             self.c.pop();
         }
     }
@@ -66,7 +66,7 @@ impl UniPoly {
         let mut c = vec![Fp::zero(); self.c.len() + o.c.len() - 1];
         for (i, &a) in self.c.iter().enumerate() {
             for (j, &b) in o.c.iter().enumerate() {
-                c[i + j] = c[i + j] + a * b;
+                c[i + j] += a * b;
             }
         }
         UniPoly::from_coeffs(c)
@@ -89,7 +89,7 @@ impl UniPoly {
         let inv_lead = d.c[dd].inv();
         let mut r = self.clone();
         let mut q = vec![Fp::zero(); self.c.len().saturating_sub(dd).max(1)];
-        while r.deg().map_or(false, |rd| rd >= dd) {
+        while r.deg().is_some_and(|rd| rd >= dd) {
             let rd = r.deg().unwrap();
             let shift = rd - dd;
             let k = r.c[rd] * inv_lead;
@@ -142,7 +142,7 @@ impl R1cs {
     pub fn eval_linear(l: &Linear, z: &[Fp]) -> Fp {
         let mut acc = Fp::zero();
         for &(w, k) in l {
-            acc = acc + k * z[w];
+            acc += k * z[w];
         }
         acc
     }
@@ -307,7 +307,7 @@ impl Qap {
         let mut z_bad = z.to_vec();
         let mut tamper_rejected = true;
         if z_bad.len() > 1 {
-            z_bad[1] = z_bad[1] + Fp::one();
+            z_bad[1] += Fp::one();
             tamper_rejected = !self.verify(&z_bad);
         }
         QapCertificate {

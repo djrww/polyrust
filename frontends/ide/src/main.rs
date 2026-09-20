@@ -131,7 +131,7 @@ struct ProjectResp {
 async fn main() {
     let args: Vec<String> = std::env::args().collect();
     let port: u16 = args.get(1).and_then(|p| p.parse().ok()).unwrap_or(8080);
-    let root = args.get(2).map(|p| PathBuf::from(p)).unwrap_or_else(|| std::env::current_dir().unwrap());
+    let root = args.get(2).map(PathBuf::from).unwrap_or_else(|| std::env::current_dir().unwrap());
 
     let state = IdeState {
         files: Arc::new(RwLock::new(HashMap::new())),
@@ -277,10 +277,10 @@ async fn file_tree_handler(State(state): State<IdeState>, Query(q): Query<FileTr
             file_type: "dir".into(),
             size: None,
         };
-        for (path, _) in files.iter() {
+        for path in files.keys() {
             let parts: Vec<&str> = path.split('/').collect();
             let name = parts.last().unwrap_or(&path.as_str()).to_string();
-            let ext = if name.contains('.') { name.split('.').last().unwrap_or("").to_string() } else { "file".into() };
+            let ext = if name.contains('.') { name.split('.').next_back().unwrap_or("").to_string() } else { "file".into() };
             root.children.push(FileNode {
                 path: path.clone(),
                 name,
@@ -343,7 +343,7 @@ async fn compile_handler(State(state): State<IdeState>, Json(req): Json<CompileR
     let result = polyrust_core::pipeline_v3::run_pipeline_v3_with_config(&source_name, &content, None, &config);
 
     let mut diags = Vec::new();
-    let mut rust_code: Option<String> = None;
+    let mut rust_code: Option<String>;
     let mut poly_code: Option<String> = None;
     let mut qap_verified = false;
     let mut risk_score = 0.0;
@@ -593,7 +593,7 @@ async fn commercial_handler(Json(req): Json<CommercialReq>) -> impl IntoResponse
             }).into_response()
         }
         Err(e) => {
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"success": false, "error": format!("{}", e), "elapsed_ms": elapsed}))).into_response()
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"success": false, "error": e.to_string(), "elapsed_ms": elapsed}))).into_response()
         }
     }
 }

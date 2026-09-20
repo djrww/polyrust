@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
 //! Surface AST → MiniRustFull IR 的中間表示
 //! 本文件是 v0.2 擴展的骨架，展示如何把新特性降維至核心管線
+//!
+//! 資料保真聲明（2026-09-20 審查）：呢度嘅 enum variant/struct field 係
+//! parse 層完整保留（例如 generics、lifetimes、is_pub、methods、sig/body），
+//! lowering 只消費子集——「未被讀/未構造」屬設計預留，唔係死代碼。
+#![allow(dead_code)]
 
 use std::collections::HashMap;
 
@@ -169,7 +174,7 @@ pub fn lower_to_core_poly(surface: &SurfaceFile, original_src: &str) -> String {
     out.push_str(&format!("# @intent: {}\n", surface.intent.as_deref().unwrap_or("v0.2 lowered")));
     out.push_str("# @lowered-from: v0.2\n");
     out.push_str(&format!("# @features: {}\n", surface.features_used.join(",")));
-    out.push_str("\n");
+    out.push('\n');
 
     // 對新特性的降維註解
     for item in &surface.items {

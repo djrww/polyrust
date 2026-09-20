@@ -1069,6 +1069,12 @@ pub struct RustProjectTransformer {
     pub ctx: PolyDSLContext,
     pub type_map: HashMap<String, usize>,
 }
+impl Default for RustProjectTransformer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RustProjectTransformer {
     pub fn new() -> Self {
         RustProjectTransformer { ctx: PolyDSLContext::new(), type_map: HashMap::new() }
@@ -1275,13 +1281,12 @@ pub fn transform_rust_source(source_name: &str, rust_source: &str) -> TransformR
     for line in &lines {
         let t = line.trim();
         if t.is_empty() || t.starts_with("//") { continue; }
-        if t.starts_with("fn ") || t.starts_with("async fn ") || t.contains("fn ") && t.contains('(') && !t.starts_with("use") {
-            if t.starts_with("fn ") || t.starts_with("pub fn ") || t.starts_with("async fn ") || t.starts_with("pub async fn ") {
+        if (t.starts_with("fn ") || t.starts_with("async fn ") || t.contains("fn ") && t.contains('(') && !t.starts_with("use"))
+            && (t.starts_with("fn ") || t.starts_with("pub fn ") || t.starts_with("async fn ") || t.starts_with("pub async fn ")) {
                 let name = t.split_whitespace().find(|w| w.contains('(')).unwrap_or("anon").split('(').next().unwrap_or("anon").trim_matches(|c: char| !c.is_alphanumeric() && c!='_').to_string();
                 let name = if name.is_empty() { "anon".to_string() } else { name };
                 items.push(RustItem::Fn { name, params: vec![], ret: "i32".to_string(), body: t.to_string() });
             }
-        }
         if t.starts_with("struct ") || t.starts_with("pub struct ") {
             let name = t.split_whitespace().nth(2).or_else(|| t.split_whitespace().nth(1)).unwrap_or("Anon").trim_end_matches('{').trim().trim_end_matches(';').to_string();
             items.push(RustItem::Struct { name, fields: vec![("x".to_string(), "i32".to_string())] });

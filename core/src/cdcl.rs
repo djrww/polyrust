@@ -14,7 +14,7 @@ pub fn lit_var(l: Lit) -> usize {
     (l / 2) as usize
 }
 pub fn lit_positive(l: Lit) -> bool {
-    l % 2 == 0
+    l.is_multiple_of(2)
 }
 pub fn lit_neg(l: Lit) -> Lit {
     l ^ 1

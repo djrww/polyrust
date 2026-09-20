@@ -165,7 +165,7 @@ impl StdlibRegistry {
             } else if p.starts_with("HashMap<") {
                 let inner = p["HashMap<".len()..].trim_end_matches('>').trim();
                 let kv = Self::split_type_list(inner);
-                let k = kv.get(0).map(|s| s.trim()).unwrap_or("String");
+                let k = kv.first().map(|s| s.trim()).unwrap_or("String");
                 let v = kv.get(1).map(|s| s.trim()).unwrap_or("i32");
                 reg.register_hashmap(p.clone(), HashMapEncoding::new(0,1,2,k,v));
             }
@@ -197,8 +197,8 @@ pub fn r1cs_for_stdlib(type_uni: &str) -> Vec<String> {
         let p = p.trim();
         if p.starts_with("Vec<") {
             out.push(format!("// Vec {} : len <= cap", p));
-            out.push(format!("cap - len - slack =0"));
-            out.push(format!("// push: len' = len +1"));
+            out.push("cap - len - slack =0".to_string());
+            out.push("// push: len' = len +1".to_string());
         } else if p.contains("String") && !p.starts_with("HashMap") {
             out.push("// String : Vec<u8> + utf8".to_string());
             out.push("// utf8 valid sequence check".to_string());

@@ -1628,7 +1628,7 @@ pub fn cmd_txt_feedback(args: &[String], json: bool) -> i32 {
     
     match sub {
         "create-samples" | "create" => {
-            let dir = args.get(3).map(|s| PathBuf::from(s)).unwrap_or_else(|| PathBuf::from("examples/txt_feedback"));
+            let dir = args.get(3).map(PathBuf::from).unwrap_or_else(|| PathBuf::from("examples/txt_feedback"));
             match create_sample_txt_files(&dir) {
                 Ok(paths) => {
                     if json {
@@ -1687,7 +1687,7 @@ Complete: {}
             0
         }
         "single" | "file" => {
-            let txt_path = args.get(3).map(|s| PathBuf::from(s)).unwrap_or_else(|| PathBuf::from("examples/txt_feedback/ide_request.txt"));
+            let txt_path = args.get(3).map(PathBuf::from).unwrap_or_else(|| PathBuf::from("examples/txt_feedback/ide_request.txt"));
             match txt_file_to_poly_closed_loop(&txt_path) {
                 Ok(result) => {
                     if json {
@@ -1745,7 +1745,7 @@ Output: {}
         _ => {
             // batch
             let dir = if sub == "batch" {
-                args.get(3).map(|s| PathBuf::from(s)).unwrap_or_else(|| PathBuf::from("examples/txt_feedback"))
+                args.get(3).map(PathBuf::from).unwrap_or_else(|| PathBuf::from("examples/txt_feedback"))
             } else {
                 PathBuf::from(sub) // 如果直接傳目錄
             };
@@ -1768,7 +1768,7 @@ Output: {}
 ", dir, results.len());
                 for r in &results {
                     println!("- {} | NL: {} | Original missing: syntax={} semantics={} meaning={} | Supplemented complete: {} | Func: {:?} | {}ms",
-                        r.txt_file, &r.original_nl.chars().take(50).collect::<String>(), 
+                        r.txt_file, r.original_nl.chars().take(50).collect::<String>(), 
                         r.analysis.missing_syntax.len(), r.analysis.missing_semantics.len(), r.analysis.missing_meaning.len(),
                         r.supplemented_analysis.is_complete(), r.functional_passed, r.duration_ms);
                 }
@@ -1798,7 +1798,7 @@ pub fn cmd_native_bidirectional(args: &[String], json: bool) -> i32 {
     
     match sub {
         "create-samples" | "create" => {
-            let dir = args.get(3).map(|s| PathBuf::from(s)).unwrap_or_else(|| PathBuf::from("examples/txt_feedback"));
+            let dir = args.get(3).map(PathBuf::from).unwrap_or_else(|| PathBuf::from("examples/txt_feedback"));
             match create_bidirectional_samples(&dir) {
                 Ok(paths) => {
                     if json {
@@ -1916,7 +1916,7 @@ pub fn cmd_native_bidirectional(args: &[String], json: bool) -> i32 {
             0
         }
         "single" | "file" => {
-            let txt_path = args.get(3).map(|s| PathBuf::from(s)).unwrap_or_else(|| PathBuf::from("examples/txt_feedback/ide_request.txt"));
+            let txt_path = args.get(3).map(PathBuf::from).unwrap_or_else(|| PathBuf::from("examples/txt_feedback/ide_request.txt"));
             match bidirectional_txt_to_rust_to_poly(&txt_path) {
                 Ok(result) => {
                     if json {
@@ -2024,7 +2024,7 @@ pub fn cmd_native_bidirectional(args: &[String], json: bool) -> i32 {
         _ => {
             // batch
             let dir = if sub == "batch" {
-                args.get(3).map(|s| PathBuf::from(s)).unwrap_or_else(|| PathBuf::from("examples/txt_feedback"))
+                args.get(3).map(PathBuf::from).unwrap_or_else(|| PathBuf::from("examples/txt_feedback"))
             } else {
                 PathBuf::from(sub)
             };
@@ -2047,7 +2047,7 @@ pub fn cmd_native_bidirectional(args: &[String], json: bool) -> i32 {
                 println!("# Native Bidirectional Batch — {:?} — {} files\n", dir, results.len());
                 for r in &results {
                     println!("- {} | NL: {} | Syntax: {} AST: {} MIR: {} | FullyComplete: {} | Func: {:?} | NativeCompile: {:?} | {}ms",
-                        r.txt_file, &r.original_nl.chars().take(40).collect::<String>(),
+                        r.txt_file, r.original_nl.chars().take(40).collect::<String>(),
                         r.syntax_analysis.is_complete(), r.ast_analysis.is_complete, r.mir_analysis.is_complete,
                         r.is_fully_complete, r.functional_passed, r.native_toolchain.as_ref().map(|n| n.compile_success),
                         r.duration_ms);
@@ -2068,7 +2068,7 @@ pub fn cmd_commercial_pipeline(args: &[String], json: bool) -> i32 {
 
     match sub {
         "create-samples" | "create" => {
-            let dir = args.get(3).map(|s| PathBuf::from(s)).unwrap_or_else(|| PathBuf::from("examples/txt_feedback"));
+            let dir = args.get(3).map(PathBuf::from).unwrap_or_else(|| PathBuf::from("examples/txt_feedback"));
             match create_commercial_samples(&dir) {
                 Ok(paths) => {
                     if json {
@@ -2093,7 +2093,7 @@ pub fn cmd_commercial_pipeline(args: &[String], json: bool) -> i32 {
             }
         }
         "single" | "file" => {
-            let path = args.get(3).map(|s| PathBuf::from(s)).unwrap_or_else(|| PathBuf::from("examples/txt_feedback/ide_request.txt"));
+            let path = args.get(3).map(PathBuf::from).unwrap_or_else(|| PathBuf::from("examples/txt_feedback/ide_request.txt"));
             let config = CommercialPipelineConfig::default();
             match run_commercial_pipeline_from_file(&path, &config) {
                 Ok(result) => {
@@ -2217,7 +2217,7 @@ pub fn cmd_commercial_pipeline(args: &[String], json: bool) -> i32 {
         _ => {
             // batch
             let dir = if sub == "batch" {
-                args.get(3).map(|s| PathBuf::from(s)).unwrap_or_else(|| PathBuf::from("examples/txt_feedback"))
+                args.get(3).map(PathBuf::from).unwrap_or_else(|| PathBuf::from("examples/txt_feedback"))
             } else {
                 PathBuf::from(sub)
             };

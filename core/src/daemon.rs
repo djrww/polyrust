@@ -135,7 +135,7 @@ fn run_cmd_with_timeout_daemon(mut cmd: std::process::Command, timeout_secs: u64
 
 pub fn run_functional_test(generated_rust: &str, name: &str) -> (bool, String) {
     ensure_rustc_for_daemon();
-    let sanitized = name.replace('.', "_").replace('-', "_").replace(' ', "_").replace('/', "_");
+    let sanitized = name.replace(['.', '-', ' ', '/'], "_");
     let tmp_dir = PathBuf::from("/tmp/polyrust_daemon");
     let _ = std::fs::create_dir_all(&tmp_dir);
     let rs_file = tmp_dir.join(format!("{}_gen.rs", sanitized));
@@ -147,13 +147,11 @@ pub fn run_functional_test(generated_rust: &str, name: &str) -> (bool, String) {
     }
     
     // rustc 编译 — 尝试多个路径，因为 daemon 环境 PATH 可能不含 rustc，带超时避免卡死
-    let candidates = vec![
-        std::env::var("RUSTC").unwrap_or_default(),
+    let candidates = [std::env::var("RUSTC").unwrap_or_default(),
         "/home/user/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc".to_string(),
         "/home/user/.cargo/bin/rustc".to_string(),
         "/root/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc".to_string(),
-        "rustc".to_string(),
-    ];
+        "rustc".to_string()];
     let mut output_opt: Option<std::process::Output> = None;
     let mut last_err = String::new();
     for rustc_path in candidates.iter().filter(|p| !p.is_empty()) {
@@ -631,7 +629,7 @@ fn main() {
         let dir = possible.into_iter().find(|p| p.exists()).unwrap_or_else(|| PathBuf::from("examples/pipeline_v3"));
         let results = run_daemon_once(&dir);
         // 至少处理了 1 个 example (可能环境不同)
-        assert!(results.len() >= 1, "should process at least 1 file, got {} dir={:?}", results.len(), dir);
+        assert!(!results.is_empty(), "should process at least 1 file, got {} dir={:?}", results.len(), dir);
         // 检查有功能测试结果
         let has_test = results.iter().any(|r| r.functional_test_passed.is_some());
         assert!(has_test);

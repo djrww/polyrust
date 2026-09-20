@@ -72,11 +72,10 @@ pub fn lift(root: &LlbcRoot) -> PolyModule {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::charon_llbc::LlbcRoot;
 
     #[test]
     fn lift_sqr_fixture() {
-        let root = LlbcRoot::parse(include_str!("../tests/charon_fixtures/sqr.llbc")).unwrap();
+        let root = crate::charon_llbc::root_for_test(include_str!("../tests/charon_fixtures/sqr.llbc")).unwrap();
         let m = lift(&root);
         assert_eq!(m.crate_name, "input");
         assert_eq!(m.funs.len(), 1);
@@ -88,7 +87,7 @@ mod tests {
 
     #[test]
     fn lift_async_fixture_marks_missing() {
-        let root = LlbcRoot::parse(include_str!("../tests/charon_fixtures/async_simple.llbc")).unwrap();
+        let root = crate::charon_llbc::root_for_test(include_str!("../tests/charon_fixtures/async_simple.llbc")).unwrap();
         let m = lift(&root);
         assert!(m.has_missing);
         assert_eq!(m.missing_body_count(), 1, "async body=Error → 1 missing");

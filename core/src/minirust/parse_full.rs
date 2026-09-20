@@ -174,7 +174,7 @@ pub fn parse_full_type_str(s: &str) -> Result<FullType, String> {
         // 若 v2 已是 Tuple/Array/Slice/BareFn 等，轉為 FullType 對應變體以滿足要求
         match v2 {
             TypeV2::Ext(ExtType::Tuple(ts)) => {
-                let full_ts: Vec<FullType> = ts.into_iter().map(|t| FullType::V2(t)).collect();
+                let full_ts: Vec<FullType> = ts.into_iter().map(FullType::V2).collect();
                 return Ok(FullType::Tuple(full_ts));
             }
             TypeV2::Ext(ExtType::Array { elem, len }) => {
@@ -184,7 +184,7 @@ pub fn parse_full_type_str(s: &str) -> Result<FullType, String> {
                 return Ok(FullType::Slice(Box::new(FullType::V2(*elem))));
             }
             TypeV2::Ext(ExtType::BareFn { params, ret }) => {
-                let full_params: Vec<FullType> = params.into_iter().map(|p| FullType::V2(p)).collect();
+                let full_params: Vec<FullType> = params.into_iter().map(FullType::V2).collect();
                 return Ok(FullType::BareFn { params: full_params, ret: Box::new(FullType::V2(*ret)), is_unsafe: false, is_async: false });
             }
             _ => {
@@ -269,7 +269,7 @@ fn find_top_level_char(s: &str, target: char) -> Option<usize> {
             '(' => depth_paren += 1,
             ')' => if depth_paren > 0 { depth_paren -= 1; },
             '[' => depth_brack += 1,
-            ']' => if depth_brack > 0 { depth_brack -= 1; },
+            ']' if depth_brack > 0 => { depth_brack -= 1; },
             _ => {}
         }
         if c == target && depth_angle == 0 && depth_paren == 0 && depth_brack == 0 {
@@ -292,7 +292,7 @@ fn split_top_level(s: &str, delim: char) -> Vec<String> {
             '(' => depth_paren += 1,
             ')' => if depth_paren > 0 { depth_paren -= 1; },
             '[' => depth_brack += 1,
-            ']' => if depth_brack > 0 { depth_brack -= 1; },
+            ']' if depth_brack > 0 => { depth_brack -= 1; },
             _ => {}
         }
         if c == delim && depth_angle == 0 && depth_paren == 0 && depth_brack == 0 {
@@ -688,12 +688,12 @@ pub fn examples_to_poly_code() -> String {
         stats_full.n_full_items, stats_full.n_structs, stats_full.n_enums, stats_full.n_fns));
     out.push_str("# @fuel: 5\n");
     out.push_str("# @pure: true\n");
-    out.push_str("\n");
+    out.push('\n');
 
     // 基礎類型 universe 展示
     out.push_str(&format!("// Universe N={} = 7 + {}\n", prog_v2.universe.n_types(), prog_v2.universe.n_ext()));
     out.push_str(&prog_v2.universe.display());
-    out.push_str("\n");
+    out.push('\n');
 
     // 正例類型作為 type alias
     out.push_str("// === Positive FullType Examples (from super::ast_full) ===\n");
@@ -703,14 +703,14 @@ pub fn examples_to_poly_code() -> String {
         let alias_name = format!("Ty{}", idx);
         out.push_str(&format!("type {} = {};\n", alias_name, ty_str));
     }
-    out.push_str("\n");
+    out.push('\n');
 
     // 反例作為註釋（應解析失敗）
     out.push_str("// === Negative FullType Examples (should fail) ===\n");
     for (ty_str, desc) in negative_type_examples() {
         out.push_str(&format!("// NEG: `{}` — {} — expected parse error\n", ty_str, desc));
     }
-    out.push_str("\n");
+    out.push('\n');
 
     // 結構體 / 枚舉示例（來自 ast_v2）
     out.push_str("// === ast_v2 Examples (Struct/Enum/Const/Static/TypeAlias) ===\n");
@@ -727,14 +727,14 @@ pub fn examples_to_poly_code() -> String {
     out.push_str("pub type MyArray = [i32; 3];\n");
     out.push_str("pub type MySlice = [i32];\n");
     out.push_str("pub type MyFn = fn(i32) -> bool;\n");
-    out.push_str("\n");
+    out.push('\n');
 
     // 模式示例
     out.push_str("// === FullPat Positive Examples ===\n");
     for (pat_str, desc) in positive_pat_examples() {
         out.push_str(&format!("// Pat: `{}` — {}\n", pat_str, desc));
     }
-    out.push_str("\n");
+    out.push('\n');
 
     // 表達式示例作為 fn body
     out.push_str("fn example_exprs() {\n");
@@ -997,7 +997,7 @@ pub fn parse_full_list_and_compare_4_parses() -> (String, String, String) {
 
     // 覆蓋率對比
     let exhaustive = exhaustive_coverage_check();
-    comparison.push_str(&format!("\n窮舉覆蓋率 (來自 ast.rs):\n"));
+    comparison.push_str("\n窮舉覆蓋率 (來自 ast.rs):\n");
     comparison.push_str(&format!("  FullType: {}/{} {:.1}% missing={:?}\n", exhaustive.type_covered, exhaustive.type_total, exhaustive.type_pct, exhaustive.type_missing));
     comparison.push_str(&format!("  FullPat: {}/{} {:.1}% missing={:?}\n", exhaustive.pat_covered, exhaustive.pat_total, exhaustive.pat_pct, exhaustive.pat_missing));
     comparison.push_str(&format!("  FullExpr: {}/{} {:.1}% missing={:?}\n", exhaustive.expr_covered, exhaustive.expr_total, exhaustive.expr_pct, exhaustive.expr_missing));

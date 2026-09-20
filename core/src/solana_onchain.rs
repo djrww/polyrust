@@ -645,8 +645,8 @@ pub fn payload_from_v3_result(v3: &crate::pipeline_v3::PipelineV3Result) -> Sola
     let last = v3.iterations.last();
     SolanaQapPayload {
         source_name: v3.source_name.clone(),
-        r1cs_constraints: last.map(|it| it.n_vars).unwrap_or(100) as usize, // 簡化用 n_vars
-        r1cs_wires: last.map(|it| it.n_polys).unwrap_or(50) as usize,
+        r1cs_constraints: last.map(|it| it.n_vars).unwrap_or(100), // 簡化用 n_vars
+        r1cs_wires: last.map(|it| it.n_polys).unwrap_or(50),
         risk_score: v3.commercial.risk_score,
         qap_verified: last.and_then(|it| it.qap_verified).unwrap_or(false),
         qap_tamper_rejected: last.and_then(|it| it.qap_tamper_rejected).unwrap_or(false),

@@ -35,19 +35,16 @@ pub fn compare_parsers(src: &str) -> OracleReport {
             || miss.contains("try") || miss.contains("range") || miss.contains("cast") || miss.contains("Or") || miss.contains("or");
         if is_fixed_gap {
             let mut can_parse = false;
-            if miss.contains("closure") || src.contains("|x|") || src.contains("||") {
-                if polyrust_core::minirust::parse_expr::parse_expr_str("|x| x+1").is_ok() { can_parse = true; }
-            }
+            if (miss.contains("closure") || src.contains("|x|") || src.contains("||"))
+                && polyrust_core::minirust::parse_expr::parse_expr_str("|x| x+1").is_ok() { can_parse = true; }
             if miss.contains("return") && polyrust_core::minirust::parse_expr::parse_expr_str("return 5").is_ok() { can_parse = true; }
             if miss.contains("break") && polyrust_core::minirust::parse_expr::parse_expr_str("break").is_ok() { can_parse = true; }
             if miss.contains("try") && polyrust_core::minirust::parse_expr::parse_expr_str("x?").is_ok() { can_parse = true; }
-            if miss.contains("range") {
-                if polyrust_core::minirust::parse_pat::parse_pat_str("0..10").is_ok() || polyrust_core::minirust::parse_expr::parse_expr_str("0..10").is_ok() { can_parse = true; }
-            }
+            if miss.contains("range")
+                && (polyrust_core::minirust::parse_pat::parse_pat_str("0..10").is_ok() || polyrust_core::minirust::parse_expr::parse_expr_str("0..10").is_ok()) { can_parse = true; }
             if miss.contains("cast") && polyrust_core::minirust::parse_expr::parse_expr_str("x as i32").is_ok() { can_parse = true; }
-            if miss.contains("Or") || miss.contains("pat or") {
-                if polyrust_core::minirust::parse_pat::parse_pat_str("a | b").is_ok() { can_parse = true; }
-            }
+            if (miss.contains("Or") || miss.contains("pat or"))
+                && polyrust_core::minirust::parse_pat::parse_pat_str("a | b").is_ok() { can_parse = true; }
             if !can_parse { filtered_missing.push(miss); }
         } else {
             filtered_missing.push(miss);
@@ -77,16 +74,14 @@ pub fn compare_parsers(src: &str) -> OracleReport {
     if has_type_alias && !handwritten_prog.items.iter().any(|it| matches!(it, polyrust_core::minirust::ast_v2::ItemV2::TypeAlias(_))) {
         diff.push("type alias present but not parsed by handwritten".to_string());
     }
-    if src.contains("|") && src.contains("match") && src.contains("=>") {
-        if polyrust_core::minirust::parse_pat::parse_pat_str("a | b").is_err() {
+    if src.contains("|") && src.contains("match") && src.contains("=>")
+        && polyrust_core::minirust::parse_pat::parse_pat_str("a | b").is_err() {
             diff.push("Pat Or a|b present but handwritten PatParser failed".to_string());
         }
-    }
-    if src.contains("..") {
-        if polyrust_core::minirust::parse_expr::parse_expr_str("0..10").is_err() && polyrust_core::minirust::parse_pat::parse_pat_str("0..10").is_err() {
+    if src.contains("..")
+        && polyrust_core::minirust::parse_expr::parse_expr_str("0..10").is_err() && polyrust_core::minirust::parse_pat::parse_pat_str("0..10").is_err() {
             diff.push("Range .. present but both Pat and Expr parsers failed".to_string());
         }
-    }
 
     OracleReport {
         handwritten_items: handwritten_prog.items.len(),

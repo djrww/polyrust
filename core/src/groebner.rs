@@ -70,7 +70,7 @@ impl Ord for HeapItem {
     }
 }
 thread_local! {
-    static ORD_FOR_HEAP: std::cell::RefCell<Order> = std::cell::RefCell::new(Order::GrevLex);
+    static ORD_FOR_HEAP: std::cell::RefCell<Order> = const { std::cell::RefCell::new(Order::GrevLex) };
 }
 
 /// Buchberger 主循環。輸入生成元 fs（理想 J = ⟨fs⟩），輸出（未約化的）Gröbner 基。
@@ -121,7 +121,7 @@ pub fn buchberger(fs: &[Poly], ord: Order, strat: Strategy, use_criteria: bool) 
         };
         let (i, j) = sel;
         stats.pairs_considered += 1;
-        if std::env::var("GB_DBG").is_ok() && stats.pairs_considered % 200 == 0 {
+        if std::env::var("GB_DBG").is_ok() && stats.pairs_considered.is_multiple_of(200) {
             eprintln!("  pair#{} basis={} pairs_left={}", stats.pairs_considered, g.len(), pairs.len());
         }
 

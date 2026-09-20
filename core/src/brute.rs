@@ -203,7 +203,7 @@ pub fn cross_check_clauses(random_sets: usize, seed: u64) -> ClauseReport {
                 if satisfies(&a, cls) {
                     for lc in &learned {
                         rep.learned_checked += 1;
-                        if !satisfies(&a, &[lc.clone()]) {
+                        if !satisfies(&a, std::slice::from_ref(lc)) {
                             rep.mismatches.push(format!(
                                 "[{}] 學習子句 {:?} 不被模型 {:?} 蘊涵",
                                 idx, lc, a
@@ -397,7 +397,7 @@ pub fn cross_check_program(src: &str, rep: &mut BruteReport) {
 
     // ── 代數側判定 1：Gröbner 基（管線 S6 的判定核心）──
     let (red, _) = reduced_groebner(&merged, Order::GrevLex, Strategy::Normal, true);
-    let gb_sat = !(red.len() == 1 && red[0].is_constant().map_or(false, |c| c.is_one()));
+    let gb_sat = !(red.len() == 1 && red[0].is_constant().is_some_and(|c| c.is_one()));
 
     // ── 代數側判定 2：布爾求解見證 ──
     let sigma = solve_boolean(&merged, sys.nvars);

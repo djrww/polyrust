@@ -4,8 +4,8 @@
 //! 混合路線：DSL metadata 仍用 # @key 解析，body 用 syn
 
 use polyrust_core::minirust::ast_v2::{ProgramV2, ItemV2, StructDefV2, EnumDefV2, VariantV2, FnDefV2, FnSigV2, ImplDefV2, TraitDefV2, ModDefV2};
-use polyrust_core::minirust::universe::{TypeV2, BaseType, ExtType, Universe, parse_type_v2};
-use syn::{Item, File, Type, Fields, GenericParam, LifetimeParam, WherePredicate, Visibility};
+use polyrust_core::minirust::universe::{TypeV2, BaseType, ExtType, parse_type_v2};
+use syn::{Item, File, Type, Fields, GenericParam, Visibility};
 
 fn syn_type_to_typev2(ty: &Type) -> TypeV2 {
     // 簡化映射，盡量保留原文本
@@ -43,13 +43,13 @@ fn syn_type_to_typev2(ty: &Type) -> TypeV2 {
     }
     if raw.starts_with("&'") {
         // &'a mut T / &'a T
-        let mut is_mut = raw.contains("mut");
+        let is_mut = raw.contains("mut");
         let mut lifetime = None;
         // 提取 lifetime
         if let Some(start) = raw.find('\'') {
             let rest = &raw[start..];
-            let end = rest.find(|c: char| c == ' ' || c == '&').unwrap_or(rest.len());
-            let lt = rest[..end].trim().trim_end_matches(|c| c==',' || c=='>').to_string();
+            let end = rest.find([' ', '&']).unwrap_or(rest.len());
+            let lt = rest[..end].trim().trim_end_matches([',', '>']).to_string();
             // 確保以 ' 開頭
             if lt.starts_with('\'') {
                 lifetime = Some(lt);

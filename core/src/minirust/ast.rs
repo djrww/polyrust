@@ -634,7 +634,7 @@ impl ProgramV2 {
         let is_unsafe = first_line.contains("unsafe ");
         let fn_pos = first_line.find("fn ").unwrap_or(0);
         let after_fn = &first_line[fn_pos+3..];
-        let name_end = after_fn.find(|c: char| c == '(' || c == '<').unwrap_or(after_fn.len());
+        let name_end = after_fn.find(['(', '<']).unwrap_or(after_fn.len());
         let name = after_fn[..name_end].trim().to_string();
         let sig = FnSigV2 {
             name,
@@ -955,16 +955,12 @@ pub enum GenericParam {
 }
 
 #[derive(Clone, Debug)]
+#[derive(Default)]
 pub struct Generics {
     pub params: Vec<GenericParam>,
     pub where_clauses: Vec<WhereClause>,
 }
 
-impl Default for Generics {
-    fn default() -> Self {
-        Generics { params: vec![], where_clauses: vec![] }
-    }
-}
 
 #[derive(Clone, Debug)]
 pub struct WhereClause {
@@ -1979,7 +1975,7 @@ impl ExhaustiveCoverage {
     }
     pub fn display(&self) -> String {
         let mut s = String::new();
-        s.push_str(&format!("=== AST 窮舉覆蓋率報告 ===\n"));
+        s.push_str("=== AST 窮舉覆蓋率報告 ===\n");
         s.push_str(&format!("FullType: {}/{} {:.1}% covered={:?} missing={:?}\n", self.type_covered, self.type_total, self.type_pct, self.type_covered_names, self.type_missing));
         s.push_str(&format!("FullPat: {}/{} {:.1}% covered={:?} missing={:?}\n", self.pat_covered, self.pat_total, self.pat_pct, self.pat_covered_names, self.pat_missing));
         s.push_str(&format!("FullExpr: {}/{} {:.1}% covered={:?} missing={:?}\n", self.expr_covered, self.expr_total, self.expr_pct, self.expr_covered_names, self.expr_missing));

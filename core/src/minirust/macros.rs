@@ -183,7 +183,7 @@ impl Expander {
                 TTmpl::Ref(name) => {
                     if let Some((toks, _)) = bindings.get(name) {
                         // 表達式捕獲以括號保護（宏語義：$e:expr 是不可分的語法單元）
-                        let is_expr = bindings.get(name).map_or(false, |(_, e)| *e);
+                        let is_expr = bindings.get(name).is_some_and(|(_, e)| *e);
                         if is_expr && toks.len() > 1 {
                             out.push(Tok::LParen);
                             out.extend(toks.iter().cloned());

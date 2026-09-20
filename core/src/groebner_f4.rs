@@ -49,7 +49,7 @@ fn f4_select_pairs(pairs: &[(usize, usize)], lms: &[Mono], ord: Order) -> (Vec<(
     if pairs.is_empty() { return (vec![], vec![]); }
     let mut with_deg: Vec<((usize, usize), u32, Mono)> = pairs.iter().map(|&(i,j)| {
         let lcm = mono_lcm(&lms[i], &lms[j]);
-        let deg: u32 = lcm.iter().map(|&e| e as u32).sum();
+        let deg: u32 = lcm.iter().copied().sum();
         ((i,j), deg, lcm)
     }).collect();
     with_deg.sort_by(|a,b| a.1.cmp(&b.1).then_with(|| cmp_mono(&a.2, &b.2, ord)));
@@ -77,7 +77,7 @@ fn symbolic_preprocessing(
         for (m, _) in &p.terms { monos_set.insert(squarefree_mono(m)); }
     }
     let mut done: HashSet<Mono> = s_polys.iter().filter_map(|p| p.lm(ord)).map(|m| squarefree_mono(&m)).collect();
-    let mut todo: Vec<Mono> = monos_set.iter().cloned().filter(|m| !done.contains(m)).collect();
+    let mut todo: Vec<Mono> = monos_set.iter().filter(|&m| !done.contains(m)).cloned().collect();
     let mut reducers: Vec<Poly> = Vec::new();
 
     let mut lm_index: HashMap<usize, Vec<usize>> = HashMap::new();

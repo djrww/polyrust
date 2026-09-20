@@ -165,7 +165,7 @@ Cargo check:
 ```
 stdout: 
 stderr:     Checking missing_semantics_txt v0.1.0 (/tmp/polyrust_native/cargo_check_missing_semantics_txt)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.03s
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.02s
 
 ```
 
@@ -178,7 +178,7 @@ test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 
 
 stderr:    Compiling missing_semantics_txt v0.1.0 (/tmp/polyrust_native/cargo_check_missing_semantics_txt)
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
      Running unittests src/main.rs (/tmp/polyrust_native/cargo_check_missing_semantics_txt/target/debug/deps/missing_semantics_txt-428166731be1b694)
 
 ```

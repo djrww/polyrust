@@ -213,31 +213,26 @@ pub fn complement_ast_missing(poly: &str, ast_analysis: &AstTreeAnalysis, origin
     let nl_lower = original_nl.to_lowercase();
     
     for missing in &ast_analysis.missing_ast {
-        if missing.contains("FileTree") || missing.contains("IDE") {
-            if !supplemented.contains("FileTree") {
+        if (missing.contains("FileTree") || missing.contains("IDE"))
+            && !supplemented.contains("FileTree") {
                 supplemented.push_str("\n# LLM補AST: IDE需FileTree\npub struct FileNode { pub path: String, pub content: String }\nimpl FileNode { pub fn new(p: &str) -> Self { Self { path: p.to_string(), content: String::new() } } }\npub struct FileTree { pub nodes: Vec<FileNode> }\nimpl FileTree { pub fn new() -> Self { Self { nodes: Vec::new() } } }\n");
             }
-        }
-        if missing.contains("PasswordConfig") {
-            if !supplemented.contains("PasswordConfig") {
+        if missing.contains("PasswordConfig")
+            && !supplemented.contains("PasswordConfig") {
                 supplemented.push_str("\n# LLM補AST: 密碼需PasswordConfig\npub struct PasswordConfig { pub length: usize }\nimpl PasswordConfig { pub fn new(l: usize) -> Self { Self { length: l } } pub fn is_valid(&self) -> bool { self.length >= 8 } }\n");
             }
-        }
-        if missing.contains("check_balance") {
-            if !supplemented.contains("check_balance") {
+        if missing.contains("check_balance")
+            && !supplemented.contains("check_balance") {
                 supplemented.push_str("\n# LLM補AST: 轉賬需check_balance\nfn check_balance(b: i32, a: i32) -> bool { b >= a }\nfn transfer(b: i32, a: i32) -> i32 { if check_balance(b,a) { b-a } else { b } }\n");
             }
-        }
-        if missing.contains("sensor_read") {
-            if !supplemented.contains("sensor_read") {
+        if missing.contains("sensor_read")
+            && !supplemented.contains("sensor_read") {
                 supplemented.push_str("\n# LLM補AST: 嵌入式需sensor_read\nfn sensor_read(raw: i32) -> i32 { raw*2 }\nfn control_loop(s: i32) -> i32 { sensor_read(s) }\n");
             }
-        }
-        if missing.contains("VNode") {
-            if !supplemented.contains("VNode") {
+        if missing.contains("VNode")
+            && !supplemented.contains("VNode") {
                 supplemented.push_str("\n# LLM補AST: 響應式需VNode\npub struct VNode { pub tag: String, pub children: Vec<VNode> }\nimpl VNode { pub fn new(t: &str) -> Self { Self { tag: t.to_string(), children: Vec::new() } } }\n");
             }
-        }
         if missing.contains("無任何fn") {
             supplemented.push_str("\n# LLM補AST: 補fn main\nfn main() { println!(\"補AST main\"); }\n");
         }
@@ -292,7 +287,7 @@ pub fn ast_to_mir_layer(poly: &str) -> MirLayerAnalysis {
             match lower_program_with_stats(prog) {
                 Ok((lowered, stats)) => {
                     let mut mir_dump = String::with_capacity(2048);
-                    mir_dump.push_str(&format!("Lowered MIR {{\n"));
+                    mir_dump.push_str("Lowered MIR {\n");
                     mir_dump.push_str(&format!("  products: {} ({:?})\n", lowered.products.len(), lowered.products.keys().collect::<Vec<_>>()));
                     mir_dump.push_str(&format!("  sums: {} ({:?})\n", lowered.sums.len(), lowered.sums.keys().collect::<Vec<_>>()));
                     mir_dump.push_str(&format!("  generated: {} items\n", lowered.generated.len()));
@@ -379,11 +374,10 @@ pub fn complement_mir_missing(poly: &str, mir_analysis: &MirLayerAnalysis) -> St
     let mut supplemented = poly.to_string();
     
     for missing in &mir_analysis.missing_mir {
-        if missing.contains("universe N=0") {
-            if !supplemented.contains("# @import:") {
+        if missing.contains("universe N=0")
+            && !supplemented.contains("# @import:") {
                 supplemented = format!("# @import: basic — LLM補MIR: universe\n{}", supplemented);
             }
-        }
         if missing.contains("products為空") {
             supplemented.push_str("\n# LLM補MIR: 強制struct products\npub struct MirDummy { pub x: i32 }\n");
         }
@@ -496,7 +490,7 @@ fn run_cmd_with_timeout(mut cmd: std::process::Command, timeout_secs: u64) -> Op
 /// Rust -> Native Toolchain (rustc + MIR) — 增強版：解析真實MIR + cargo test + 防卡死
 pub fn rust_to_native_toolchain(rust_code: &str, name: &str) -> NativeToolchainResult {
     ensure_rustc_installed();
-    let sanitized = name.replace('.', "_").replace('-', "_").replace(' ', "_").replace('/', "_");
+    let sanitized = name.replace(['.', '-', ' ', '/'], "_");
     let tmp_dir = PathBuf::from("/tmp/polyrust_native");
     let _ = std::fs::create_dir_all(&tmp_dir);
     let rs_file = tmp_dir.join(format!("{}_native.rs", sanitized));
@@ -510,12 +504,10 @@ pub fn rust_to_native_toolchain(rust_code: &str, name: &str) -> NativeToolchainR
     let rustc_version = get_rustc_version();
     
     // 編譯
-    let candidates = vec![
-        std::env::var("RUSTC").unwrap_or_default(),
+    let candidates = [std::env::var("RUSTC").unwrap_or_default(),
         "/home/user/.cargo/bin/rustc".to_string(),
         "/home/user/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc".to_string(),
-        "rustc".to_string(),
-    ];
+        "rustc".to_string()];
     
     let mut compile_success = false;
     let mut compile_output = String::new();
@@ -593,12 +585,12 @@ MIR file: {} chars, funcs: {}", content.len(), parsed2.functions.len()));
     }
     
     // cargo check + cargo test 嘗試 (臨時項目)
-    let mut cargo_check_tried = false;
+    
     let mut cargo_check_success = false;
-    let mut cargo_output = String::new();
-    let mut cargo_test_tried = false;
+    let cargo_output: String;
+    
     let mut cargo_test_success = false;
-    let mut cargo_test_output = String::new();
+    let cargo_test_output: String;
     
     let cargo_tmp = tmp_dir.join(format!("cargo_check_{}", sanitized));
     let _ = std::fs::create_dir_all(&cargo_tmp);
@@ -616,7 +608,7 @@ edition = \"2021\"
 ", sanitized);
     let _ = std::fs::write(&cargo_toml, toml_content);
     
-    cargo_check_tried = true;
+    let cargo_check_tried: bool = true;
     let mut cargo_cmd = std::process::Command::new("cargo");
     cargo_cmd.arg("check").arg("--offline").arg("--manifest-path").arg(&cargo_toml);
     if let Some(out) = run_cmd_with_timeout(cargo_cmd, 15) {
@@ -630,7 +622,7 @@ stderr: {}",
     }
     
     // cargo test (multi-file support) — with timeout to avoid hang on infinite loop code
-    cargo_test_tried = true;
+    let cargo_test_tried: bool = true;
     let mut test_cmd = std::process::Command::new("cargo");
     test_cmd.arg("test").arg("--offline").arg("--manifest-path").arg(&cargo_toml).arg("--").arg("--nocapture");
     if let Some(out) = run_cmd_with_timeout(test_cmd, 20) {
@@ -852,7 +844,7 @@ pub fn bidirectional_txt_to_rust_to_poly(txt_path: &Path) -> Result<Bidirectiona
     let txt_content = std::fs::read_to_string(txt_path).map_err(|e| format!("read txt failed: {}", e))?;
     let original_nl = txt_content.trim().to_string();
     let txt_file_name_raw = txt_path.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "unknown.txt".to_string());
-    let txt_file_name = txt_file_name_raw.replace('.', "_").replace('-', "_").replace(' ', "_").replace('/', "_");
+    let txt_file_name = txt_file_name_raw.replace(['.', '-', ' ', '/'], "_");
     
     // Step 1: NL -> Poly (LLM)
     let llm_result = nl_to_poly_with_llm(&original_nl);
@@ -1043,7 +1035,7 @@ fn main() { println!("ok"); }
         let native = rust_to_native_toolchain(rust_code, "test_native");
         assert!(!native.rustc_version.is_empty());
         // compile 可能成功
-        assert!(native.compile_output.len() > 0 || native.compile_success);
+        assert!(!native.compile_output.is_empty() || native.compile_success);
     }
     
     #[test]

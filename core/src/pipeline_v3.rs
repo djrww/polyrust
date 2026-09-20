@@ -662,11 +662,10 @@ fn generate_audit_reports(
 pub fn check_convergence(prev: Option<&IterationStep>, curr: &IterationStep) -> bool {
     if let Some(p) = prev {
         // 如果连续两轮 SAT 且 vars/polys 稳定，且无新错误，认为收敛
-        if !p.is_unsat && !curr.is_unsat {
-            if p.n_vars == curr.n_vars && p.n_polys == curr.n_polys && p.borrow_conflicts == curr.borrow_conflicts {
+        if !p.is_unsat && !curr.is_unsat
+            && p.n_vars == curr.n_vars && p.n_polys == curr.n_polys && p.borrow_conflicts == curr.borrow_conflicts {
                 return true;
             }
-        }
         // 如果 UNSAT 状态稳定且错误相同，也算收敛 (需要修复)
         if p.is_unsat && curr.is_unsat && p.errors.len() == curr.errors.len() {
             return true;
@@ -682,7 +681,7 @@ fn select_groebner_algo_v3(
     config: &PipelineV3Config,
     iteration: usize,
 ) -> GroebnerAlgo {
-    if let Some(algo) = config.groebner_algo.clone() {
+    if let Some(algo) = config.groebner_algo {
         return algo;
     }
     // 风险驱动: 高风险强制 F4F5
@@ -751,8 +750,8 @@ pub fn run_pipeline_v3_with_config(
     let mut final_poly: Option<PolySource> = None;
 
     // 增量缓存: 記錄上一輪的 n_vars/n_polys + 全局 PolyCache hash→groebner_basis
-    let mut last_n_vars: Option<usize> = None;
-    let mut last_n_polys: Option<usize> = None;
+    let mut _last_n_vars: Option<usize> = None;
+    let mut _last_n_polys: Option<usize> = None;
 
     for iter in 0..config.max_iterations {
         let t_iter = Instant::now();
@@ -873,7 +872,7 @@ pub fn run_pipeline_v3_with_config(
         let algo = select_groebner_algo_v3(&v2_baseline, risk, config, iter);
 
         // 使用选定算法重新跑 v2 (获得精确 Groebner 统计)
-        let v2_result = match crate::pipeline_v2::run_pipeline_v2_with_algo(name, &poly.source, &poly, Some(algo.clone())) {
+        let v2_result = match crate::pipeline_v2::run_pipeline_v2_with_algo(name, &poly.source, &poly, Some(algo)) {
             Ok(r) => r,
             Err(_) => v2_baseline, // 回退到基线
         };
@@ -885,11 +884,10 @@ pub fn run_pipeline_v3_with_config(
         let mut valid_srcs: Vec<String> = v2_result.valid_srcs.clone();
         // 補充從 errors 中過濾的 valid/precond 來源
         for e in &v2_result.errors {
-            if e.contains("valid") || e.contains("precond") || e.contains("contract") || e.contains("safety") || e.contains("unknown") || e.contains("reject") {
-                if !valid_srcs.contains(e) {
+            if (e.contains("valid") || e.contains("precond") || e.contains("contract") || e.contains("safety") || e.contains("unknown") || e.contains("reject"))
+                && !valid_srcs.contains(e) {
                     valid_srcs.push(e.clone());
                 }
-            }
         }
         let mut step = IterationStep {
             iteration: iter + 1,
@@ -931,8 +929,8 @@ pub fn run_pipeline_v3_with_config(
         let converged = check_convergence(prev, &step);
         step.converged = converged;
 
-        last_n_vars = Some(step.n_vars);
-        last_n_polys = Some(step.n_polys);
+        _last_n_vars = Some(step.n_vars);
+        _last_n_polys = Some(step.n_polys);
 
         // ── PolyCache insert：hash→groebner_basis 緩存 ──
         if config.enable_incremental_cache {
@@ -959,8 +957,8 @@ pub fn run_pipeline_v3_with_config(
         }
 
         // 如果 UNSAT 且启用 auto_repair，尝试深化后继续
-        if v2_result.is_unsat && config.auto_repair && iter + 1 < config.max_iterations {
-            if config.enable_poly_deepening {
+        if v2_result.is_unsat && config.auto_repair && iter + 1 < config.max_iterations
+            && config.enable_poly_deepening {
                 current_source = deepen_poly(&current_source, config.deepening_depth, iter+1);
                 deepening_chain.push(current_source.clone());
                 if let Some(last) = iterations.last_mut() {
@@ -968,7 +966,6 @@ pub fn run_pipeline_v3_with_config(
                 }
                 continue;
             }
-        }
 
         // 如果启用 poly deepening 且 SAT，继续深化以展示 N=7+i 扩展 (惊艳效果)
         if config.enable_poly_deepening && !v2_result.is_unsat && iter + 1 < config.max_iterations {
@@ -1093,7 +1090,7 @@ pub fn run_pipeline_v3_with_config(
                 brace_depth = 0;
                 fn_buffer.clear();
                 fn_buffer.push_str(line);
-                fn_buffer.push_str("\n");
+                fn_buffer.push('\n');
                 brace_depth += line.matches('{').count() as i32 - line.matches('}').count() as i32;
                 if brace_depth <= 0 && line.contains('}') {
                     // 单行 fn
@@ -1103,7 +1100,7 @@ pub fn run_pipeline_v3_with_config(
                 }
             } else if in_fn {
                 fn_buffer.push_str(line);
-                fn_buffer.push_str("\n");
+                fn_buffer.push('\n');
                 brace_depth += line.matches('{').count() as i32 - line.matches('}').count() as i32;
                 if brace_depth <= 0 {
                     rust_code.push_str(&fn_buffer);
@@ -1125,7 +1122,7 @@ pub fn run_pipeline_v3_with_config(
                     brace_depth2 = 0;
                     fn_buffer2.clear();
                     fn_buffer2.push_str(line);
-                    fn_buffer2.push_str("\n");
+                    fn_buffer2.push('\n');
                     brace_depth2 += line.matches('{').count() as i32 - line.matches('}').count() as i32;
                     if brace_depth2 <= 0 && line.contains('}') {
                         rust_code.push_str(&fn_buffer2);
@@ -1133,7 +1130,7 @@ pub fn run_pipeline_v3_with_config(
                     }
                 } else if in_fn2 {
                     fn_buffer2.push_str(line);
-                    fn_buffer2.push_str("\n");
+                    fn_buffer2.push('\n');
                     brace_depth2 += line.matches('{').count() as i32 - line.matches('}').count() as i32;
                     if brace_depth2 <= 0 {
                         rust_code.push_str(&fn_buffer2);

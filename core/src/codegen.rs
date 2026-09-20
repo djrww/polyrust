@@ -264,7 +264,7 @@ pub struct CodegenVsAstReport {
 impl CodegenVsAstReport {
     pub fn display(&self) -> String {
         let mut s = String::new();
-        s.push_str(&format!("=== Codegen vs ast.rs 對比報告 ===\n"));
+        s.push_str("=== Codegen vs ast.rs 對比報告 ===\n");
         s.push_str(&format!("生成代碼長度: {} 字節, {} 行\n", self.generated_len, self.generated_lines));
         s.push_str(&format!("類型別名數: {} (應為 39)\n", self.type_alias_count));
         s.push_str(&format!("ast.rs FullType 變體總數: {}, 已覆蓋: {}, 覆蓋率: {:.1}%\n", self.ast_rs_variant_count, self.ast_rs_covered_variants, self.coverage_pct));
@@ -294,7 +294,7 @@ pub fn generate_rust_from_39_examples() -> String {
         out.push_str(&format!("/// {}: {} — {}\n", idx, ty_str, desc));
         out.push_str(&format!("pub type Ty{} = {};\n", idx, sanitize_type_for_rust(ty_str)));
     }
-    out.push_str("\n");
+    out.push('\n');
 
     // 2. 結構體 / 枚舉定義（來自 ast_v2 示例，確保與 ast.rs 的 StructDefV2/EnumDefV2 對應）
     out.push_str("// === 結構體 / 枚舉 (對應 ast.rs StructDefV2/EnumDefV2) ===\n");
@@ -317,7 +317,7 @@ pub fn generate_rust_from_39_examples() -> String {
     for (pat_str, desc) in &pat_examples {
         out.push_str(&format!("// Pat `{}` — {}\n", pat_str, desc));
     }
-    out.push_str("\n");
+    out.push('\n');
 
     // 4. 表達式示例函數
     out.push_str("pub fn example_exprs() {\n");
@@ -582,7 +582,7 @@ pub fn generate_rust_from_lowered(lowered: &Lowered) -> String {
     for (orig, qualified) in &lowered.mod_map {
         out.push_str(&format!("// mod {} -> {}\n", orig, qualified));
     }
-    out.push_str("\n");
+    out.push('\n');
 
     // 5. ProgramV2 items (flattened)
     out.push_str("// === Flattened ProgramV2 items ===\n");
@@ -810,7 +810,7 @@ pub fn lowering_coverage_check() -> LoweringCoverage {
 
     // trait impl
     let trait_table = crate::minirust::lower::lower_trait_impl_method_table(&prog);
-    let trait_impl_covered = trait_table.traits.len() > 0 || trait_table.impls.len() > 0;
+    let trait_impl_covered = !trait_table.traits.is_empty() || !trait_table.impls.is_empty();
 
     // lifetime
     let lifetime_covered = crate::minirust::lower::lower_lifetimes(&prog).is_ok();

@@ -273,17 +273,16 @@ pub fn supplement_missing(poly: &str, analysis: &MissingAnalysis, original_nl: &
         for line in supplemented.lines() {
             if line.trim_start().starts_with('#') {
                 merged.push_str(line);
-                merged.push_str("\n");
+                merged.push('\n');
             }
         }
         // 添加 LLM 生成的 fn 定義 (去重)
         for line in llm_result.poly.lines() {
-            if line.trim_start().starts_with("fn ") || line.trim_start().starts_with("pub struct") || line.trim_start().starts_with("impl") || line.trim_start().starts_with("pub fn") || line.trim_start().starts_with("#[derive") {
-                if !merged.contains(line.trim()) {
+            if (line.trim_start().starts_with("fn ") || line.trim_start().starts_with("pub struct") || line.trim_start().starts_with("impl") || line.trim_start().starts_with("pub fn") || line.trim_start().starts_with("#[derive"))
+                && !merged.contains(line.trim()) {
                     merged.push_str(line);
-                    merged.push_str("\n");
+                    merged.push('\n');
                 }
-            }
         }
         if !merged.contains("fn main") {
             merged.push_str("\nfn main() {\n    println!(\"LLM 閉環: main from NL '{}'\");\n}\n".replace("{}", &original_nl.replace('"', "'")).as_str());
@@ -338,7 +337,7 @@ pub fn txt_file_to_poly_closed_loop(txt_path: &Path) -> Result<TxtFeedbackResult
     let original_nl = txt_content.trim().to_string();
     let txt_file_name_raw = txt_path.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "unknown.txt".to_string());
     // 清理文件名中的 . 等非法字符，用於 rustc crate name
-    let txt_file_name = txt_file_name_raw.replace('.', "_").replace('-', "_").replace(' ', "_");
+    let txt_file_name = txt_file_name_raw.replace(['.', '-', ' '], "_");
     
     // Step 1: NL -> Poly (LLM)
     let llm_result = nl_to_poly_with_llm(&original_nl);

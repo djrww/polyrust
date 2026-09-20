@@ -109,7 +109,7 @@ pub fn obligation_t1() -> ObligationResult {
                 sigma[avs[*arm]] = Frac::ONE;
             }
         }
-        for (_, bv) in &sys.borrow_vars {
+        for bv in sys.borrow_vars.values() {
             sigma[*bv] = Frac::ONE;
         }
         // 未覆蓋節點（未選臂的內部節點等）：補預設 one-hot（其約束均乘 a_i = 0，任意補值皆合法）
@@ -204,7 +204,7 @@ pub fn obligation_t3() -> ObligationResult {
         let mut polys: Vec<Poly> = cls.iter().map(|c| clause_to_poly(c, nv)).collect();
         polys.extend(field_polys(nv));
         let (g, _) = reduced_groebner(&polys, Order::GrevLex, Strategy::Normal, true);
-        let unsat = g.len() == 1 && g[0].is_constant().map_or(false, |c| c.is_one());
+        let unsat = g.len() == 1 && g[0].is_constant().is_some_and(|c| c.is_one());
         let ok = sat != unsat;
         pass &= ok;
         detail.push_str(&format!(
@@ -243,13 +243,13 @@ pub fn obligation_t3() -> ObligationResult {
     let learned = s.learned_clauses();
     // 蘊涵驗證：滿足原子句集的每個賦值都滿足學習子句
     let mut implied = true;
-    if let Some(_) = brute_force_sat(nv, &cls) {
+    if brute_force_sat(nv, &cls).is_some() {
         // SAT 實例：暴力枚舉所有滿足賦值
         for mask in 0u64..(1 << nv) {
             let a: Vec<bool> = (0..nv).map(|i| (mask >> i) & 1 == 1).collect();
             if satisfies(&a, &cls) {
                 for lc in &learned {
-                    if !satisfies(&a, &[lc.clone()]) {
+                    if !satisfies(&a, std::slice::from_ref(lc)) {
                         implied = false;
                     }
                 }
@@ -519,7 +519,7 @@ pub fn obligation_t7() -> ObligationResult {
         let mut all_bad = subst_bad;
         all_bad.extend(field_polys(sys.nvars));
         let (gb_bad, _) = reduced_groebner(&all_bad, Order::GrevLex, Strategy::Normal, true);
-        let bad_unsat = gb_bad.len() == 1 && gb_bad[0].is_constant().map_or(false, |c| c.is_one());
+        let bad_unsat = gb_bad.len() == 1 && gb_bad[0].is_constant().is_some_and(|c| c.is_one());
         let ok = solvable && bad_unsat;
         pass &= ok;
         detail.push_str(&format!(
@@ -545,11 +545,11 @@ pub fn obligation_t8() -> ObligationResult {
     let mut checked = 0;
     for (_name, r) in &results {
         if let Some(v) = r.qap_verified {
-            pass &= v == true;
+            pass &= v;
             checked += 1;
         }
         if let Some(t) = r.qap_tamper_rejected {
-            pass &= t == true;
+            pass &= t;
         }
     }
     detail.push_str(&format!(

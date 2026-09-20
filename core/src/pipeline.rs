@@ -289,7 +289,7 @@ pub struct PipelineResult {
 pub fn clause_to_poly(clause: &[cdcl::Lit], nvars: usize) -> Poly {
     let mut p = Poly::constant(Frac::ONE);
     for &l in clause {
-        let v = cdcl::lit_var(l) as usize;
+        let v = cdcl::lit_var(l);
         let factor = if cdcl::lit_positive(l) {
             Poly::constant(Frac::ONE).sub(&Poly::var(v, Frac::ONE, nvars))
         } else {
@@ -339,7 +339,7 @@ pub fn run_pipeline_with_mode(name: &str, source: &str, do_codegen: bool, algo: 
 
     let mut clause_vars: Vec<usize> = vec![];
     for c in &sys.clauses {
-        for &l in c { clause_vars.push(cdcl::lit_var(l) as usize); }
+        for &l in c { clause_vars.push(cdcl::lit_var(l)); }
     }
     clause_vars.sort(); clause_vars.dedup();
     let compact: HashMap<usize, usize> = clause_vars.iter().enumerate().map(|(i, &v)| (v, i)).collect();
@@ -354,7 +354,7 @@ pub fn run_pipeline_with_mode(name: &str, source: &str, do_codegen: bool, algo: 
         if rounds >= 200 { return Err("CDCL(T) 200 rounds not converge".to_string()); }
         stage!("S5 round start");
         let compact_clauses: Vec<Vec<cdcl::Lit>> = clauses_sys.iter().map(|c| {
-            c.iter().map(|&l| cdcl::lit(compact[&(cdcl::lit_var(l) as usize)], cdcl::lit_positive(l))).collect()
+            c.iter().map(|&l| cdcl::lit(compact[&{ cdcl::lit_var(l) }], cdcl::lit_positive(l))).collect()
         }).collect();
         let mut solver = cdcl::Solver::new(clause_vars.len(), compact_clauses);
         let ok = solver.solve();
@@ -376,7 +376,7 @@ pub fn run_pipeline_with_mode(name: &str, source: &str, do_codegen: bool, algo: 
         stage!("S5 subst done");
         let (g, _) = reduced_groebner(&with_field, Order::GrevLex, Strategy::Normal, true);
         stage!("S5 theory GB");
-        let unsat = g.len() == 1 && g[0].is_constant().map_or(false, |c| c.is_one());
+        let unsat = g.len() == 1 && g[0].is_constant().is_some_and(|c| c.is_one());
         if unsat {
             let lc: Vec<cdcl::Lit> = clause_vars.iter().copied().enumerate().map(|(vi, sysv)| cdcl::lit(sysv, !model[vi])).collect();
             if !clauses_sys.contains(&lc) { clauses_sys.push(lc); }
@@ -429,7 +429,7 @@ pub fn run_pipeline_with_mode(name: &str, source: &str, do_codegen: bool, algo: 
     res.gb_stats = gstats;
     res.reduced_basis = red.clone();
     res.is_unsat = match gb_mode {
-        GbBasisMode::Eager => red.len() == 1 && red[0].is_constant().map_or(false, |c| c.is_one()),
+        GbBasisMode::Eager => red.len() == 1 && red[0].is_constant().is_some_and(|c| c.is_one()),
         GbBasisMode::Lazy => cdcl_failed,
     };
 
@@ -460,7 +460,7 @@ pub fn run_pipeline_with_mode(name: &str, source: &str, do_codegen: bool, algo: 
         res.qap_verified = Some(qap.verify(&z));
         let mut z_bad = z.clone();
         if sys.nvars > 0 {
-            if let Some(i) = sigma.iter().position(|f| f.is_one()) { z_bad[i+1] = z_bad[i+1] + Fp::one(); }
+            if let Some(i) = sigma.iter().position(|f| f.is_one()) { z_bad[i+1] += Fp::one(); }
         }
         res.qap_tamper_rejected = Some(!qap.verify(&z_bad));
 

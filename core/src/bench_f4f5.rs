@@ -153,9 +153,9 @@ fn bench_case(name: &str, fs: Vec<Poly>) {
     } else {
         println!("F4 consistent with Classic");
     }
-    let unsat1 = g1.len() == 1 && g1[0].is_constant().map_or(false, |c| c.is_one());
-    let unsat3 = g3.len() == 1 && g3[0].is_constant().map_or(false, |c| c.is_one());
-    let unsat_auto = g_auto.len() == 1 && g_auto[0].is_constant().map_or(false, |c| c.is_one());
+    let unsat1 = g1.len() == 1 && g1[0].is_constant().is_some_and(|c| c.is_one());
+    let unsat3 = g3.len() == 1 && g3[0].is_constant().is_some_and(|c| c.is_one());
+    let unsat_auto = g_auto.len() == 1 && g_auto[0].is_constant().is_some_and(|c| c.is_one());
     if unsat1 != unsat3 {
         println!("WARN F4F5 UNSAT mismatch Classic vs F4F5");
     }

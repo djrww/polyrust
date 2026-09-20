@@ -5,7 +5,6 @@
 use polyrust_core::minirust::ty::{build_universe_from_src, unify, TyEnv, UnifyResult, LifetimeEnv, check_lifetime_bounds, subst_type_with_lt};
 use polyrust_core::minirust::universe::{TypeV2, Universe};
 
-pub use polyrust_core::minirust::ty::{build_universe_from_program, subst_type, DepGraph};
 
 /// 前端封裝：從源碼構建宇宙
 pub fn build_universe(src: &str) -> Universe {

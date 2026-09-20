@@ -62,13 +62,13 @@ pub fn unroll_while(cond: &str, body: &str, fuel: usize, invariants: &[String]) 
     let mut out = String::new();
     if !invariants.is_empty() {
         out.push_str(&format!("// @invariant: {}\n", invariants.join(", ")));
-        out.push_str(&format!("// assert invariant before loop\n"));
+        out.push_str("// assert invariant before loop\n");
     }
     out.push_str(&format!("// while {} with fuel={}\n", cond, fuel));
     out.push_str("{\n");
     out.push_str(&format!("  let mut __fuel = {};\n", fuel));
     out.push_str("  loop {\n");
-    out.push_str(&format!("    if __fuel <= 0 {{ break; }}\n"));
+    out.push_str("    if __fuel <= 0 { break; }\n");
     out.push_str(&format!("    if !({}) {{ break; }}\n", cond));
     if !invariants.is_empty() {
         for inv in invariants {

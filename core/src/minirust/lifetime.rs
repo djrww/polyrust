@@ -47,7 +47,7 @@ impl Outlives {
         // shorter 可能有多個，用 '+' 分隔，取第一個為簡化
         let shorter_part = parts[1..].join(":");
         // 取第一個 token
-        let shorter_str = shorter_part.split('+').next().unwrap().trim().split_whitespace().next().unwrap_or("").trim();
+        let shorter_str = shorter_part.split('+').next().unwrap().split_whitespace().next().unwrap_or("").trim();
         if shorter_str.is_empty() {
             return None;
         }
@@ -138,11 +138,10 @@ impl LifetimeGraph {
         }
 
         for lt in &self.lifetimes {
-            if !visited.contains(lt) {
-                if dfs(lt, self, &mut visited, &mut stack) {
+            if !visited.contains(lt)
+                && dfs(lt, self, &mut visited, &mut stack) {
                     return true;
                 }
-            }
         }
         false
     }

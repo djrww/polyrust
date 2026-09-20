@@ -169,7 +169,7 @@ pub fn gen_constraints_v2(lowered: &Lowered) -> Result<SystemV2, String> {
                 sys.product_constraints.push(ProductConstraint {
                     struct_name: struct_name.clone(),
                     node_id,
-                    struct_idx: struct_idx,
+                    struct_idx,
                     field_indices,
                     poly_text,
                 });
@@ -206,7 +206,7 @@ pub fn gen_constraints_v2(lowered: &Lowered) -> Result<SystemV2, String> {
                 sys.sum_constraints.push(SumConstraint {
                     enum_name: enum_name.clone(),
                     node_id,
-                    enum_idx: enum_idx,
+                    enum_idx,
                     variant_indices,
                     poly_text,
                 });
@@ -216,18 +216,15 @@ pub fn gen_constraints_v2(lowered: &Lowered) -> Result<SystemV2, String> {
 
     // 為程序中的每個 fn 生成基本約束（參數、返回）
     for item in &lowered.program.items {
-        match item {
-            super::ast_v2::ItemV2::Fn(f) => {
-                let node_id = next_node_id;
-                next_node_id += 1;
-                let ts = type_bits_v2(&mut sys, node_id, &format!("fn:{}", f.sig.name));
-                // 返回類型約束
-                if let Some(ret_idx) = sys.universe.index_of(&f.sig.ret) {
-                    let f_poly = var_poly(sys.nvars, ts[ret_idx]).sub(&Poly::constant(Frac::ONE));
-                    emit(&mut sys, f_poly);
-                }
+        if let super::ast_v2::ItemV2::Fn(f) = item {
+            let node_id = next_node_id;
+            next_node_id += 1;
+            let ts = type_bits_v2(&mut sys, node_id, &format!("fn:{}", f.sig.name));
+            // 返回類型約束
+            if let Some(ret_idx) = sys.universe.index_of(&f.sig.ret) {
+                let f_poly = var_poly(sys.nvars, ts[ret_idx]).sub(&Poly::constant(Frac::ONE));
+                emit(&mut sys, f_poly);
             }
-            _ => {}
         }
     }
 
@@ -442,7 +439,7 @@ pub fn gen_loop_fuel_constraints(sys: &mut SystemV2, node_id: usize, fuel: usize
 pub fn gen_invariant_constraint(sys: &mut SystemV2, node_id: usize, inv_idx: usize) -> Poly {
     let ts = type_bits_v2(sys, node_id, &format!("invariant_{}", inv_idx));
     // 假設 invariant bool 變量為第 0 個類型位元對應的 bool
-    let inv_var = ts.get(0).copied().unwrap_or(0);
+    let inv_var = ts.first().copied().unwrap_or(0);
     let poly = var_poly(sys.nvars, inv_var).sub(&Poly::constant(Frac::ONE));
     emit(sys, poly.clone());
     poly
@@ -558,7 +555,7 @@ pub fn gen_stdlib_constraints(sys: &mut SystemV2, type_uni: &str) -> Vec<StdlibC
             ty_name: name.clone(),
             kind: "Vec".to_string(),
             node_id,
-            poly_texts: vec![format!("// Vec {} len<=cap", name), format!("cap - len - slack=0")],
+            poly_texts: vec![format!("// Vec {} len<=cap", name), "cap - len - slack=0".to_string()],
         });
     }
     for (name, enc) in reg.hashmap_encodings {
@@ -635,7 +632,7 @@ fn poly_to_r1cs_v2(f: &Poly, r: &mut R1cs) {
     let mut merged: Vec<(usize, crate::fp::Fp)> = vec![];
     for (w, k) in lin {
         if let Some(e) = merged.iter_mut().find(|(mw, _)| *mw == w) {
-            e.1 = e.1 + k;
+            e.1 += k;
         } else {
             merged.push((w, k));
         }

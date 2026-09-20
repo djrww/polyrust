@@ -181,7 +181,7 @@ Cargo check:
 ```
 stdout: 
 stderr:     Checking embedded_request_txt v0.1.0 (/tmp/polyrust_native/cargo_check_embedded_request_txt)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.03s
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.02s
 
 ```
 
@@ -194,7 +194,7 @@ test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 
 
 stderr:    Compiling embedded_request_txt v0.1.0 (/tmp/polyrust_native/cargo_check_embedded_request_txt)
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s
      Running unittests src/main.rs (/tmp/polyrust_native/cargo_check_embedded_request_txt/target/debug/deps/embedded_request_txt-a1f42bde4f6f5ce5)
 
 ```

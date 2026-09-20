@@ -88,12 +88,10 @@ impl ClosedLoopResult {
 /// 根據自然語言關鍵詞生成對應的 Poly DSL
 pub fn nl_to_poly_with_llm(nl: &str) -> LlmPolyResult {
     let nl_lower = nl.to_lowercase();
-    let mut attempts = 0;
     let mut error_log = Vec::new();
     
     // 智能匹配 NL 意圖
     let poly = if nl_lower.contains("ide") || nl_lower.contains("lsp") || nl_lower.contains("editor") || nl_lower.contains("enterprise") {
-        attempts = 1;
         r#"# @intent: Enterprise IDE with LSP support — LLM generated
 # @import: basic
 # @lifetime: 'a: 'b
@@ -126,7 +124,6 @@ fn main() {
 }
 "#.to_string()
     } else if nl_lower.contains("password") || nl_lower.contains("密碼") || nl_lower.contains("密碼生成") {
-        attempts = 1;
         r#"# @intent: Password Generator with strength check — LLM generated
 # @import: basic
 # @fuel: 50
@@ -152,7 +149,6 @@ fn main() {
 }
 "#.to_string()
     } else if nl_lower.contains("reactive") || nl_lower.contains("ui") || nl_lower.contains("vdom") || nl_lower.contains("響應式") {
-        attempts = 1;
         r#"# @intent: Reactive UI Platform with VDOM diff — LLM generated
 # @import: basic
 # @fuel: 80
@@ -177,7 +173,6 @@ fn main() {
 }
 "#.to_string()
     } else if nl_lower.contains("defi") || nl_lower.contains("audit") || nl_lower.contains("solana") || nl_lower.contains("web3") || nl_lower.contains("審計") {
-        attempts = 1;
         r#"# @intent: Solana DeFi audit core — LLM generated for Web3 audit commercial
 # @import: basic
 # @unsafe-allowed: solana-audit
@@ -202,7 +197,6 @@ fn main() {
 }
 "#.to_string()
     } else if nl_lower.contains("sensor") || nl_lower.contains("ecu") || nl_lower.contains("embedded") || nl_lower.contains("嵌入式") {
-        attempts = 1;
         r#"# @intent: Embedded ECU control core — LLM generated
 # @import: basic
 # @lifetime: 'a: 'b
@@ -225,7 +219,6 @@ fn main() {
 }
 "#.to_string()
     } else if nl_lower.contains("app") && (nl_lower.contains("launch") || nl_lower.contains("platform")) {
-        attempts = 1;
         r#"# @intent: App Launch Platform — LLM generated
 # @import: basic
 # @fuel: 60
@@ -252,7 +245,6 @@ fn main() {
 "#.to_string()
     } else {
         // 通用回退：根據 NL 長度生成基礎 poly
-        attempts = 1;
         error_log.push(format!("NL '{}' 未匹配特定模式，使用通用模板", nl));
         format!(r#"# @intent: {} — LLM generated generic
 # @import: basic
@@ -272,6 +264,8 @@ fn main() {{
 "#, nl, nl.replace('"', "'"))
     };
     
+    // 原本每個 arm 都 assign attempts=1 而 return 必讀——直接等式化，去除死賦值
+    let attempts = 1;
     LlmPolyResult {
         poly,
         intent: nl.to_string(),
@@ -326,11 +320,10 @@ pub fn llm_repair_poly_with_error(source_poly: &str, error_msg: &str, functional
             repaired = format!("# @type_universe: N=18 extended — LLM REPAIR: extended from N=7 to N=18 for IDE FileTree/TextBuffer\n{}\n# LLM REPAIR: type universe extended\n", repaired);
         }
         // 添加缺失的 struct
-        if error_lower.contains("filetree") || error_lower.contains("file_tree") {
-            if !repaired.contains("FileTree") {
+        if (error_lower.contains("filetree") || error_lower.contains("file_tree"))
+            && !repaired.contains("FileTree") {
                 repaired.push_str("\n# LLM REPAIR: missing FileTree added\npub struct FileNode { pub path: String }\npub struct FileTree { pub nodes: Vec<FileNode> }\n");
             }
-        }
     }
     
     // 策略4: 未閉合定界符 — 真實修復：括號匹配棧算法
@@ -515,10 +508,11 @@ pub fn full_nl_to_rust_closed_loop(original_nl: &str, max_iterations: usize) -> 
         };
         
         let risk = v3_result.commercial.risk_score;
-        let mut functional_passed = None;
-        let mut functional_output = String::new();
-        let mut rust_code_opt = None;
-        let mut nl_feedback = String::new();
+        // init 值必被覆寫（unused_assignments 證明咗）→ 去 init 留型別宣告，語義不變
+        let functional_passed: Option<bool>;
+        let functional_output: String;
+        let rust_code_opt: Option<String>;
+        let nl_feedback: String;
         
         // 若有直接生成的真實 Rust (IDE)，優先使用
         let effective_rust = if let Some(ref dr) = direct_rust {
@@ -678,7 +672,7 @@ mod tests {
         let result = full_nl_to_rust_closed_loop("實現一個帶 LSP 的 Enterprise IDE", 2);
         assert!(!result.iterations.is_empty());
         // 至少一次迭代
-        assert!(result.iterations.len() >= 1);
+        assert!(!result.iterations.is_empty());
         // 檢查有生成 poly
         assert!(result.iterations[0].poly.contains("fn "));
     }
@@ -687,6 +681,6 @@ mod tests {
     fn test_closed_loop_web3() {
         let result = full_nl_to_rust_closed_loop("Solana DeFi 審計核心，帶轉賬", 2);
         assert!(!result.iterations.is_empty());
-        assert!(result.final_poly.is_some() || result.iterations[0].poly.len() > 0);
+        assert!(result.final_poly.is_some() || !result.iterations[0].poly.is_empty());
     }
 }

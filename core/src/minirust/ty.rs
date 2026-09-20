@@ -146,7 +146,7 @@ pub fn build_universe_from_src(src: &str) -> Universe {
                 .next()
                 .unwrap_or("")
                 .trim_matches(|c| c == '{' || c == '<' || c == '>')
-                .split(|c| c == '<' || c == '{' || c == '(')
+                .split(['<', '{', '('])
                 .next()
                 .unwrap_or("")
                 .to_string();
@@ -161,7 +161,7 @@ pub fn build_universe_from_src(src: &str) -> Universe {
                 .next()
                 .unwrap_or("")
                 .trim_matches(|c| c == '{' || c == '<' || c == '>')
-                .split(|c| c == '<' || c == '{' || c == '(')
+                .split(['<', '{', '('])
                 .next()
                 .unwrap_or("")
                 .to_string();
@@ -212,7 +212,7 @@ pub fn unify(t1: &TypeV2, t2: &TypeV2, uni: &Universe) -> UnifyResult {
         }
         (TypeV2::Ext(ExtType::RefExt { mutbl: m1, inner: i1, lifetime: lt1 }), TypeV2::Ext(ExtType::RefExt { mutbl: m2, inner: i2, lifetime: lt2 })) => {
             if m1 != m2 {
-                return UnifyResult::Fail(format!("ref mutbl mismatch"));
+                return UnifyResult::Fail("ref mutbl mismatch".to_string());
             }
             // lifetime 兼容性：若都有 lifetime，檢查是否可統一
             match (lt1, lt2) {
@@ -229,7 +229,7 @@ pub fn unify(t1: &TypeV2, t2: &TypeV2, uni: &Universe) -> UnifyResult {
                 return UnifyResult::Fail(format!("struct name mismatch: {} vs {}", n1, n2));
             }
             if a1.len() != a2.len() {
-                return UnifyResult::Fail(format!("struct args len mismatch"));
+                return UnifyResult::Fail("struct args len mismatch".to_string());
             }
             let mut eqs = vec![];
             for (x, y) in a1.iter().zip(a2.iter()) {
@@ -247,7 +247,7 @@ pub fn unify(t1: &TypeV2, t2: &TypeV2, uni: &Universe) -> UnifyResult {
                 return UnifyResult::Fail(format!("enum name mismatch: {} vs {}", n1, n2));
             }
             if a1.len() != a2.len() {
-                return UnifyResult::Fail(format!("enum args len mismatch"));
+                return UnifyResult::Fail("enum args len mismatch".to_string());
             }
             let mut eqs = vec![];
             for (x, y) in a1.iter().zip(a2.iter()) {
@@ -297,7 +297,7 @@ fn combine_unify(r1: UnifyResult, r2: UnifyResult, _uni: &Universe, _t1: &TypeV2
 /// 生成統一多項式文本 — 優化 with_capacity
 pub fn unify_poly_text(node_id: usize, idx1: usize, idx2: usize) -> String {
     let mut s = String::with_capacity(32);
-    s.push_str("t");
+    s.push('t');
     s.push_str(&node_id.to_string());
     s.push('_');
     s.push_str(&idx1.to_string());
@@ -379,11 +379,10 @@ pub fn check_lifetime_bounds(
     let mut lts = vec![];
     collect_lifetimes(ty, &mut lts);
     for lt in &lts {
-        if lt.0 != "'static" && !graph.lifetimes.contains(lt) {
-            if !graph.lifetimes.is_empty() {
+        if lt.0 != "'static" && !graph.lifetimes.contains(lt)
+            && !graph.lifetimes.is_empty() {
                 // 允許未在 graph 中的 lifetime，視為自由變量
             }
-        }
     }
     if graph.has_cycle() {
         return Err("lifetime cycle detected".to_string());

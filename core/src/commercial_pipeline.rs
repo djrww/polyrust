@@ -115,7 +115,7 @@ impl CommercialPipelineResult {
             for f in &self.solana_files {
                 md.push_str(&format!("- {}\n", f));
             }
-            md.push_str("\n");
+            md.push('\n');
         }
         md.push_str("## Output Files\n\n");
         for f in &self.output_files {
@@ -437,7 +437,7 @@ mod tests {
         let path = dir.join("ide_request.txt");
         if path.exists() {
             let result = run_commercial_pipeline_from_file(&path, &config).unwrap();
-            assert!(result.poly_source.len() > 0);
+            assert!(!result.poly_source.is_empty());
             assert!(result.is_fully_complete || result.ast_result.is_some());
         }
     }
@@ -452,7 +452,7 @@ mod tests {
         let results = batch_commercial_pipeline(&dir, &config);
         assert!(results.len() >= 4);
         for r in &results {
-            assert!(r.poly_source.len() > 0);
+            assert!(!r.poly_source.is_empty());
         }
     }
 
@@ -468,7 +468,7 @@ mod tests {
         ];
 
         for (name, src) in cases {
-            let config = CommercialPipelineConfig {
+            let _config = CommercialPipelineConfig {
                 output_dir: PathBuf::from(format!("core/output/commercial_pipeline_unsafe_{}", name)),
                 ..Default::default()
             };
@@ -476,7 +476,7 @@ mod tests {
             let v3_config = crate::pipeline_v3::PipelineV3Config::default();
             let v3_result = crate::pipeline_v3::run_pipeline_v3_with_config(name, src, None, &v3_config).unwrap();
             // 檢查對應 safety 計數 >0
-            if let Some(final_v2) = v3_result.iterations.last() {
+            if let Some(_final_v2) = v3_result.iterations.last() {
                 // 至少有一個 v2 結果，檢查 commercial lean refs 包含對應定理
                 assert!(v3_result.commercial.lean_proof_refs.iter().any(|r| r.contains("Unsafe") || r.contains("unsafe") || r.contains("NoRuntimeUB") || r.contains("f4_ideal")), "lean refs should contain unsafe proofs for {}", name);
             }

@@ -194,7 +194,7 @@ fn check_vec_type_errors(_prog: &ProgramV2, source: &str) -> Vec<String> {
             let (vec_name, elem_arg) = if t.contains(".push(") {
                 // v.push("hello")
                 if let Some(dot) = t.find(".push(") {
-                    let vname = t[..dot].trim().split_whitespace().last().unwrap_or("").trim().to_string();
+                    let vname = t[..dot].split_whitespace().last().unwrap_or("").trim().to_string();
                     let start = t.find(".push(").unwrap() + 6;
                     let end = t.rfind(')').unwrap_or(t.len());
                     let elem = t[start..end].trim().to_string();
@@ -245,11 +245,10 @@ fn check_vec_type_errors(_prog: &ProgramV2, source: &str) -> Vec<String> {
             }
         }
         if t.contains("HashMap_insert") {
-            if t.contains("true") || t.contains("false") {
-                if source.contains("HashMap<String,i32>") {
+            if (t.contains("true") || t.contains("false"))
+                && source.contains("HashMap<String,i32>") {
                     errors.push(format!("HashMap insert type mismatch: expected i32 got bool in {}", t));
                 }
-            }
             if t.contains('"') && source.contains("HashMap<String,i32>") && t.matches(',').count() >= 2 {
                 // 第三個參數是 String 但期望 i32
                 let parts: Vec<&str> = t.split(',').collect();
@@ -273,7 +272,7 @@ fn check_borrow_conflicts(source: &str) -> Vec<(usize, usize)> {
         let t = line.trim();
         if t.starts_with("let ") {
             let after = t[4..].trim().trim_start_matches("mut ").trim();
-            let name = after.split(|c: char| c == ':' || c == '=' || c == ' ' || c == ';').next().unwrap_or("").to_string();
+            let name = after.split([':', '=', ' ', ';']).next().unwrap_or("").to_string();
             if !name.is_empty() && name != "self" && name.chars().next().map(|c| c.is_alphabetic()).unwrap_or(false) {
                 declared_mut.insert(name);
             }
@@ -288,7 +287,7 @@ fn check_borrow_conflicts(source: &str) -> Vec<(usize, usize)> {
         if t.contains("fn ") { continue; }
         if let Some(pos) = t.find("&mut") {
             let after = t[pos+4..].trim();
-            let var = after.split(|c: char| c == ';' || c == ',' || c == ' ' || c == ')' || c == '(').next().unwrap_or("").trim().to_string();
+            let var = after.split([';', ',', ' ', ')', '(']).next().unwrap_or("").trim().to_string();
             if var.is_empty() || var == "self" || var == "Self" { continue; }
             if declared_mut.contains(&var) || var.len() == 1 {
                 borrows.entry(var).or_default().push(idx);
@@ -536,8 +535,8 @@ fn check_loop_contracts(poly_src: &PolySource, source: &str) -> Vec<String> {
                         if lt.contains(&format!("{} = {} +", var, var)) || lt.contains(&format!("{}={}+", var, var)) {
                             // 提取 delta
                             if let Some(plus) = lt.find('+') {
-                                let after = lt[plus+1..].trim().trim_end_matches(|c| c==';' || c=='}');
-                                if let Ok(delta) = after.split(|c: char| c==';' || c==',' || c==' ' || c=='}').next().unwrap_or("").trim().parse::<i64>() {
+                                let after = lt[plus+1..].trim().trim_end_matches([';', '}']);
+                                if let Ok(delta) = after.split([';', ',', ' ', '}']).next().unwrap_or("").trim().parse::<i64>() {
                                     if delta > 0 && bound < 10 {
                                         // while x < 10 且 invariant x <5 且 x+=10 必然違反
                                         errors.push(format!("loop invariant violation: {} < {} violated by {}+={}", var, bound, var, delta));
@@ -546,11 +545,10 @@ fn check_loop_contracts(poly_src: &PolySource, source: &str) -> Vec<String> {
                             }
                         }
                         // 簡化：若 while 條件為 x < 10 且 invariant x<5，直接報違反（用於測試）
-                        if inv_t == "x < 5" && lt.contains("while x < 10") && source.contains("x = x + 10") {
-                            if !errors.iter().any(|e| e.contains("invariant")) {
+                        if inv_t == "x < 5" && lt.contains("while x < 10") && source.contains("x = x + 10")
+                            && !errors.iter().any(|e| e.contains("invariant")) {
                                 errors.push(format!("loop invariant violation: {} violated in while", inv_t));
                             }
-                        }
                     }
                 }
             }
@@ -574,7 +572,7 @@ fn check_async_errors(source: &str) -> Vec<String> {
                 if let Some(pos) = t.find(".await") {
                     let before = t[..pos].trim();
                     // 取最後一個 token
-                    let token = before.split(|c: char| c=='=' || c==' ' || c=='(' || c==';').last().unwrap_or("").trim();
+                    let token = before.split(['=', ' ', '(', ';']).next_back().unwrap_or("").trim();
                     if token.chars().all(|c| c.is_ascii_digit()) || token=="true" || token=="false" {
                         errors.push(format!("async error: await on non-Future '{}' at '{}'", token, t));
                     }
@@ -674,7 +672,7 @@ pub fn run_pipeline_v2_with_algo(
     algo: Option<GroebnerAlgo>,
 ) -> Result<PipelineV2Result, String> {
     let mut result = PipelineV2Result::default();
-    let chosen_algo = algo.unwrap_or_else(|| {
+    let chosen_algo = algo.unwrap_or({
         // 預估 nvars 從 source 粗略估算，實際在 sys 生成後再精確選
         GroebnerAlgo::Classic
     });
@@ -984,7 +982,7 @@ pub fn run_pipeline_v2_with_algo(
                     // 提取 fn 名
                     if let Some(pos) = line.find("fn ") {
                         let after = &line[pos+3..];
-                        after.split(|c: char| c=='(' || c==' ' || c=='<').next().unwrap_or("unsafe_fn").to_string()
+                        after.split(['(', ' ', '<']).next().unwrap_or("unsafe_fn").to_string()
                     } else {
                         "unsafe_fn".to_string()
                     }
@@ -1223,7 +1221,7 @@ pub fn run_pipeline_v2_with_algo(
         if !result.is_unsat {
             // 見證：每個節點第一個位元為 1，滿足 field 多項式
             let mut sigma_f: Vec<Frac> = vec![Frac::ZERO; sys.nvars];
-            for (_nid, bits) in &sys.node_type {
+            for bits in sys.node_type.values() {
                 if let Some(&first) = bits.first() {
                     sigma_f[first] = Frac::ONE;
                 }
@@ -1258,7 +1256,7 @@ pub fn run_pipeline_v2_with_algo(
 
             let mut z_bad = z.clone();
             if z_bad.len() > 1 {
-                z_bad[1] = z_bad[1] + Fp::one();
+                z_bad[1] += Fp::one();
                 result.qap_tamper_rejected = Some(!qap.verify(&z_bad));
             }
 
@@ -1287,7 +1285,7 @@ pub fn pipeline_v2_inventory_summary() -> String {
     out.push_str("=== Pipeline V2 Inventory Summary (actual use) ===\n");
     out.push_str(&format!("AST files: {}, Parse files: {}\n", ast_files.len(), parse_files.len()));
     out.push_str(&ast_summary);
-    out.push_str("\n");
+    out.push('\n');
     out.push_str(&parse_summary);
     out.push_str("\n=== Variant Inventory ===\n");
     out.push_str(&crate::minirust::ast::full_ast_variant_summary());

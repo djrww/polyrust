@@ -161,11 +161,7 @@ fn run_single_v3_with_feedback(
     let feedback_poly = v3_result.deepened_poly.clone();
 
     // 回喂 poly 2: 从 generated_rust 转 poly
-    let rust_feedback_poly = if let Some(ref rust_code) = v3_result.generated_rust {
-        Some(rust_to_poly_for_feedback(rust_code, name))
-    } else {
-        None
-    };
+    let rust_feedback_poly = v3_result.generated_rust.as_ref().map(|rust_code| rust_to_poly_for_feedback(rust_code, name));
 
     Ok((v3_result, feedback_poly, rust_feedback_poly))
 }

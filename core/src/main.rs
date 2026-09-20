@@ -86,7 +86,7 @@ fn report(r: &PipelineResult, verbose_poly: bool) {
     if r.is_unsat {
         println!("□ 判定：1 ∈ G ⇒ 系統矛盾 ⇒ 程序不可定型（UNSAT）");
         if let Some(c) = r.reduced_basis.first() {
-            if c.is_constant().map_or(false, |x| x.is_one()) {
+            if c.is_constant().is_some_and(|x| x.is_one()) {
                 println!("    Gröbner 基 = {{ 1 }}：理想含 1，由 Nullstellensatz（布爾域上根式）⇒ 無 0/1 解");
             }
         }
@@ -345,7 +345,7 @@ fn main() {
                 sigma[avs[*arm]] = frac::Frac::ONE;
             }
         }
-        for (_, bv) in &sys.borrow_vars {
+        for bv in sys.borrow_vars.values() {
             sigma[*bv] = frac::Frac::ONE;
         }
         let mut bad = 0;
@@ -373,7 +373,7 @@ fn main() {
             let sol = solve_boolean(&all, sys.nvars);
             println!("solve_boolean：{}", if sol.is_some() { "有解" } else { "無解" });
             let (g, s) = reduced_groebner(&all, Order::GrevLex, Strategy::Normal, true);
-            let unsat = g.len() == 1 && g[0].is_constant().map_or(false, |c| c.is_one());
+            let unsat = g.len() == 1 && g[0].is_constant().is_some_and(|c| c.is_one());
             println!("GB：{}（基 {} 條；S={} 基擴充={}）", if unsat { "1∈G" } else { "可解" }, g.len(), s.s_polys, s.basis_adds);
             if let Some(sol) = &sol {
                 let bad = all.iter().filter(|f| !f.eval_full(sol).is_zero()).count();

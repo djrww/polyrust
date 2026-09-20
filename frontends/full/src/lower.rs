@@ -9,7 +9,7 @@ use polyrust_core::minirust::lower::{
     lower_trait_impl_method_table, lower_lifetimes, lower_stdlib_usage,
 };
 
-pub use polyrust_core::minirust::lower::{MatchArm, MatchDecisionTree, ForLoop, product_poly_text, sum_poly_text, lower_body_text};
+pub use polyrust_core::minirust::lower::product_poly_text;
 
 /// 前端 lowering 主入口
 pub fn lower_full(src: &str) -> Result<Lowered, String> {
@@ -76,12 +76,12 @@ pub fn lowering_report(src: &str) -> String {
         Ok(prog) => {
             out.push_str(&format!("\n# Parsed: {} items, N={}\n", prog.items.len(), prog.universe.n_types()));
             out.push_str(&prog.display());
-            out.push_str("\n");
+            out.push('\n');
 
             // Phase3: trait/impl 方法表
             let method_table = lower_trait_impl_method_table(&prog);
             out.push_str(&format!("# Method table: {} traits, {} impls\n", method_table.traits.len(), method_table.impls.len()));
-            for ((ty, tr), _) in &method_table.impl_map {
+            for (ty, tr) in method_table.impl_map.keys() {
                 out.push_str(&format!("#   {}: {} \n", ty, tr));
             }
             for (ty, idxs) in &method_table.inherent_map {
@@ -175,7 +175,7 @@ pub fn lowering_report(src: &str) -> String {
             if t.starts_with("for ") {
                 if let Ok(fl) = parse_for_to_loop(t) {
                     out.push_str(&for_loop_to_loop_text(&fl));
-                    out.push_str("\n");
+                    out.push('\n');
                 }
             }
         }
@@ -187,7 +187,7 @@ pub fn lowering_report(src: &str) -> String {
         if src.contains("while ") {
             let example = polyrust_core::minirust::contracts::unroll_while("x < 10", "x = x + 1;", 3, &["x >=0".to_string()]);
             out.push_str(&example);
-            out.push_str("\n");
+            out.push('\n');
         }
     }
 

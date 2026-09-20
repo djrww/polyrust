@@ -115,7 +115,7 @@ impl PolyDSLCodegen {
                     out.push_str(&format!("// 项目: {} nvars={} npolys={} coverage={:.1}%\n", project.name, tr.nvars, tr.npolys, tr.coverage.rust_semantic_coverage));
                     out.push_str("#![allow(unused, dead_code)]\nuse std::collections::HashMap;\n\n");
                     for file in &project.files {
-                        for item in &file.items { out.push_str(&self.codegen_item(item)); out.push_str("\n"); }
+                        for item in &file.items { out.push_str(&self.codegen_item(item)); out.push('\n'); }
                     }
                     out.push_str(&self.gen_main_code(project, tr));
                     out
@@ -494,7 +494,7 @@ pub mod generator;
 pub use charset::Charset;
 pub use generator::*;
 "##.to_string(), 2));
-        let main = format!("fn main() {{ let cfg = PasswordConfig::new(16); assert!(cfg.is_valid()); let pwd = generate_password(cfg).unwrap(); assert_eq!(pwd.len(), 16); println!(\"✓ Password 功能測試通過: {{}} strength={{:?}}\", pwd, check_strength(&pwd)); }}");
+        let main = "fn main() { let cfg = PasswordConfig::new(16); assert!(cfg.is_valid()); let pwd = generate_password(cfg).unwrap(); assert_eq!(pwd.len(), 16); println!(\"✓ Password 功能測試通過: {} strength={:?}\", pwd, check_strength(&pwd)); }".to_string();
         files.push(mk("src/main.rs", format!("use password_generator::{{PasswordConfig, generate_password, check_strength}};\n{}\n", main), 1));
         files
     }
@@ -515,7 +515,7 @@ pub const MAX_RUNNING_APPS: usize = 100;
         files.push(mk("src/lib.rs", r##"pub mod types;
 pub use types::*;
 "##.to_string(), 1));
-        let main = format!("fn main() {{ let mut plat = LaunchPlatform::new(); let mut app = App::new(\"app1\".to_string(), \"MyApp\".to_string()); app.launch(); plat.register(app); assert_eq!(plat.running_count(), 1); println!(\"✓ App Launch 功能測試通過\"); }}");
+        let main = "fn main() { let mut plat = LaunchPlatform::new(); let mut app = App::new(\"app1\".to_string(), \"MyApp\".to_string()); app.launch(); plat.register(app); assert_eq!(plat.running_count(), 1); println!(\"✓ App Launch 功能測試通過\"); }".to_string();
         files.push(mk("src/main.rs", format!("use app_launch_platform::{{LaunchPlatform, App, launch_app}};\n{}\n", main), 1));
         files
     }
@@ -528,7 +528,7 @@ pub use types::*;
             let path = if idx==0 { "src/lib.rs".to_string() } else { format!("src/module_{}.rs", idx) };
             let mut content = String::new();
             content.push_str("#![allow(unused)]\nuse std::collections::HashMap;\n\n");
-            for item in chunk { content.push_str(&self.codegen_item(item)); content.push_str("\n"); }
+            for item in chunk { content.push_str(&self.codegen_item(item)); content.push('\n'); }
             let lines = content.lines().count();
             files.push(GeneratedFile { path, bytes: content.len(), lines, items_count: chunk.len(), content });
             if files.len() >= self.config.max_files { break; }
@@ -713,7 +713,7 @@ pub use types::*;
         // 真實多文件編譯：創建臨時 cargo 項目，cargo check --offline 帶超時
         let mut success = false;
         let mut first_error: Option<String> = None;
-        let mut rate = 0.0;
+        let rate: f64;
         let tmp_base = std::env::temp_dir().join(format!("polyrust_multi_{}_{}_{}", std::process::id(), format!("{:?}", std::thread::current().id()).replace(|c: char| !c.is_alphanumeric(), "_"), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
         let _ = std::fs::create_dir_all(&tmp_base);
         let _ = std::fs::create_dir_all(tmp_base.join("src"));
@@ -886,7 +886,7 @@ pub fn nl_to_poly_to_codegen(nl: &str) -> NLCompileResult {
 }
 
 pub fn batch_compile_3_tests() -> Vec<NLCompileResult> {
-    vec!["開發反應式渲染UI/UX開發平台", "開發密碼生成程式", "編寫一個比應用程式launch既平台"].into_iter().map(|nl| nl_to_poly_to_codegen(nl)).collect()
+    vec!["開發反應式渲染UI/UX開發平台", "開發密碼生成程式", "編寫一個比應用程式launch既平台"].into_iter().map(nl_to_poly_to_codegen).collect()
 }
 
 #[cfg(test)]
@@ -956,7 +956,7 @@ mod tests {
     }
     #[test]
     fn test_batch_4_with_ide() {
-        for nl in vec!["開發反應式渲染UI/UX開發平台", "開發密碼生成程式", "編寫一個比應用程式launch既平台", "用rust語言開發企業級IDE"] {
+        for nl in ["開發反應式渲染UI/UX開發平台", "開發密碼生成程式", "編寫一個比應用程式launch既平台", "用rust語言開發企業級IDE"] {
             let result = nl_to_poly_to_codegen(nl);
             assert!(result.nvars > 0);
             assert!(result.compile_metrics.compile_rate >= 0.5);

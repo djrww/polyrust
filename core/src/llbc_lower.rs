@@ -136,7 +136,7 @@ impl<'m> Lower<'m> {
         Poly::constant(Frac::from_i64(v as i64))
     }
     fn mark(&mut self, m: String) {
-        if !self.markers.iter().any(|x| *x == m) {
+        if !self.markers.contains(&m) {
             self.markers.push(m);
         }
     }
@@ -612,7 +612,7 @@ pub fn analyze_module_with(root: &LlbcRoot, opts: V4Opts) -> Result<V4Outcome, S
     let mut any_sat = false;
     let mut stats_txt = String::new();
     let mut total_polys = 0usize;
-    let mut eliminated_total = 0usize;
+    let mut _eliminated_total = 0usize;
     for (pi, st) in lw.final_states.iter().enumerate() {
         let mut all = st.polys.clone();
         lw.clamp_polys(&mut all);
@@ -623,7 +623,7 @@ pub fn analyze_module_with(root: &LlbcRoot, opts: V4Opts) -> Result<V4Outcome, S
             break;
         }
         let elim = presolve_eliminate(&mut all, lw.nvars);
-        eliminated_total += elim;
+        _eliminated_total += elim;
         if all.is_empty() {
             stats_txt.push_str(&format!("path{pi}: presolved({elim}) "));
             any_sat = true;
@@ -672,7 +672,7 @@ mod tests {
     use super::*;
 
     fn verdict(fixture: &str) -> V4Outcome {
-        let root = LlbcRoot::parse(fixture).unwrap();
+        let root = crate::charon_llbc::root_for_test(fixture).unwrap();
         analyze_module(&root).unwrap()
     }
 
@@ -750,7 +750,7 @@ mod tests {
             ("match_tuple", include_str!("../tests/charon_fixtures/match_tuple.llbc")),
         ];
         for (n, f) in LOOP15 {
-            let root = LlbcRoot::parse(f).unwrap();
+            let root = crate::charon_llbc::root_for_test(f).unwrap();
             let o = analyze_module(&root).unwrap();
             assert_eq!(o.verdict, V4Verdict::Sat, "{n}: {o:?}");
         }
@@ -759,7 +759,7 @@ mod tests {
     // -------- C3: loop_unknown — fuel 不足 + 無 invariant → UNKNOWN --------
     #[test]
     fn loop_unknown_fuel_exhausted_is_unknown() {
-        let root = LlbcRoot::parse(include_str!("../tests/charon_fixtures/phase3__loop_unknown.llbc")).unwrap();
+        let root = crate::charon_llbc::root_for_test(include_str!("../tests/charon_fixtures/phase3__loop_unknown.llbc")).unwrap();
         let src = include_str!("../../examples/phase3/loop_unknown.poly");
         let opts = scan_annotations(src);
         assert_eq!(opts.loop_fuel, 1, "scan fuel: {src}");

@@ -2,7 +2,7 @@
 //! Phase B — P0 硬化 + IDE LSP + Groth16
 //! 整合：Diagnostic span + AST 80 + 增量性能 + LSP + QAP Groth16 真實
 
-use crate::diagnostic::{errors_to_diagnostics, Span, DiagnosticCode, DiagnosticSeverity, Diagnostic};
+use crate::diagnostic::errors_to_diagnostics;
 use crate::pipeline_v2::run_pipeline_v2;
 use crate::dsl::resolve;
 use crate::poly_cache::PolyCache;

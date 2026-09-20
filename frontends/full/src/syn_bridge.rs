@@ -72,7 +72,7 @@ fn syn_generics_to_generics(generics: syn::Generics) -> Generics {
             SynGenericParam::Type(t) => {
                 let name = t.ident.to_string();
                 let bounds = t.bounds.iter().map(|b| TypeBound::Trait(format!("{:?}", b))).collect();
-                params.push(GenericParam::Type { name, bounds, default: t.default.map(|ty| syn_type_to_full_type(ty)) });
+                params.push(GenericParam::Type { name, bounds, default: t.default.map(syn_type_to_full_type) });
             }
             SynGenericParam::Lifetime(lt) => {
                 params.push(GenericParam::Lifetime(Lifetime { name: format!("'{}", lt.lifetime.ident) }));

@@ -98,7 +98,7 @@ fn select_batch_f4f5(
         .iter()
         .map(|&(i, j)| {
             let lcm = mono_lcm(&lms[i], &lms[j]);
-            let deg: u32 = lcm.iter().map(|&e| e as u32).sum();
+            let deg: u32 = lcm.iter().copied().sum();
             let m_i = mono_div(&lcm, &lms[i]);
             let m_j = mono_div(&lcm, &lms[j]);
             let sig_i = (g[i].sig.0, mono_mul(&g[i].sig.1, &m_i));
@@ -146,7 +146,7 @@ fn symbolic_preprocessing_f4f5(
         .filter_map(|(p, _)| p.lm(ord))
         .map(|m| squarefree_mono(&m))
         .collect();
-    let mut todo: Vec<Mono> = monos_set.iter().cloned().filter(|m| !done.contains(m)).collect();
+    let mut todo: Vec<Mono> = monos_set.iter().filter(|&m| !done.contains(m)).cloned().collect();
     let mut reducers: Vec<(Poly, (usize, Mono))> = Vec::new();
 
     let mut lm_index: HashMap<usize, Vec<usize>> = HashMap::new();

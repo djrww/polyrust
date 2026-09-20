@@ -396,7 +396,7 @@ fn check_one(src: &str, rep: &mut OracleReport) {
                     .filter(|t| sigma[tvars[*t]].is_one())
                     .collect();
                 let expect = merged.get(node).copied();
-                let ok = set.len() == 1 && expect.map_or(false, |ty| ty.index() == set[0]);
+                let ok = set.len() == 1 && expect.is_some_and(|ty| ty.index() == set[0]);
                 if !ok {
                     rep.type_mismatches.push(format!(
                         "節點 {} 型別解碼不一致：管線位元 {:?} 檢查器 {:?}\n程式：{}",

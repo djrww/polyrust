@@ -139,7 +139,7 @@ pub fn build_universe_from_src(src: &str) -> Result<super::universe::Universe, S
     for line in src.lines() {
         if let Some(colon) = line.find(':') {
             let after = line[colon+1..].trim();
-            let end = after.find(|c| c==',' || c==';' || c=='{' || c==')').unwrap_or(after.len());
+            let end = after.find([',', ';', '{', ')']).unwrap_or(after.len());
             let ty_str = after[..end].trim();
             if !ty_str.is_empty() {
                 if let Ok(ty) = parse_type_v2(ty_str) {

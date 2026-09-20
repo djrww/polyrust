@@ -3,7 +3,7 @@
 //! Phase3 — lifetime、unsafe、async、stdlib、contracts、borrowck、trait/impl
 
 use axum::{http::StatusCode, Json};
-use polyrust_core::{dsl, driver, pipeline};
+use polyrust_core::{dsl, pipeline};
 use serde::{Deserialize, Serialize};
 
 use crate::ir::{detect_features, SurfaceFile};
@@ -135,7 +135,7 @@ pub async fn check_v2(Json(req): Json<CheckReq>) -> (StatusCode, Json<CheckResp>
     // Path C 混合路線：優先 syn_bridge 完整解析，次選 syn_lower 混合，再回退手寫
     // light 模式（無 syn）直接回退手寫
     #[cfg(feature = "syn")]
-    let (mut syn_used, (syn_prog_opt, syn_universe_opt)): (bool, (Option<polyrust_core::minirust::ast_v2::ProgramV2>, Option<polyrust_core::minirust::universe::Universe>)) = {
+    let (syn_used, (syn_prog_opt, syn_universe_opt)): (bool, (Option<polyrust_core::minirust::ast_v2::ProgramV2>, Option<polyrust_core::minirust::universe::Universe>)) = {
         let mut syn_used = false;
         let res = match crate::syn_bridge::parse_with_syn(&src) {
             Ok(full_prog) => {
@@ -349,7 +349,7 @@ pub async fn check_v2(Json(req): Json<CheckReq>) -> (StatusCode, Json<CheckResp>
         .into_iter()
         .filter(|(feat, _)| {
             let f_lower = feat.to_lowercase();
-            features.iter().any(|uf| f_lower.contains(&uf.to_lowercase()) || uf.to_lowercase().contains(&f_lower.split_whitespace().next().unwrap_or("")))
+            features.iter().any(|uf| f_lower.contains(&uf.to_lowercase()) || uf.to_lowercase().contains(f_lower.split_whitespace().next().unwrap_or("")))
         })
         .map(|(f, enc)| EncodingNote { feature: f.to_string(), encoding: enc })
         .collect();
@@ -427,7 +427,7 @@ pub async fn fix_oracle(Json(req): Json<FixOracleReq>) -> (StatusCode, Json<FixO
     // Handwritten parse
     let handwritten_prog = polyrust_core::minirust::ast_v2::ProgramV2::parse_v2(&src).unwrap_or_else(|_| polyrust_core::minirust::ast_v2::ProgramV2::new());
     let handwritten_display = handwritten_prog.display();
-    let handwritten_can_parse = handwritten_prog.items.len() > 0 || handwritten_prog.main.is_some();
+    let handwritten_can_parse = !handwritten_prog.items.is_empty() || handwritten_prog.main.is_some();
 
     // Fixed program: use syn's FullProgram converted to ProgramV2 if available, else handwritten
     let fixed_program_v2: polyrust_core::minirust::ast_v2::ProgramV2 = if let Some(full_prog) = full_prog_opt.clone() {

@@ -160,7 +160,7 @@ pub fn run_semantic_matrix() -> (usize, usize, Vec<String>) {
                 let sat = !v3.final_is_unsat;
                 let rust_code = v3.generated_rust.clone().unwrap_or_default();
                 let contains_all = case.expected_contains.iter().all(|s| rust_code.contains(*s) || case.poly_src.contains(*s));
-                let ok = sat == case.should_sat && (case.should_sat == false || contains_all);
+                let ok = sat == case.should_sat && (!case.should_sat || contains_all);
                 if ok {
                     passed += 1;
                 } else {

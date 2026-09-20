@@ -552,6 +552,9 @@ checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
 [[package]]
 name = "polyrust-core"
 version = "0.2.2"
+dependencies = [
+ "serde_json",
+]
 
 [[package]]
 name = "polyrust-full"
@@ -592,6 +595,14 @@ dependencies = [
  "tokio",
  "tower 0.4.13",
  "tower-http",
+]
+
+[[package]]
+name = "polyrust-llbc"
+version = "0.2.2"
+dependencies = [
+ "polyrust-core",
+ "serde_json",
 ]
 
 [[package]]

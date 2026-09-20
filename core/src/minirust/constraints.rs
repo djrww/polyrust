@@ -611,7 +611,7 @@ fn poly_to_r1cs(f: &Poly, r: &mut R1cs) {
     let mut merged: Vec<(usize, crate::fp::Fp)> = vec![];
     for (w, k) in lin {
         if let Some(e) = merged.iter_mut().find(|(mw, _)| *mw == w) {
-            e.1 = e.1 + k;
+            e.1 += k;
         } else {
             merged.push((w, k));
         }

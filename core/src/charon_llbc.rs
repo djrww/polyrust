@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
-//! std-only LLBC JSON 子集 parser（C1 里程碑）。
+//! LLBC **typed schema 層**（C1 起嘅法證白名單；2026-09-20 serde 遷移）。
 //!
-//! 設計戒律（藍圖 C1 驗收口徑）：
-//! 1. **零依賴**：唔用 serde——core 保持 wasm/審計友好，JSON 子集自家實作。
+//! 設計戒律：
+//! 1. **零依賴**：core `[dependencies]` 為空。「字節→JSON 樹」已移交
+//!    `frontends/llbc`（真 serde_json）；呢度只剩 [`Value`] 記憶體樹
+//!    同「樹→typed LLBC」嘅 schema 行走——邊界：JSON **語法**歸 serde，
+//!    LLBC **schema** 歸呢度。
 //! 2. **唔畀靜默跳過**：schema 漂移（多 key、少 key、未知 enum variant、型別唔對）一律
-//!    `LlbcError`，由調用方決定點處理；parser 自己永遠唔會折叠未知形狀。
+//!    `LlbcError`，由調用方決定點處理；walker 自己永遠唔會折叠未知形狀。
 //! 3. **pin 對象**：Charon `ca501af6`（見 `charon.pin`）出嘅 LLBC 結構
 //!    `{charon_version, translated{13 keys}, has_errors}`；fixture snapshot 入倉
 //!    （`core/tests/charon_fixtures/*.llbc`），升 pin 前要行 `scripts/c0_spike.py` 重做 fixtures。
@@ -123,221 +126,6 @@ impl fmt::Display for LlbcError {
 }
 impl std::error::Error for LlbcError {}
 
-struct Parser<'a> {
-    src: &'a [u8],
-    pos: usize,
-}
-
-pub fn parse_json(src: &str) -> Result<Value, LlbcError> {
-    let mut p = Parser { src: src.as_bytes(), pos: 0 };
-    let v = p.value()?;
-    p.skip_ws();
-    if p.pos != p.src.len() {
-        return Err(p.err("trailing bytes after JSON value"));
-    }
-    Ok(v)
-}
-
-impl<'a> Parser<'a> {
-    fn err(&self, msg: &str) -> LlbcError {
-        LlbcError { offset: self.pos, msg: msg.to_string() }
-    }
-    fn skip_ws(&mut self) {
-        while let Some(&b) = self.src.get(self.pos) {
-            match b {
-                b' ' | b'\t' | b'\n' | b'\r' => self.pos += 1,
-                _ => break,
-            }
-        }
-    }
-    fn peek(&self) -> Option<u8> {
-        self.src.get(self.pos).copied()
-    }
-    fn eat(&mut self, b: u8, what: &str) -> Result<(), LlbcError> {
-        self.skip_ws();
-        if self.peek() == Some(b) {
-            self.pos += 1;
-            Ok(())
-        } else {
-            Err(self.err(&format!("expected `{}` ({})", b as char, what)))
-        }
-    }
-    fn value(&mut self) -> Result<Value, LlbcError> {
-        self.skip_ws();
-        match self.peek() {
-            Some(b'{') => self.object(),
-            Some(b'[') => self.array(),
-            Some(b'"') => self.string().map(Value::Str),
-            Some(b't') => self.lit("true", Value::Bool(true)),
-            Some(b'f') => self.lit("false", Value::Bool(false)),
-            Some(b'n') => self.lit("null", Value::Null),
-            Some(c) if c == b'-' || c.is_ascii_digit() => self.number(),
-            Some(c) => {
-                self.pos += 1;
-                Err(self.err(&format!("unexpected byte 0x{:02x} starting JSON value", c)))
-            }
-            None => Err(self.err("unexpected end of input")),
-        }
-    }
-    fn lit(&mut self, word: &str, v: Value) -> Result<Value, LlbcError> {
-        if self.src[self.pos..].starts_with(word.as_bytes()) {
-            self.pos += word.len();
-            Ok(v)
-        } else {
-            Err(self.err(&format!("bad literal (want {})", word)))
-        }
-    }
-    fn number(&mut self) -> Result<Value, LlbcError> {
-        let start = self.pos;
-        if self.peek() == Some(b'-') {
-            self.pos += 1;
-        }
-        let mut saw = false;
-        while let Some(c) = self.peek() {
-            match c {
-                b'0'..=b'9' | b'.' | b'e' | b'E' | b'+' | b'-' => {
-                    saw = saw || c.is_ascii_digit();
-                    self.pos += 1;
-                }
-                _ => break,
-            }
-        }
-        if !saw {
-            return Err(self.err("number without digits"));
-        }
-        Ok(Value::Num(
-            std::str::from_utf8(&self.src[start..self.pos]).unwrap_or("").to_string(),
-        ))
-    }
-    fn string(&mut self) -> Result<String, LlbcError> {
-        self.skip_ws();
-        if self.peek() != Some(b'"') {
-            return Err(self.err("expected string"));
-        }
-        self.pos += 1;
-        let mut out = String::new();
-        loop {
-            let c = self.peek().ok_or_else(|| self.err("unterminated string"))?;
-            self.pos += 1;
-            match c {
-                b'"' => return Ok(out),
-                b'\\' => {
-                    let e = self.peek().ok_or_else(|| self.err("unterminated escape"))?;
-                    self.pos += 1;
-                    match e {
-                        b'"' => out.push('"'),
-                        b'\\' => out.push('\\'),
-                        b'/' => out.push('/'),
-                        b'b' => out.push('\u{0008}'),
-                        b'f' => out.push('\u{000c}'),
-                        b'n' => out.push('\n'),
-                        b'r' => out.push('\r'),
-                        b't' => out.push('\t'),
-                        b'u' => {
-                            let cp = self.hex4()?;
-                            if (0xd800..0xdc00).contains(&cp) {
-                                // surrogate pair
-                                if self.peek() == Some(b'\\') {
-                                    self.pos += 1;
-                                    if self.peek() == Some(b'u') {
-                                        self.pos += 1;
-                                        let lo = self.hex4()?;
-                                        let c = 0x10000
-                                            + ((cp - 0xd800) << 10)
-                                            + (lo.wrapping_sub(0xdc00) & 0x3ff);
-                                        out.push(char::from_u32(c).unwrap_or('\u{fffd}'));
-                                    } else {
-                                        out.push('\u{fffd}');
-                                    }
-                                } else {
-                                    out.push('\u{fffd}');
-                                }
-                            } else {
-                                out.push(char::from_u32(cp).unwrap_or('\u{fffd}'));
-                            }
-                        }
-                        _ => return Err(self.err("bad escape char")),
-                    }
-                }
-                c if c < 0x80 => out.push(c as char),
-                c => {
-                    // UTF-8 continuation (2/3/4 bytes)
-                    let n = match c {
-                        0xc0..=0xdf => 1,
-                        0xe0..=0xef => 2,
-                        0xf0..=0xf7 => 3,
-                        _ => return Err(self.err("bad UTF-8 lead byte")),
-                    };
-                    let start = self.pos - 1;
-                    self.pos = (self.pos + n).min(self.src.len());
-                    out.push_str(std::str::from_utf8(&self.src[start..self.pos]).unwrap_or("\u{fffd}"));
-                }
-            }
-        }
-    }
-    fn hex4(&mut self) -> Result<u32, LlbcError> {
-        let mut v = 0u32;
-        for _ in 0..4 {
-            let c = self.peek().ok_or_else(|| self.err("short \\u escape"))?;
-            self.pos += 1;
-            v = v * 16
-                + match c {
-                    b'0'..=b'9' => (c - b'0') as u32,
-                    b'a'..=b'f' => (c - b'a' + 10) as u32,
-                    b'A'..=b'F' => (c - b'A' + 10) as u32,
-                    _ => return Err(self.err("bad hex in \\u escape")),
-                };
-        }
-        Ok(v)
-    }
-    fn array(&mut self) -> Result<Value, LlbcError> {
-        self.pos += 1; // '['
-        let mut out = Vec::new();
-        self.skip_ws();
-        if self.peek() == Some(b']') {
-            self.pos += 1;
-            return Ok(Value::Arr(out));
-        }
-        loop {
-            out.push(self.value()?);
-            self.skip_ws();
-            match self.peek() {
-                Some(b',') => self.pos += 1,
-                Some(b']') => {
-                    self.pos += 1;
-                    return Ok(Value::Arr(out));
-                }
-                _ => return Err(self.err("expected `,` or `]` in array")),
-            }
-        }
-    }
-    fn object(&mut self) -> Result<Value, LlbcError> {
-        self.pos += 1; // '{'
-        let mut out = Vec::new();
-        self.skip_ws();
-        if self.peek() == Some(b'}') {
-            self.pos += 1;
-            return Ok(Value::Obj(out));
-        }
-        loop {
-            self.skip_ws();
-            let k = self.string()?;
-            self.eat(b':', "object colon")?;
-            let v = self.value()?;
-            out.push((k, v));
-            self.skip_ws();
-            match self.peek() {
-                Some(b',') => self.pos += 1,
-                Some(b'}') => {
-                    self.pos += 1;
-                    return Ok(Value::Obj(out));
-                }
-                _ => return Err(self.err("expected `,` or `}` in object")),
-            }
-        }
-    }
-}
-
 // ---------------------------------------------------------------------------
 // 模式化 LLBC root / translated / fun decl（pinned schema，漂移即 hard error）
 // ---------------------------------------------------------------------------
@@ -423,7 +211,7 @@ fn keyset_check(
             return Err(LlbcError { offset: 0, msg: format!("{ctx}: duplicate key `{k}`") });
         }
     }
-    for k in allowed.iter().copied().filter(|k| !have.contains_key(k)) {
+    if let Some(k) = allowed.iter().copied().find(|k| !have.contains_key(k)) {
         return Err(LlbcError { offset: 0, msg: format!("{ctx}: missing key `{k}`") });
     }
     Ok(())
@@ -455,9 +243,10 @@ fn extract_name(v: Option<&Value>) -> (Vec<String>, String) {
 }
 
 impl LlbcRoot {
-    pub fn parse(src: &str) -> Result<Self, LlbcError> {
-        let root = parse_json(src)?;
-        keyset_check(&root, &ROOT_KEYS, "root")?;
+    /// 由 [`Value`] 樹行 typed schema 檢查。文本→樹請用
+    /// `frontends/llbc`（真 serde_json）：`parse_llbc_text` 即係本函數加埋前端。
+    pub fn from_value(root: &Value) -> Result<Self, LlbcError> {
+        keyset_check(root, &ROOT_KEYS, "root")?;
         let charon_version = root
             .get("charon_version")
             .and_then(|v| v.as_str())
@@ -547,9 +336,39 @@ impl LlbcRoot {
 // 測試：fixtures round-trip + schema 硬錯
 // ---------------------------------------------------------------------------
 
+/// 測試橋：core 測試經 serde_json（dev-dep）過真 parser，
+/// 與 `frontends/llbc::from_serde_value` 逐行同源（bridge 太細，兩處複製成本低過
+/// crate 循環；frontend parity 測試用真 fixtures 鎖住一致性）。
+#[cfg(test)]
+pub(crate) fn value_for_test(src: &str) -> Result<Value, String> {
+    fn conv(v: &serde_json::Value) -> Value {
+        match v {
+            serde_json::Value::Null => Value::Null,
+            serde_json::Value::Bool(b) => Value::Bool(*b),
+            serde_json::Value::Number(n) => Value::Num(n.to_string()),
+            serde_json::Value::String(s) => Value::Str(s.clone()),
+            serde_json::Value::Array(a) => Value::Arr(a.iter().map(conv).collect()),
+            serde_json::Value::Object(m) => {
+                Value::Obj(m.iter().map(|(k, v)| (k.clone(), conv(v))).collect())
+            }
+        }
+    }
+    let v: serde_json::Value = serde_json::from_str(src)
+        .map_err(|e| format!("test JSON syntax @{}:{}: {e}", e.line(), e.column()))?;
+    Ok(conv(&v))
+}
+
+/// 測試橋：文本 → typed root（= frontends/llbc::parse_llbc_text 嘅測試版本）。
+#[cfg(test)]
+pub(crate) fn root_for_test(src: &str) -> Result<LlbcRoot, LlbcError> {
+    let v = value_for_test(src).map_err(|e| LlbcError { offset: 0, msg: e })?;
+    LlbcRoot::from_value(&v)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::charon_llbc::{root_for_test, value_for_test};
 
     const FIXTURES: [(&str, &str); 10] = [
         ("sqr", include_str!("../tests/charon_fixtures/sqr.llbc")),
@@ -567,17 +386,17 @@ mod tests {
     #[test]
     fn fixtures_parse_and_shape() {
         for (name, src) in FIXTURES {
-            let root = LlbcRoot::parse(src).unwrap_or_else(|e| panic!("fixture {name}: {e}"));
+            let root = root_for_test(src).unwrap_or_else(|e| panic!("fixture {name}: {e}"));
             assert!(!root.funs.is_empty(), "fixture {name}: no fun_decls");
-            assert_eq!(root.charon_version.is_empty(), false, "fixture {name}");
+            assert!(!root.charon_version.is_empty(), "fixture {name}");
         }
     }
 
     #[test]
     fn fixtures_roundtrip() {
         for (name, src) in FIXTURES {
-            let v = parse_json(src).unwrap_or_else(|e| panic!("{name}: {e}"));
-            let v2 = parse_json(&v.dump()).unwrap();
+            let v = value_for_test(src).unwrap_or_else(|e| panic!("{name}: {e}"));
+            let v2 = value_for_test(&v.dump()).unwrap();
             assert_eq!(v, v2, "fixture {name} round-trip mismatch");
         }
     }
@@ -585,15 +404,15 @@ mod tests {
     #[test]
     fn async_fixture_is_error_body() {
         // pinned：async desugar 部分 body 抽唔到 → has_errors + body=Error variant
-        let root = LlbcRoot::parse(FIXTURES.iter().find(|(n, _)| *n == "async_simple").unwrap().1).unwrap();
+        let root = root_for_test(FIXTURES.iter().find(|(n, _)| *n == "async_simple").unwrap().1).unwrap();
         assert!(root.has_errors);
         assert!(root.funs.iter().any(|f| f.body_kind == BodyKind::Error));
     }
 
     #[test]
     fn hard_error_on_unknown_root_key() {
-        let bad = r#"{"charon_version":"0.1","translated":{},"has_errors":false,"surprise":1}"#;
-        let e = LlbcRoot::parse(bad).unwrap_err();
+        let v = value_for_test(r#"{"charon_version":"0.1","translated":{},"has_errors":false,"surprise":1}"#).unwrap();
+        let e = LlbcRoot::from_value(&v).unwrap_err();
         assert!(e.msg.contains("unknown key"), "{}", e.msg);
     }
 
@@ -602,7 +421,7 @@ mod tests {
         // 攞真 fixture 細改 body variant → 必須 hard error（唔准靜默當 Missing）
         let src = FIXTURES.iter().find(|(n, _)| *n == "max").unwrap().1
             .replacen(r#""Structured""#, r#""WatVariant""#, 1);
-        let e = LlbcRoot::parse(&src).unwrap_err();
+        let e = LlbcRoot::from_value(&value_for_test(&src).unwrap()).unwrap_err();
         assert!(e.msg.contains("unknown variant"), "{}", e.msg);
     }
 
@@ -610,17 +429,19 @@ mod tests {
     fn hard_error_on_missing_translated_key() {
         let src = FIXTURES.iter().find(|(n, _)| *n == "add").unwrap().1
             .replacen(r#""trait_impls""#, r#""trait_implz""#, 1);
-        let e = LlbcRoot::parse(&src).unwrap_err();
+        let e = LlbcRoot::from_value(&value_for_test(&src).unwrap()).unwrap_err();
         assert!(e.msg.contains("unknown key") || e.msg.contains("missing key"), "{}", e.msg);
     }
 
     #[test]
     fn json_number_and_unicode() {
-        let v = parse_json(r#"{"a":-12.5e3,"s":"x\u4e2d\u6587\n"}"#).unwrap();
-        assert_eq!(v.get("a").unwrap().as_num(), Some("-12.5e3"));
+        let v = value_for_test(r#"{"a":-12.5e3,"s":"x\u4e2d\u6587\n"}"#).unwrap();
+        // serde_json 規範化數字原文（-12.5e3 → -12500.0）；LLBC number 全部係
+        // id/整數字面量，唔受影響（num_i64 只係 schema 層讀整數位）。
+        assert_eq!(v.get("a").unwrap().as_num(), Some("-12500.0"));
         assert_eq!(v.get("s").unwrap().as_str(), Some("x中文\n"));
-        // 代理對
-        let v2 = parse_json(r#"["\ud83d\ude00"]"#).unwrap();
+        // 代理對（真 serde_json 解）
+        let v2 = value_for_test(r#"["\ud83d\ude00"]"#).unwrap();
         assert_eq!(v2.as_arr().unwrap()[0].as_str(), Some("😀"));
     }
 }

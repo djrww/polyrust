@@ -204,7 +204,6 @@ fn parse_place(v: &Value, ctx: &str) -> Result<Place, LlbcError> {
         // 嵌套 collapse 規則（法證：(*r).0 = Deref∘Field）：Deref 哨兵透明化；
         // 剩餘 nested Field∘Field / Field∘Deref → hard error（C4 ADT/別名語義先開）
         let deref_sentinel = Some(usize::MAX);
-        let deref_base = base.proj == deref_sentinel;
         // elems：array | 單個物件 | 裸字符串（{"Deref"} 實測係 string payload）
         let elems: Vec<Value> = match pj.get(1) {
             Some(Value::Arr(a)) => a.clone(),
@@ -584,10 +583,9 @@ pub fn parse_fun_body_with_consts(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::charon_llbc::LlbcRoot;
 
     fn body_of(fixture: &str) -> FunBody {
-        let root = LlbcRoot::parse(fixture).unwrap();
+        let root = crate::charon_llbc::root_for_test(fixture).unwrap();
         let fun = root.funs.iter().find(|f| f.body_kind == crate::charon_llbc::BodyKind::Structured).unwrap();
         parse_fun_body(
             &fun.raw,
@@ -647,7 +645,7 @@ mod tests {
     #[test]
     fn unknown_stmt_kind_hard_errors() {
         let bad = r#"{"useless":0}"#;
-        let v = crate::charon_llbc::parse_json(bad).unwrap();
+        let v = crate::charon_llbc::value_for_test(bad).unwrap();
         assert!(parse_stmt_kind(&v, "t", &ConstTable::new()).is_err());
     }
 }

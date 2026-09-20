@@ -11,7 +11,7 @@
 
 [workspace]
 resolver = "2"
-members = ["core", "frontends/http", "frontends/llm", "frontends/full", "frontends/ide"]
+members = ["core", "frontends/http", "frontends/llm", "frontends/full", "frontends/ide", "frontends/llbc"]
 
 [workspace.package]
 version = "0.2.2"

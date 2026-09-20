@@ -147,7 +147,7 @@ pub fn load_poly(text: &str) -> Result<PolySource, String> {
                 // @set 特殊處理
                 if kv.starts_with("set ") || kv.starts_with("set:") || kv.starts_with("set=") {
                     let body = kv.strip_prefix("set").unwrap().trim();
-                    let body = body.trim_start_matches(|c| c == ':' || c == '=').trim();
+                    let body = body.trim_start_matches([':', '=']).trim();
                     if let Some((k, v)) = body.split_once('=') {
                         sets.push((k.trim().to_string(), v.trim().to_string()));
                     } else if let Some((k, v)) = body.split_once(':') {
