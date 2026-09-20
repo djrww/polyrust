@@ -79,23 +79,44 @@ pub fn lift(root: &LlbcRoot) -> PolyModule {
 // C2：語義 lowering——LLBC body → 值軌跡 IR（直線算術），其餘形態精確降級
 // ---------------------------------------------------------------------------
 
-/// 值槽：(local index, Option<tuple field>)。
+/// 槽位部件：整槽／tuple-adt 欄位／enum 判別值。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum Part {
+    /// local 本身（int 值、ADT 不透明整槽）
+    Whole,
+    /// 欄位投影（checked tuple 值/旗標、ADT 欄位）
+    Field(u8),
+    /// enum 判別值（`Discriminant` 產物／enum 參數之判別值軸）
+    Disc,
+}
+
+/// 值槽：(local index, part)。
 /// checked 運算（如 `MulChecked`）喺 LLBC 產生 tuple local；後續以
 /// `Field 0`（值）／`Field 1`（溢出旗標）投影訪問——展開成兩個槽。
+/// enum 參數以 `Disc` 槽（判別值）＋ `Field(k)` 槽（欄位）表達。
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Slot {
     pub local: usize,
-    pub field: Option<u8>,
+    pub part: Part,
 }
 
 impl Slot {
     fn whole(local: usize) -> Slot {
-        Slot { local, field: None }
+        Slot {
+            local,
+            part: Part::Whole,
+        }
+    }
+    fn disc(local: usize) -> Slot {
+        Slot {
+            local,
+            part: Part::Disc,
+        }
     }
     pub fn field(local: usize, k: u8) -> Slot {
         Slot {
             local,
-            field: Some(k),
+            part: Part::Field(k),
         }
     }
 }
@@ -105,6 +126,14 @@ pub enum PirBinOp {
     Add,
     Sub,
     Mul,
+    /// 比較（C4）：結果 ∈ {0,1}；語義由 concretize 模擬（i64 口徑）承擔，
+    /// 編碼側經見證模式記錄為恆等式 dst = 模擬值。比較必須被 Switch 消費。
+    Gt,
+    Lt,
+    Ge,
+    Le,
+    Eq,
+    Ne,
 }
 
 impl PirBinOp {
@@ -113,6 +142,30 @@ impl PirBinOp {
             PirBinOp::Add => "add",
             PirBinOp::Sub => "sub",
             PirBinOp::Mul => "mul",
+            PirBinOp::Gt => "gt",
+            PirBinOp::Lt => "lt",
+            PirBinOp::Ge => "ge",
+            PirBinOp::Le => "le",
+            PirBinOp::Eq => "eq",
+            PirBinOp::Ne => "ne",
+        }
+    }
+    /// 比較判別（模擬用，i64 口徑與 rustc 一致）。
+    pub fn is_comparison(self) -> bool {
+        matches!(
+            self,
+            PirBinOp::Gt | PirBinOp::Lt | PirBinOp::Ge | PirBinOp::Le | PirBinOp::Eq | PirBinOp::Ne
+        )
+    }
+    pub fn compare(self, x: i64, y: i64) -> bool {
+        match self {
+            PirBinOp::Gt => x > y,
+            PirBinOp::Lt => x < y,
+            PirBinOp::Ge => x >= y,
+            PirBinOp::Le => x <= y,
+            PirBinOp::Eq => x == y,
+            PirBinOp::Ne => x != y,
+            _ => unreachable!("compare 只對比較運算"),
         }
     }
 }
@@ -146,6 +199,9 @@ pub enum PirStmtKind {
     },
     /// Assert(flag == false)：checked 運算嘅非溢出假設，編成 flag = 0 等式。
     AssertFlagZero { flag: Slot },
+    /// dst := 判別值(of)（C4 動態形態：of 為 enum 參數）。靜態已建構者
+    /// 直接摺成 Const；此 variant 只喺見證模式編碼（恆等式 dst = 模擬值）。
+    Discriminant { of: Slot },
     /// dst := ADT 聚合建構（C3：struct／tuple／enum variant）。欄位逐一寫入
     /// `dst.local` 嘅 field 槽（域 = 運算元域，恆等式 = dst_f = src）；
     /// `disc = Some(c)` 表示 enum variant 建構，判別值 c 已由 type_decls 解析，
@@ -156,16 +212,39 @@ pub enum PirStmtKind {
     },
 }
 
-/// 一個函數嘅直線值軌跡（C2 支援形態）。
+/// enum 參數資訊（C4）：由 signature.inputs 嘅 ty（Adt.id）＋ type_decls 解析。
+#[derive(Debug, Clone)]
+pub struct EnumParam {
+    /// 參數序號（0-based；對應 local = arg + 1）
+    pub arg: usize,
+    pub local: usize,
+    /// 各 variant：(判別值, 欄位數)。C4 只支援 ≤1 欄位之 variant。
+    pub variants: Vec<(i64, u8)>,
+}
+
+/// 一條執行路徑（C4）：guard = (scrutinee, value) 等值條件；fallback =
+/// scrutinee 值唔中任何 branch 常數時行呢條。純直線 body 只有一條
+/// guard = None 嘅 path（同 C2/C3 stmts 等價）。
+#[derive(Debug, Clone)]
+pub struct PirPath {
+    pub scrutinee: Option<Slot>,
+    pub value: Option<i64>,
+    pub fallback: bool,
+    pub stmts: Vec<PirStmt>,
+}
+
+/// 一個函數嘅值軌跡（C4：多路徑）。
 #[derive(Debug, Clone)]
 pub struct PirBody {
     pub fun_name: String,
     pub arg_count: usize,
-    pub stmts: Vec<PirStmt>,
+    pub paths: Vec<PirPath>,
     /// 是否存在 Assert(flag==false)（溢出旗標被斷言為零）。
     pub overflow_asserted: bool,
     /// 返回值槽（LLBC 慣例：local 0 為 return place）。
     pub ret_slot: Option<Slot>,
+    /// enum 參數（判別值/欄位軸；C4 組合枚舉用）。
+    pub enum_params: Vec<EnumParam>,
 }
 
 /// 語義 lowering 判決：支援（值軌跡）／精確降級（附原因）／body 缺失。
@@ -237,6 +316,9 @@ fn lower_fun_inner(types: &Value, fun: &FunDeclRef) -> Result<PirBody, String> {
         ));
     }
 
+    // C4：enum 參數解析（signature.inputs ty = Adt → type_decls 查 Enum）
+    let enum_params = parse_enum_params(types, fun, arg_count, &name)?;
+
     // statements
     let stmts_val = structured
         .get("body")
@@ -244,22 +326,97 @@ fn lower_fun_inner(types: &Value, fun: &FunDeclRef) -> Result<PirBody, String> {
         .and_then(|v| v.as_arr())
         .ok_or_else(|| format!("{name}: body.statements 缺失"))?;
 
-    let mut out: Vec<PirStmt> = Vec::with_capacity(stmts_val.len());
-    let mut overflow_asserted = false;
-    let mut ret_slot: Option<Slot> = None;
-    let mut returned = false;
-    // C3：已知判別值（local → 判別值）。來源：enum Aggregate 建構、其整槽 copy。
-    // 唯一消費者：Discriminant rvalue 常數傳播 + Switch 降級原因嘅 scrutinee 提示。
-    let mut disc_of: BTreeMap<usize, i64> = BTreeMap::new();
+    let mut ctx = LowerCtx {
+        name: name.clone(),
+        disc_of: BTreeMap::new(),
+        // enum param 之判別值軸：local → variants
+        disc_domain: enum_params
+            .iter()
+            .map(|e| (e.local, e.variants.iter().map(|v| v.0).collect::<Vec<_>>()))
+            .collect(),
+        disc_dst_of: BTreeMap::new(),
+        cmp_dst: std::collections::BTreeSet::new(),
+        overflow_asserted: false,
+        ret_slot: None,
+    };
+    let mut paths: Vec<PirPath> = Vec::new();
+    let mut probe = Vec::new();
+    let end = lower_seq(&mut ctx, types, stmts_val, 0, &mut probe, &mut paths, true)?;
+    let _ = end;
+    if paths.is_empty() {
+        // 純直線（無動態 switch）：主流程單 path
+        let mut stmts = Vec::new();
+        let end2 = lower_seq(&mut ctx, types, stmts_val, 0, &mut stmts, &mut paths, false)?;
+        let _ = end2;
+        paths.insert(
+            0,
+            PirPath {
+                scrutinee: None,
+                value: None,
+                fallback: false,
+                stmts,
+            },
+        );
+    }
+    if ctx.ret_slot.is_none() {
+        return fail(format!("{name}: body 無 Return 亦無對 local0 賦值"));
+    }
 
-    for (i, s) in stmts_val.iter().enumerate() {
+    Ok(PirBody {
+        fun_name: name,
+        arg_count,
+        paths,
+        overflow_asserted: ctx.overflow_asserted,
+        ret_slot: ctx.ret_slot,
+        enum_params,
+    })
+}
+
+/// lowering 上下文（跨語句狀態）。
+struct LowerCtx {
+    name: String,
+    /// 已知判別值（local → 值）：靜態已建構 enum
+    disc_of: BTreeMap<usize, i64>,
+    /// enum 參數判別值軸（local → 各 variant 判別值）
+    disc_domain: BTreeMap<usize, Vec<i64>>,
+    /// Discriminant(enum param) 產物（dst local → enum param local）
+    disc_dst_of: BTreeMap<usize, usize>,
+    /// 比較結果槽（Switch scrutinee 域 = {0,1} 之依據）
+    cmp_dst: std::collections::BTreeSet<Slot>,
+    overflow_asserted: bool,
+    ret_slot: Option<Slot>,
+}
+
+/// 序列 lowering 結局：Return 終止／FallThrough 流盡。
+#[derive(PartialEq)]
+enum SeqEnd {
+    Returned,
+    FallThrough,
+}
+
+/// 語句序列 lowering（C4：遇動態 Switch 進行路徑分裂，paths 收各臂完整軌跡）。
+/// `split` = true 時允許路徑分裂（頂層調用）；false = 純直線（分裂 → 降級，
+/// 供單 path 二次 lowering）。
+fn lower_seq(
+    ctx: &mut LowerCtx,
+    types: &Value,
+    stmts_val: &[Value],
+    start: usize,
+    out: &mut Vec<PirStmt>,
+    paths: &mut Vec<PirPath>,
+    split: bool,
+) -> Result<SeqEnd, String> {
+    let name = ctx.name.clone();
+    let fail = |reason: String| -> Result<SeqEnd, String> { Err(reason) };
+    let mut i = start;
+    while i < stmts_val.len() {
+        let s = &stmts_val[i];
         let kind = s
             .get("kind")
             .ok_or_else(|| format!("{name}: stmt[{i}].kind 缺失"))?;
         if let Some(tag) = kind.as_str() {
             if tag == "Return" {
-                returned = true;
-                break;
+                return Ok(SeqEnd::Returned);
             }
             return fail(format!("{name}: stmt[{i}] 非支援語句 `{tag}`"));
         }
@@ -268,8 +425,10 @@ fn lower_fun_inner(types: &Value, fun: &FunDeclRef) -> Result<PirBody, String> {
             _ => return fail(format!("{name}: stmt[{i}].kind 非單鍵 variant")),
         };
         match variant {
-            "StorageLive" | "StorageDead" | "Borrowck" | "Drop" | "Nop" => {
-                // 存儲管理／清理標記：對值軌跡無影響，跳過
+            "StorageLive" | "StorageDead" | "Borrowck" | "Drop" | "Nop" => {}
+            "Abort" => {
+                // unreachable 臂（exhaustive match fallback）：唔會有組合到達；
+                // 若 lowering 到此 = 組合軸未覆蓋，唔生成語句（呼叫方已按值分派）
             }
             "Assign" => {
                 let pair = payload
@@ -279,34 +438,57 @@ fn lower_fun_inner(types: &Value, fun: &FunDeclRef) -> Result<PirBody, String> {
                     return fail(format!("{name}: stmt[{i}].Assign 長度 {}", pair.len()));
                 }
                 let dst = parse_place(&name, i, &pair[0])?;
-                // ret slot 偵測：LLBC local 0 = return place
-                if dst.local == 0 && dst.field.is_none() && ret_slot.is_none() {
-                    ret_slot = Some(dst.clone());
+                if dst.local == 0 && dst.part == Part::Whole && ctx.ret_slot.is_none() {
+                    ctx.ret_slot = Some(dst.clone());
                 }
-                let stmt_kind = parse_rvalue(types, &disc_of, &name, i, &pair[1])?;
+                let stmt_kind =
+                    parse_rvalue(types, &ctx.disc_of, &ctx.disc_domain, &name, i, &pair[1])?;
                 if let PirStmtKind::BinOp { checked: true, .. } = stmt_kind {
-                    // checked 運算嘅 dst 係 tuple：展開為 (n,0)/(n,1)，whole 槽不可用
-                    if dst.field.is_some() {
+                    if dst.part != Part::Whole {
                         return fail(format!("{name}: stmt[{i}] checked 運算 dst 非整槽"));
                     }
                 }
                 match &stmt_kind {
                     PirStmtKind::Aggregate { disc, .. } => {
-                        // ADT 建構：dst 必須係整槽（欄位落 field 槽，encode 展開）
-                        if dst.field.is_some() {
+                        if dst.part != Part::Whole {
                             return fail(format!("{name}: stmt[{i}] Aggregate dst 非整槽"));
                         }
                         if let Some(c) = disc {
-                            disc_of.insert(dst.local, *c);
+                            ctx.disc_of.insert(dst.local, *c);
                         }
                     }
                     PirStmtKind::Copy { src } => {
-                        // enum 值逐層 copy：判別值已知就跟住傳播（整槽對整槽）
-                        if src.field.is_none() && dst.field.is_none() {
-                            if let Some(&c) = disc_of.get(&src.local) {
-                                disc_of.insert(dst.local, c);
+                        if src.part == Part::Whole && dst.part == Part::Whole {
+                            if let Some(&c) = ctx.disc_of.get(&src.local) {
+                                ctx.disc_of.insert(dst.local, c);
                             }
                         }
+                    }
+                    PirStmtKind::BinOp { op, .. } => {
+                        if op.is_comparison() {
+                            if dst.part != Part::Whole {
+                                return fail(format!("{name}: stmt[{i}] 比較 dst 非整槽"));
+                            }
+                            ctx.cmp_dst.insert(dst.clone());
+                        }
+                    }
+                    PirStmtKind::Discriminant { of } => {
+                        if dst.part != Part::Whole {
+                            return fail(format!("{name}: stmt[{i}] Discriminant dst 非整槽"));
+                        }
+                        // 靜態已建構：摺 Const；enum 參數：記判別值軸產物
+                        if let Some(&c) = ctx.disc_of.get(&of.local) {
+                            out.push(PirStmt {
+                                dst: dst.clone(),
+                                kind: PirStmtKind::Const { val: c },
+                            });
+                            i += 1;
+                            continue;
+                        }
+                        if ctx.disc_domain.contains_key(&of.local) {
+                            ctx.disc_dst_of.insert(dst.local, of.local);
+                        }
+                        // 其餘（未知 enum）→ 照推，由 Switch 域偵測/encode 降級
                     }
                     _ => {}
                 }
@@ -330,43 +512,165 @@ fn lower_fun_inner(types: &Value, fun: &FunDeclRef) -> Result<PirBody, String> {
                 if expected {
                     return fail(format!("{name}: stmt[{i}] Assert(expected=true) 唔支援"));
                 }
-                if slot.field != Some(1) {
+                if slot.part != Part::Field(1) {
                     return fail(format!(
                         "{name}: stmt[{i}] Assert 條件非溢出旗標（field1）投影"
                     ));
                 }
-                overflow_asserted = true;
+                ctx.overflow_asserted = true;
                 out.push(PirStmt {
                     dst: slot.clone(),
                     kind: PirStmtKind::AssertFlagZero { flag: slot },
                 });
             }
             "Switch" => {
-                // 分支編碼屬後續 slice（藍圖 M2 條件/switch：分支 ctx 乘法）。
-                // 本序列化慣例下 post-Switch 語句屬 fall-through 臂——直讀唔 sound，
-                // 所以必須喺度停。scrutinee 判別值已知（C3 常數傳播）都照降級，
-                // 但原因如實附上（靜態選臂都屬後續 slice）。
-                let hint = payload
+                // ---- 路徑分裂（C4 核心）----
+                let data = payload
                     .get("data")
-                    .and_then(|d| d.get("scrutinee"))
-                    .and_then(|s| parse_operand_place(&name, i, s).ok())
-                    .and_then(|s| {
-                        if s.field.is_none() {
-                            disc_of.get(&s.local).copied()
-                        } else {
-                            None
-                        }
-                    });
-                match hint {
-                    Some(c) => {
-                        return fail(format!(
-                            "{name}: stmt[{i}] Switch 唔支援（分支編碼屬後續 slice；scrutinee 判別值={c} 已知常數，靜態選臂亦屬後續）"
-                        ))
-                    }
-                    None => {
-                        return fail(format!("{name}: stmt[{i}] Switch 唔支援（分支編碼屬後續 slice）"))
-                    }
+                    .ok_or_else(|| format!("{name}: stmt[{i}] Switch 缺 data"))?;
+                let scrutinee = parse_operand_place(
+                    &name,
+                    i,
+                    data.get("scrutinee")
+                        .ok_or_else(|| format!("{name}: stmt[{i}] Switch 缺 scrutinee"))?,
+                )?;
+                if scrutinee.part != Part::Whole {
+                    return fail(format!("{name}: stmt[{i}] Switch scrutinee 非整槽"));
                 }
+                let branches = data
+                    .get("branches")
+                    .and_then(|v| v.as_arr())
+                    .ok_or_else(|| format!("{name}: stmt[{i}] Switch branches 缺失"))?;
+                let fallback_idx = data
+                    .get("fallback")
+                    .and_then(|v| v.as_num())
+                    .and_then(|s| s.parse::<usize>().ok())
+                    .ok_or_else(|| format!("{name}: stmt[{i}] Switch fallback 非數字"))?;
+                let mut branch_arms: Vec<(i64, usize)> = Vec::new();
+                for b in branches {
+                    let ba = b
+                        .as_arr()
+                        .ok_or_else(|| format!("{name}: stmt[{i}] branch 非陣列"))?;
+                    if ba.len() != 2 {
+                        return fail(format!("{name}: stmt[{i}] branch 長度 {}", ba.len()));
+                    }
+                    let c = parse_const(&name, i, &ba[0])?;
+                    let idx = ba[1]
+                        .as_num()
+                        .and_then(|s| s.parse::<usize>().ok())
+                        .ok_or_else(|| format!("{name}: stmt[{i}] branch 臂索引非數字"))?;
+                    branch_arms.push((c, idx));
+                }
+                let arms = payload
+                    .get("branches")
+                    .and_then(|v| v.as_arr())
+                    .ok_or_else(|| format!("{name}: stmt[{i}] Switch 臂陣列缺失"))?;
+
+                // scrutinee 域可知性：靜態判別值 > enum 參數軸 > 比較 {0,1}
+                let domain: Vec<i64> = if let Some(&c) = ctx.disc_of.get(&scrutinee.local) {
+                    vec![c]
+                } else if let Some(&param) = ctx.disc_dst_of.get(&scrutinee.local) {
+                    ctx.disc_domain
+                        .get(&param)
+                        .cloned()
+                        .ok_or_else(|| format!("{name}: stmt[{i}] 判別值軸缺失"))?
+                } else if ctx.cmp_dst.contains(&scrutinee) {
+                    vec![0, 1]
+                } else {
+                    return fail(format!(
+                        "{name}: stmt[{i}] Switch scrutinee 域未知（判別值域/比較結果以外屬後續 slice）"
+                    ));
+                };
+
+                if domain.len() == 1 && ctx.disc_of.contains_key(&scrutinee.local) {
+                    // 靜態選臂：內聯該臂，續主流程
+                    let c = domain[0];
+                    let arm_idx = branch_arms
+                        .iter()
+                        .find(|(v, _)| *v == c)
+                        .map(|(_, idx)| *idx)
+                        .unwrap_or(fallback_idx);
+                    let arm_stmts = arms
+                        .get(arm_idx)
+                        .and_then(|a| a.get("statements"))
+                        .and_then(|v| v.as_arr())
+                        .ok_or_else(|| format!("{name}: stmt[{i}] 臂 {arm_idx} 缺失"))?;
+                    let end = lower_seq(ctx, types, arm_stmts, 0, out, paths, false)?;
+                    if end == SeqEnd::FallThrough {
+                        i += 1;
+                        continue;
+                    }
+                    return Ok(SeqEnd::Returned);
+                }
+
+                if !split {
+                    return fail(format!(
+                        "{name}: stmt[{i}] 巢狀動態 Switch 唔支援（C4 只支援單層）"
+                    ));
+                }
+
+                // 動態：每個可能值一條 path（fallback 值集 = 域 − branch 常數）
+                let covered: std::collections::BTreeSet<i64> =
+                    branch_arms.iter().map(|(v, _)| *v).collect();
+                let mut values_with_arm: Vec<(i64, usize)> = domain
+                    .iter()
+                    .map(|&v| match branch_arms.iter().find(|(bv, _)| *bv == v) {
+                        Some((_, idx)) => (v, *idx),
+                        None => (v, fallback_idx),
+                    })
+                    .collect();
+                let fallback_covered = domain.iter().any(|v| !covered.contains(v));
+                if !fallback_covered {
+                    // 域全覆蓋：fallback 臂 unreachable（abort）——不生成 path
+                    values_with_arm.retain(|(_, idx)| *idx != fallback_idx);
+                }
+                for (v, arm_idx) in values_with_arm {
+                    let is_fallback = !covered.contains(&v);
+                    let arm_stmts = arms
+                        .get(arm_idx)
+                        .and_then(|a| a.get("statements"))
+                        .and_then(|v| v.as_arr())
+                        .ok_or_else(|| format!("{name}: stmt[{i}] 臂 {arm_idx} 缺失"))?;
+                    // 每 path 之判別值狀態由 switch 前狀態分叉（互不污染）
+                    let base_disc = ctx.disc_of.clone();
+                    // guard 值本身係一個已知判別值（scrutinee 為 enum param 產物時）
+                    if ctx.disc_dst_of.contains_key(&scrutinee.local) {
+                        ctx.disc_of.insert(scrutinee.local, v);
+                    }
+                    let mut path_stmts = out.clone();
+                    let mut sub_paths = Vec::new();
+                    let end = lower_seq(
+                        ctx,
+                        types,
+                        arm_stmts,
+                        0,
+                        &mut path_stmts,
+                        &mut sub_paths,
+                        false,
+                    )?;
+                    if end == SeqEnd::FallThrough {
+                        // 續 post-switch 主流程
+                        let end2 = lower_seq(
+                            ctx,
+                            types,
+                            stmts_val,
+                            i + 1,
+                            &mut path_stmts,
+                            &mut sub_paths,
+                            false,
+                        )?;
+                        let _ = end2;
+                    }
+                    ctx.disc_of = base_disc;
+                    paths.push(PirPath {
+                        scrutinee: Some(scrutinee.clone()),
+                        value: Some(v),
+                        fallback: is_fallback,
+                        stmts: path_stmts,
+                    });
+                }
+                // 主流程到此終止（各 path 已含 post）
+                return Ok(SeqEnd::Returned);
             }
             "Loop" => {
                 return fail(format!(
@@ -380,19 +684,102 @@ fn lower_fun_inner(types: &Value, fun: &FunDeclRef) -> Result<PirBody, String> {
             }
             other => return fail(format!("{name}: stmt[{i}] 未知語句 `{other}`")),
         }
+        i += 1;
     }
-    if !returned && ret_slot.is_none() {
-        return fail(format!("{name}: body 無 Return 亦無對 local0 賦值"));
-    }
+    Ok(SeqEnd::FallThrough)
+}
 
-    let arg_slots: Vec<Slot> = (1..=arg_count).map(Slot::whole).collect();
-    Ok(PirBody {
-        fun_name: name,
-        arg_count,
-        stmts: out,
-        overflow_asserted,
-        ret_slot,
-    })
+/// C4：enum 參數解析（signature.inputs[i].ty = Adt → type_decls Enum）。
+/// 唔支援：>1 欄位之 variant（組合軸語法未定義）。
+fn parse_enum_params(
+    types: &Value,
+    fun: &FunDeclRef,
+    arg_count: usize,
+    name: &str,
+) -> Result<Vec<EnumParam>, String> {
+    let mut out = Vec::new();
+    let inputs = fun
+        .raw
+        .get("signature")
+        .and_then(|s| s.get("inputs"))
+        .and_then(|v| v.as_arr())
+        .ok_or_else(|| format!("{name}: signature.inputs 缺失"))?;
+    for (idx, inp) in inputs.iter().enumerate() {
+        if idx >= arg_count {
+            break;
+        }
+        let ty_val = inp
+            .get("Value")
+            .and_then(|v| v.as_arr())
+            .and_then(|a| a.get(1))
+            .or_else(|| inp.get("ty"));
+        // ty 可能多層 {"Value": [_, ty]} 包裝（實測 Option param 直接 {"Adt":…}）——
+        // 迴圈拆到非 Arr 為止
+        let mut tv = ty_val;
+        while let Some(Value::Arr(a)) = tv {
+            tv = a.get(1);
+        }
+        let adt_id = tv
+            .and_then(|t| t.get("Adt"))
+            .and_then(|a| a.get("id"))
+            .and_then(|v| v.as_num())
+            .and_then(|s| s.parse::<i64>().ok());
+        let Some(adt_id) = adt_id else { continue };
+        let tarr = types
+            .as_arr()
+            .ok_or_else(|| format!("{name}: type_decls 缺失（enum 參數解析需要）"))?;
+        let td = tarr
+            .iter()
+            .find(|t| {
+                t.get("def_id")
+                    .and_then(|v| v.as_num())
+                    .and_then(|s| s.parse::<i64>().ok())
+                    == Some(adt_id)
+            })
+            .ok_or_else(|| format!("{name}: type_decls 無 def_id={adt_id}"))?;
+        let variants = td
+            .get("kind")
+            .and_then(|k| k.get("Enum"))
+            .and_then(|e| e.as_arr())
+            .ok_or_else(|| format!("{name}: type #{adt_id} 非 Enum"))?;
+        let mut vs = Vec::new();
+        for v in variants {
+            let disc = v
+                .get("discriminant")
+                .ok_or_else(|| format!("{name}: variant 缺 discriminant"))?;
+            let (tag, pair) = match disc {
+                Value::Obj(pp) if pp.len() == 1 => (pp[0].0.as_str(), &pp[0].1),
+                _ => return Err(format!("{name}: discriminant 非單鍵 variant")),
+            };
+            let arr = pair
+                .as_arr()
+                .ok_or_else(|| format!("{name}: discriminant.{tag} 非陣列"))?;
+            let raw = arr
+                .get(1)
+                .and_then(|x| x.as_str().or_else(|| x.as_num()))
+                .ok_or_else(|| format!("{name}: discriminant 值非數字"))?;
+            let val: i64 = raw
+                .parse()
+                .map_err(|_| format!("{name}: discriminant `{raw}` 非 i64"))?;
+            let nfields = v
+                .get("fields")
+                .and_then(|f| f.as_arr())
+                .map(|a| a.len())
+                .unwrap_or(0);
+            vs.push((val, nfields as u8));
+        }
+        if vs.iter().any(|(_, nf)| *nf > 1) {
+            return Err(format!(
+                "{name}: 參數 {idx} 係多欄位 enum variant（C4 只支援 ≤1 欄位；組合軸屬後續 slice）"
+            ));
+        }
+        out.push(EnumParam {
+            arg: idx,
+            local: idx + 1,
+            variants: vs,
+        });
+    }
+    Ok(out)
 }
 
 /// place → Slot：Local(n) ｜ Projection[Local(n), Field[_,k]]。
@@ -422,7 +809,7 @@ fn parse_place(fname: &str, i: usize, v: &crate::charon_llbc::Value) -> Result<S
                 }
                 // 基址必須係整 local
                 let base = parse_place(fname, i, &parts[0])?;
-                if base.field.is_some() {
+                if base.part != Part::Whole {
                     return Err(format!("{fname}: stmt[{i}] 巢狀投影唔支援"));
                 }
                 match &parts[1] {
@@ -497,10 +884,11 @@ fn parse_operand_place(
     }
 }
 
-/// rvalue → PirStmtKind。C3：+Discriminant（判別值常數傳播）／Aggregate（ADT 建構）。
+/// rvalue → PirStmtKind。C4：Discriminant 認 enum 參數（動態判別值語句）。
 fn parse_rvalue(
     types: &Value,
     disc_of: &BTreeMap<usize, i64>,
+    disc_domain: &BTreeMap<usize, Vec<i64>>,
     fname: &str,
     i: usize,
     v: &Value,
@@ -546,9 +934,16 @@ fn parse_rvalue(
                     "AddChecked" => (PirBinOp::Add, true),
                     "SubChecked" => (PirBinOp::Sub, true),
                     "MulChecked" => (PirBinOp::Mul, true),
+                    // C4：比較（結果 {0,1}；語義由 concretize 模擬承擔）
+                    "Gt" => (PirBinOp::Gt, false),
+                    "Lt" => (PirBinOp::Lt, false),
+                    "Ge" => (PirBinOp::Ge, false),
+                    "Le" => (PirBinOp::Le, false),
+                    "Eq" => (PirBinOp::Eq, false),
+                    "Ne" => (PirBinOp::Ne, false),
                     other => {
                         return Err(format!(
-                            "{fname}: stmt[{i}] BinaryOp `{other}` 唔支援（C2 只做加減乘）"
+                            "{fname}: stmt[{i}] BinaryOp `{other}` 唔支援（加減乘/checked/比較）"
                         ))
                     }
                 };
@@ -561,15 +956,23 @@ fn parse_rvalue(
                 // 建構或其整槽 copy）→ 直接摺成 Const；輸入 enum 嘅判別式域推導
                 // 要配合分支編碼（後續 slice）一齊做，而家如實降級。
                 let of = parse_place(fname, i, place)?;
-                if of.field.is_some() {
+                if of.part != Part::Whole {
                     return Err(format!("{fname}: stmt[{i}] Discriminant of 非整槽"));
                 }
-                match disc_of.get(&of.local) {
-                    Some(&c) => Ok(PirStmtKind::Const { val: c }),
-                    None => Err(format!(
-                        "{fname}: stmt[{i}] 判別值未知（of 非 C3 已建構 enum；輸入 enum 判別式域屬後續 slice）"
-                    )),
+                if disc_of.get(&of.local).is_some() {
+                    return Ok(PirStmtKind::Const {
+                        val: disc_of[&of.local],
+                    });
                 }
+                if disc_domain.contains_key(&of.local) {
+                    // C4：enum 參數之判別值（動態；見證模式恆等化）
+                    return Ok(PirStmtKind::Discriminant {
+                        of: Slot::disc(of.local),
+                    });
+                }
+                Err(format!(
+                    "{fname}: stmt[{i}] 判別值未知（of 非已建構 enum／enum 參數）"
+                ))
             }
             ("Aggregate", payload) => {
                 // dst := Aggregate([adt, variant], [operands])——struct／tuple／
@@ -746,6 +1149,188 @@ fn parse_const(fname: &str, i: usize, cval: &crate::charon_llbc::Value) -> Resul
             )),
         },
         _ => Err(format!("{fname}: stmt[{i}] 常數非單鍵 variant")),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// C4：concretize——參數組合 → 單路徑模擬（真語義 i64 口徑）+ 見證槽值表
+// ---------------------------------------------------------------------------
+
+/// 參數值（組合一點）。
+#[derive(Debug, Clone, PartialEq)]
+pub enum ParamVal {
+    Int(i64),
+    /// enum 參數：判別值 + 欄位值（C4 只支援 ≤1 欄位）
+    Enum {
+        disc: i64,
+        field: Option<i64>,
+    },
+}
+
+/// concretize 結果：攤平語句（guard 已消費）+ 見證槽值表 + 模擬 ret。
+#[derive(Debug, Clone)]
+pub struct ConcOut {
+    pub path_idx: usize,
+    pub values: BTreeMap<Slot, i64>,
+    pub ret: Option<i64>,
+}
+
+/// concretize 錯誤：溢出（組合唔喺認證範圍）／其他降級原因。
+#[derive(Debug, Clone)]
+pub enum ConcErr {
+    /// checked 運算溢出／溢出旗標非零：真實執行會 panic，組合排除。
+    Overflow,
+    Reason(String),
+}
+
+/// 參數組合 → 路徑選擇 + 全程模擬。路徑選擇：guard 值查表（enum 判別值軸
+/// ／比較 {0,1}），fallback path 接收唔中任何 branch 常數嘅值。
+pub fn concretize(body: &PirBody, params: &[ParamVal]) -> Result<ConcOut, ConcErr> {
+    if params.len() != body.arg_count {
+        return Err(ConcErr::Reason(format!(
+            "參數值數量 {} ≠ arg_count {}",
+            params.len(),
+            body.arg_count
+        )));
+    }
+    let name = body.fun_name.clone();
+    let err = |m: String| ConcErr::Reason(m);
+
+    // 逐 path 嘗試：模擬該 path 語句流；guard 驗證（scrutinee 槽值 == path.value）。
+    // guard 值由模擬確定（Discriminant／比較語句），每組合只會匹配一條 path。
+
+    // 組合只提供參數值；每 path 之參數預填相同 → 預填表只建一次
+    let mut tried: Option<Result<ConcOut, ConcErr>> = None;
+    for (idx, path) in body.paths.iter().enumerate() {
+        let mut values: BTreeMap<Slot, i64> = BTreeMap::new();
+        // 參數預填
+        for (k, pv) in params.iter().enumerate() {
+            match pv {
+                ParamVal::Int(v) => {
+                    values.insert(Slot::whole(k + 1), *v);
+                }
+                ParamVal::Enum { disc, field } => {
+                    values.insert(Slot::disc(k + 1), *disc);
+                    if let Some(fv) = field {
+                        values.insert(Slot::field(k + 1, 0), *fv);
+                    }
+                }
+            }
+        }
+        match simulate(&name, &path.stmts, &mut values, body.ret_slot.as_ref()) {
+            Ok(ret) => {
+                // guard 驗證
+                if let (Some(s), Some(v)) = (&path.scrutinee, path.value) {
+                    match values.get(s) {
+                        Some(&actual) if actual == v => {}
+                        Some(_) if path.fallback => {}
+                        other => {
+                            tried = Some(Err(err(format!(
+                                "path[{idx}] guard 驗證失敗：scrutinee 值 {other:?} ≠ {v}"
+                            ))));
+                            continue;
+                        }
+                    }
+                }
+                return Ok(ConcOut {
+                    path_idx: idx,
+                    values,
+                    ret,
+                });
+            }
+            Err(ConcErr::Overflow) => {
+                tried = Some(Err(ConcErr::Overflow));
+                continue;
+            }
+            Err(e) => {
+                tried = Some(Err(e));
+                continue;
+            }
+        }
+    }
+    tried.unwrap_or_else(|| Err(ConcErr::Reason("無路徑可模擬".to_string())))
+}
+
+/// 直線語句模擬（真語義；C2 口徑：checked 溢出 → Overflow、旗標非零 → Overflow）。
+fn simulate(
+    name: &str,
+    stmts: &[PirStmt],
+    values: &mut BTreeMap<Slot, i64>,
+    ret_slot: Option<&Slot>,
+) -> Result<Option<i64>, ConcErr> {
+    for st in stmts {
+        match &st.kind {
+            PirStmtKind::Const { val } => {
+                values.insert(st.dst.clone(), *val);
+            }
+            PirStmtKind::Copy { src } => {
+                let v = values
+                    .get(src)
+                    .ok_or_else(|| ConcErr::Reason(format!("{name}: 模擬讀取未定義槽 {src:?}")))?;
+                values.insert(st.dst.clone(), *v);
+            }
+            PirStmtKind::BinOp { op, a, b, checked } => {
+                let x = slot_or_const(a, values);
+                let y = slot_or_const(b, values);
+                let (x, y) = match (x, y) {
+                    (Some(x), Some(y)) => (x, y),
+                    _ => return Err(ConcErr::Reason(format!("{name}: 模擬讀取未定義運算元"))),
+                };
+                if op.is_comparison() {
+                    values.insert(st.dst.clone(), if op.compare(x, y) { 1 } else { 0 });
+                } else {
+                    let (v, of) = match op {
+                        PirBinOp::Add => (x.wrapping_add(y), x.checked_add(y).is_none()),
+                        PirBinOp::Sub => (x.wrapping_sub(y), x.checked_sub(y).is_none()),
+                        PirBinOp::Mul => (x.wrapping_mul(y), x.checked_mul(y).is_none()),
+                        _ => unreachable!("非比較非算術"),
+                    };
+                    if *checked {
+                        values.insert(Slot::field(st.dst.local, 0), v);
+                        values.insert(Slot::field(st.dst.local, 1), if of { 1 } else { 0 });
+                        if of {
+                            return Err(ConcErr::Overflow);
+                        }
+                    } else {
+                        values.insert(st.dst.clone(), v);
+                    }
+                }
+            }
+            PirStmtKind::AssertFlagZero { flag } => {
+                let f = values
+                    .get(flag)
+                    .ok_or_else(|| ConcErr::Reason(format!("{name}: 模擬讀取未定義旗標")))?;
+                if *f != 0 {
+                    return Err(ConcErr::Overflow);
+                }
+            }
+            PirStmtKind::Discriminant { of } => {
+                let d = values
+                    .get(of)
+                    .ok_or_else(|| ConcErr::Reason(format!("{name}: 模擬讀取未定義判別值")))?;
+                values.insert(st.dst.clone(), *d);
+            }
+            PirStmtKind::Aggregate { fields, .. } => {
+                for (k, f) in fields.iter().enumerate() {
+                    let v = match f {
+                        PirOperand::Const(c) => *c,
+                        PirOperand::Slot(s) => *values.get(s).ok_or_else(|| {
+                            ConcErr::Reason(format!("{name}: 模擬讀取未定義欄位"))
+                        })?,
+                    };
+                    values.insert(Slot::field(st.dst.local, k as u8), v);
+                }
+                // 整槽不透明（不記值；欄位槽承擔全部語義）
+            }
+        }
+    }
+    Ok(ret_slot.and_then(|s| values.get(s).copied()))
+}
+
+fn slot_or_const(op: &PirOperand, values: &BTreeMap<Slot, i64>) -> Option<i64> {
+    match op {
+        PirOperand::Const(v) => Some(*v),
+        PirOperand::Slot(s) => values.get(s).copied(),
     }
 }
 

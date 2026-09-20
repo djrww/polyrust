@@ -21,7 +21,8 @@ use crate::frac::Frac;
 use crate::minirust::mir_lower::{self, MirSystem};
 use crate::poly::Poly;
 use crate::polyir::{
-    lower_fun, lower_fun_in, PirBinOp, PirBody, PirOperand, PirStmtKind, PirVerdict, Slot,
+    concretize, lower_fun_in, ConcErr, ParamVal, Part, PirBinOp, PirBody, PirOperand,
+    PirPath, PirStmtKind, PirVerdict, Slot,
 };
 use crate::vanishing::{l0_prime_params_of, vanishing_poly, L0PrimeParams};
 use std::collections::BTreeMap;
@@ -30,6 +31,8 @@ use std::collections::BTreeMap;
 const PRODUCT_CAP: u64 = 1_000_000;
 /// 單一值域集合大小上限。
 const DOMAIN_CAP: usize = 64;
+/// C4 逐組合見證模式之組合數上限（每組合一次模擬 + 一次系統求解）。
+const CONTEXT_CAP: usize = 4096;
 
 /// 編碼產物：多項式系統 + 槽→變量映射 + 返回變量。
 #[derive(Debug, Clone)]
@@ -42,13 +45,18 @@ pub struct Encoded {
 /// 代數判定（C2 口徑）。
 #[derive(Debug, Clone, PartialEq)]
 pub enum Decision {
-    /// SAT 且見證通過獨立認證。`ret` 為返回槽之（有符）值。
+    /// 全部參數組合（見證模式）或系統見證（直線模式）通過獨立認證。
+    /// `ret` 為返回槽之（有符）值；多組合且 ret 不唯一時 = None。
     Certified {
         ret: Option<i64>,
         n_vars: usize,
         n_eqs: usize,
         /// 溢出旗標被斷言為零（結果以「非溢出執行」為前提）。
         overflow_asserted: bool,
+        /// 認證組合數（直線模式 = 1）。
+        paths: usize,
+        /// 因 checked 溢出而排除之組合數（真實執行會 panic，唔喺認證範圍）。
+        excluded: usize,
     },
     /// 語義降級（附精確原因）——非錯誤，是能力邊界之如實申報。
     Unknown { reason: String },
@@ -79,20 +87,6 @@ fn var_of(s: &Slot, slots: &mut BTreeMap<Slot, usize>, doms: &mut Vec<Vec<i64>>)
     id
 }
 
-fn get_dom(
-    domains: &[Vec<i64>],
-    s: &Slot,
-    slot_var: &BTreeMap<Slot, usize>,
-) -> Result<Vec<i64>, String> {
-    let id = slot_var
-        .get(s)
-        .ok_or_else(|| format!("槽 {:?} 域未定義（使用先於定義？）", s))?;
-    domains
-        .get(*id)
-        .cloned()
-        .ok_or_else(|| format!("槽 {:?} 域索引越界", s))
-}
-
 /// 槽域讀取；未 intern 之參數 field 槽（C3：ADT 參數逐欄位獨立變量）先播種該
 /// 參數域。非參數槽讀取先於定義 → 照舊報錯（use-before-def，唔容許猜）。
 fn ensure_slot_dom(
@@ -106,7 +100,7 @@ fn ensure_slot_dom(
         Some(&id) => id,
         None => {
             let id = var_of(s, slots, domains);
-            if s.field.is_some() && s.local >= 1 && s.local <= arg_count {
+            if matches!(s.part, Part::Field(_)) && s.local >= 1 && s.local <= arg_count {
                 domains[id] = arg_domains[s.local - 1].clone();
             }
             id
@@ -158,13 +152,15 @@ fn binop_apply(op: PirBinOp, x: i64, y: i64) -> i64 {
         PirBinOp::Add => x.wrapping_add(y),
         PirBinOp::Sub => x.wrapping_sub(y),
         PirBinOp::Mul => x.wrapping_mul(y),
+        // 比較經見證模式恆等化，唔會行到此（直線模式早已降級）
+        _ => unreachable!("比較運算唔經 binop_apply"),
     }
 }
 
 /// 𝔽_p 表示 → 最小絕對值有符代表 → i64（L0′ 保真下必落 i64 範圍）。
 fn fp_to_i64(v: &Frac) -> i64 {
     let raw = v.0 as i128;
-    let signed = if (v.0 as u64) > P / 2 {
+    let signed = if v.0 > P / 2 {
         raw - P as i128
     } else {
         raw
@@ -172,8 +168,34 @@ fn fp_to_i64(v: &Frac) -> i64 {
     signed as i64
 }
 
+/// 見證值讀取：見證模式必需；無 witness／槽無值 → 誠實降級。
+fn require_witness(
+    witness: Option<&BTreeMap<Slot, i64>>,
+    s: &Slot,
+    name: &str,
+) -> Result<i64, String> {
+    witness
+        .and_then(|w| w.get(s).copied())
+        .ok_or_else(|| format!("{name}: 槽 {s:?} 無見證值（須經 concretize 模擬）"))
+}
+
 /// PirBody → 多項式系統（值域 + 恆等式 + L0′ 門檻）。
-pub fn encode_body(b: &PirBody, arg_domains: &[Vec<i64>]) -> Result<Encoded, String> {
+/// 只接受單路徑 body（多路徑須先經 [`concretize`] 攤平）。
+/// `witness`（C4 見證模式）：逐組合模擬之槽值表；比較／Discriminant 語句
+/// 恆等化為 dst = 模擬值（比較語義由模擬承擔，編碼如實記錄——認證鏈：
+/// 域成員 + 全多項式直接求值）。
+pub fn encode_body(
+    b: &PirBody,
+    arg_domains: &[Vec<i64>],
+    witness: Option<&BTreeMap<Slot, i64>>,
+) -> Result<Encoded, String> {
+    if b.paths.len() != 1 {
+        return Err(format!(
+            "{}: encode 只接受單路徑 body（得到 {} 條）",
+            b.fun_name,
+            b.paths.len()
+        ));
+    }
     if arg_domains.len() != b.arg_count {
         return Err(format!(
             "參數域數量 {} ≠ arg_count {}",
@@ -182,7 +204,7 @@ pub fn encode_body(b: &PirBody, arg_domains: &[Vec<i64>]) -> Result<Encoded, Str
         ));
     }
     for (i, d) in arg_domains.iter().enumerate() {
-        if d.is_empty() {
+        if d.is_empty() && witness.is_none() {
             return Err(format!("參數 {} 域為空", i));
         }
         if d.len() > DOMAIN_CAP {
@@ -197,18 +219,18 @@ pub fn encode_body(b: &PirBody, arg_domains: &[Vec<i64>]) -> Result<Encoded, Str
     for (i, d) in arg_domains.iter().enumerate() {
         let s = Slot {
             local: i + 1,
-            field: None,
+            part: Part::Whole,
         };
         let id = var_of(&s, &mut slot_var, &mut domains);
         domains[id] = d.clone();
     }
 
+    let stmts = &b.paths[0].stmts;
     let mut eqs: Vec<Poly> = Vec::new();
     let mut ret_var: Option<usize> = None;
     // Poly::var 需要上界；逐語句精確計數產生槽數（C3 修：checked=3、
     // Aggregate=k+1——舊 stmts×2 上界喺多 checked／大 Aggregate 時會爆）
-    let slot_bound: usize = b
-        .stmts
+    let slot_bound: usize = stmts
         .iter()
         .map(|st| match &st.kind {
             PirStmtKind::Aggregate { fields, .. } => fields.len() + 1,
@@ -218,13 +240,13 @@ pub fn encode_body(b: &PirBody, arg_domains: &[Vec<i64>]) -> Result<Encoded, Str
         .sum();
     let width = b.arg_count + slot_bound + 8;
 
-    for st in &b.stmts {
+    for st in stmts {
         match &st.kind {
             PirStmtKind::Const { val } => {
                 let d = var_of(&st.dst, &mut slot_var, &mut domains);
                 domains[d] = vec![*val];
                 eqs.push(Poly::var(d, Frac::ONE, width).sub(&Poly::constant(Frac::from_i64(*val))));
-                if st.dst.local == 0 && st.dst.field.is_none() {
+                if st.dst.local == 0 && st.dst.part == Part::Whole {
                     ret_var = Some(d);
                 }
             }
@@ -235,7 +257,35 @@ pub fn encode_body(b: &PirBody, arg_domains: &[Vec<i64>]) -> Result<Encoded, Str
                 domains[d] = sd;
                 let s = slot_var[src];
                 eqs.push(Poly::var(d, Frac::ONE, width).sub(&Poly::var(s, Frac::ONE, width)));
-                if st.dst.local == 0 && st.dst.field.is_none() {
+                if st.dst.local == 0 && st.dst.part == Part::Whole {
+                    ret_var = Some(d);
+                }
+            }
+            PirStmtKind::BinOp {
+                op,
+                a,
+                b: bop,
+                checked,
+            } if op.is_comparison() => {
+                // C4：比較。直線（無 witness）模式降級；見證模式恆等化
+                // dst = 模擬值（比較語義由模擬器 i64 口徑承擔，編碼如實記錄）
+                let w = require_witness(witness, &st.dst, &b.fun_name)?;
+                let d = var_of(&st.dst, &mut slot_var, &mut domains);
+                domains[d] = vec![w];
+                eqs.push(Poly::var(d, Frac::ONE, width).sub(&Poly::constant(Frac::from_i64(w))));
+                if st.dst.local == 0 && st.dst.part == Part::Whole {
+                    ret_var = Some(d);
+                }
+                let _ = (a, bop);
+            }
+            PirStmtKind::Discriminant { of } => {
+                // C4：動態判別值（enum 參數）。同上，見證模式恆等化。
+                let _ = of;
+                let w = require_witness(witness, &st.dst, &b.fun_name)?;
+                let d = var_of(&st.dst, &mut slot_var, &mut domains);
+                domains[d] = vec![w];
+                eqs.push(Poly::var(d, Frac::ONE, width).sub(&Poly::constant(Frac::from_i64(w))));
+                if st.dst.local == 0 && st.dst.part == Part::Whole {
                     ret_var = Some(d);
                 }
             }
@@ -256,6 +306,7 @@ pub fn encode_body(b: &PirBody, arg_domains: &[Vec<i64>]) -> Result<Encoded, Str
                     PirBinOp::Add => pa.add(&pb),
                     PirBinOp::Sub => pa.sub(&pb),
                     PirBinOp::Mul => pa.mul(&pb),
+                    _ => unreachable!("比較運算唔經算術 rhs"),
                 };
                 if *checked {
                     // tuple 結果：field0 = 值、field1 = 溢出旗標（域 {0,1}，由 Assert 收緊）
@@ -270,7 +321,7 @@ pub fn encode_body(b: &PirBody, arg_domains: &[Vec<i64>]) -> Result<Encoded, Str
                     let d = var_of(&st.dst, &mut slot_var, &mut domains);
                     domains[d] = dom;
                     eqs.push(Poly::var(d, Frac::ONE, width).sub(&rhs));
-                    if st.dst.local == 0 && st.dst.field.is_none() {
+                    if st.dst.local == 0 && st.dst.part == Part::Whole {
                         ret_var = Some(d);
                     }
                 }
@@ -387,8 +438,14 @@ pub fn decide_fun_in(types: &Value, fun: &FunDeclRef, arg_domains: &[Vec<i64>]) 
 }
 
 /// 對已 lowering 之 body 做判定。
+/// 單路徑（直線）→ C2/C3 口徑：域多值一次系統、存在見證。
+/// 多路徑（C4 動態 switch）→ 逐組合見證模式：每組合模擬 → 攤平 →
+/// 單點域系統 → 求解 → 認證 → ret 比對模擬；全組合通過方 CERTIFIED。
 pub fn decide_body(body: &PirBody, arg_domains: &[Vec<i64>]) -> Decision {
-    let enc = match encode_body(body, arg_domains) {
+    if body.paths.len() > 1 {
+        return decide_paths(body, arg_domains);
+    }
+    let enc = match encode_body(body, arg_domains, None) {
         Ok(e) => e,
         Err(reason) => return Decision::Unknown { reason },
     };
@@ -418,7 +475,172 @@ pub fn decide_body(body: &PirBody, arg_domains: &[Vec<i64>]) -> Decision {
         n_vars: enc.slot_var.len(),
         n_eqs: enc.sys.polys.len(),
         overflow_asserted: body.overflow_asserted,
+        paths: 1,
+        excluded: 0,
     }
+}
+
+/// C4：多路徑 body 之逐組合判定。
+fn decide_paths(body: &PirBody, arg_domains: &[Vec<i64>]) -> Decision {
+    let name = body.fun_name.clone();
+    let axes = match build_axes(body, arg_domains) {
+        Ok(a) => a,
+        Err(reason) => return Decision::Unknown { reason },
+    };
+    let combos = match cart_product(&axes) {
+        Ok(c) => c,
+        Err(reason) => return Decision::Unknown { reason },
+    };
+    let mut n_vars = 0usize;
+    let mut n_eqs = 0usize;
+    let mut rets: Vec<Option<i64>> = Vec::new();
+    let mut excluded = 0usize;
+    let mut overflow_reason: Option<String> = None;
+    for params in &combos {
+        let out = match concretize(body, params) {
+            Ok(o) => o,
+            Err(ConcErr::Overflow) => {
+                excluded += 1;
+                overflow_reason.get_or_insert_with(|| {
+                    format!("{name}: 部分組合 checked 溢出（真實執行 panic，排除於認證範圍）")
+                });
+                continue;
+            }
+            Err(ConcErr::Reason(r)) => return Decision::Unknown { reason: r },
+        };
+        // 單點域：int 參數 = 值本身；enum 參數 = 欄位值（無欄位 variant 域空，見證模式容許）
+        let doms: Vec<Vec<i64>> = params.iter().map(param_domain).collect();
+        let body1 = single_path_body(body, out.path_idx);
+        let enc = match encode_body(&body1, &doms, Some(&out.values)) {
+            Ok(e) => e,
+            Err(reason) => return Decision::Unknown { reason },
+        };
+        let Some(sigma) = mir_lower::solve_domains(&enc.sys) else {
+            return Decision::Unsat;
+        };
+        let cert = mir_lower::certify_mir(&enc.sys, &sigma);
+        if !cert.certified {
+            return Decision::Unknown {
+                reason: format!("見證認證失敗：{:?}", cert.first_bad),
+            };
+        }
+        let sys_ret = enc.ret_var.and_then(|i| sigma.get(i).map(fp_to_i64));
+        if sys_ret != out.ret {
+            return Decision::Unknown {
+                reason: format!("編碼 ret {sys_ret:?} ≠ 模擬 ret {:?}", out.ret),
+            };
+        }
+        n_vars = n_vars.max(enc.slot_var.len());
+        n_eqs = n_eqs.max(enc.sys.polys.len());
+        rets.push(out.ret);
+    }
+    if rets.is_empty() {
+        return Decision::Unknown {
+            reason: overflow_reason.unwrap_or_else(|| format!("{name}: 無可認證組合")),
+        };
+    }
+    let first = rets[0];
+    let uniform = rets.iter().all(|r| *r == first);
+    Decision::Certified {
+        ret: if uniform { first } else { None },
+        n_vars,
+        n_eqs,
+        overflow_asserted: body.overflow_asserted,
+        paths: rets.len(),
+        excluded,
+    }
+}
+
+/// 組合軸：int 參數 = 域；enum 參數 = 各 variant × 欄位域。
+fn build_axes(body: &PirBody, arg_domains: &[Vec<i64>]) -> Result<Vec<Vec<ParamVal>>, String> {
+    let mut axes = Vec::new();
+    for i in 0..body.arg_count {
+        let dom = arg_domains.get(i).cloned().unwrap_or_default();
+        if let Some(ep) = body.enum_params.iter().find(|e| e.arg == i) {
+            let mut ax = Vec::new();
+            for (disc, nf) in &ep.variants {
+                match nf {
+                    0 => ax.push(ParamVal::Enum {
+                        disc: *disc,
+                        field: None,
+                    }),
+                    1 => {
+                        if dom.len() > DOMAIN_CAP {
+                            return Err(format!("參數 {i} 域大於上限 {DOMAIN_CAP}"));
+                        }
+                        for &v in &dom {
+                            ax.push(ParamVal::Enum {
+                                disc: *disc,
+                                field: Some(v),
+                            });
+                        }
+                    }
+                    _ => return Err(format!("參數 {i}: 多欄位 variant 唔支援")),
+                }
+            }
+            if ax.is_empty() {
+                return Err(format!(
+                    "參數 {i}（enum）組合軸空：所有 variant 都需要欄位值域"
+                ));
+            }
+            axes.push(ax);
+        } else {
+            if dom.is_empty() {
+                return Err(format!("參數 {} 域為空", i));
+            }
+            if dom.len() > DOMAIN_CAP {
+                return Err(format!("參數 {} 域大於上限 {}", i, DOMAIN_CAP));
+            }
+            axes.push(dom.iter().map(|&v| ParamVal::Int(v)).collect());
+        }
+    }
+    Ok(axes)
+}
+
+/// 笛卡爾積（上限 CONTEXT_CAP）。
+fn cart_product(axes: &[Vec<ParamVal>]) -> Result<Vec<Vec<ParamVal>>, String> {
+    let mut total = 1usize;
+    for a in axes {
+        total = total.saturating_mul(a.len());
+        if total > CONTEXT_CAP {
+            return Err(format!("組合數 {total} 超上限 {CONTEXT_CAP}（縮窄參數域）"));
+        }
+    }
+    let mut out: Vec<Vec<ParamVal>> = vec![Vec::new()];
+    for ax in axes {
+        let mut next = Vec::with_capacity(out.len() * ax.len());
+        for row in &out {
+            for v in ax {
+                let mut r = row.clone();
+                r.push(v.clone());
+                next.push(r);
+            }
+        }
+        out = next;
+    }
+    Ok(out)
+}
+
+/// 組合 → 單點域（encode_body 用；enum 無欄位 variant → 空域，見證模式容許）。
+fn param_domain(p: &ParamVal) -> Vec<i64> {
+    match p {
+        ParamVal::Int(v) => vec![*v],
+        ParamVal::Enum { field: Some(v), .. } => vec![*v],
+        ParamVal::Enum { .. } => Vec::new(),
+    }
+}
+
+/// 攤平：取第 idx 條路徑成單路徑 body（guard 已由模擬消費）。
+fn single_path_body(body: &PirBody, idx: usize) -> PirBody {
+    let mut b = body.clone();
+    let p = b.paths.remove(idx);
+    b.paths = vec![PirPath {
+        scrutinee: None,
+        value: None,
+        fallback: false,
+        stmts: p.stmts,
+    }];
+    b
 }
 
 /// 在 crate root 內按名稱找函數並判定（name = path 最尾段）。
@@ -447,9 +669,10 @@ pub fn survey_in(types: &Value, root: &LlbcRoot) -> Vec<(String, String)> {
         .map(|f| {
             let line = match lower_fun_in(types, f) {
                 PirVerdict::ValueTrace(b) => format!(
-                    "ValueTrace(stmts={} argc={} overflow_asserted={})",
-                    b.stmts.len(),
+                    "ValueTrace(stmts={} argc={} paths={} overflow_asserted={})",
+                    b.paths.iter().map(|p| p.stmts.len()).sum::<usize>(),
                     b.arg_count,
+                    b.paths.len(),
                     b.overflow_asserted
                 ),
                 PirVerdict::Unknown { reason } => format!("Unknown({})", reason),
@@ -542,13 +765,10 @@ mod tests {
 
     #[test]
     fn unsupported_shapes_degrade_with_reasons() {
-        let cases: [(&str, &str, &str); 6] = [
-            ("max", "max", "Gt"),
+        // C4 起：max（比較+Switch）、match_option/enum_option（enum 判別值軸）
+        // 全部轉為正面支援（見 c4_* 測試）；剩降級形態如下。
+        let cases: [(&str, &str, &str); 3] = [
             ("while_loop", "while_sum", "唔支援"),
-            // C3 起：match 輸入 enum 喺 Discriminant 判別值未知處降級
-            // （輸入 enum 判別式域 + 分支編碼屬後續 slice）
-            ("match_option", "match_option", "判別值未知"),
-            ("enum_option", "unwrap_or", "判別值未知"),
             ("phase3__loop_sat", "main", "唔支援"),
             ("async_simple", "async_add", "缺失 body"),
         ];
@@ -562,6 +782,76 @@ mod tests {
                 _ => false,
             };
             assert!(hit, "{file}:{fun} → {:?}（期望含 `{needle}`）", d.reason());
+        }
+    }
+
+    #[test]
+    fn c4_max_comparison_switch_certified() {
+        // max(x,y)：Gt 比較 + bool Switch（then 臂 = fallback+fall-through）
+        // 逐組合見證模式：guard 驗證 + 單點域系統 + ret 比對模擬
+        let root = load("max");
+        for (x, y, want) in [(3, 5, 5), (7, 2, 7), (4, 4, 4), (-3, -8, -3)] {
+            let d = decide_entry(&root, "max", &dom(&[x, y])).expect("max 存在");
+            match d {
+                Decision::Certified {
+                    ret,
+                    paths,
+                    excluded,
+                    ..
+                } => {
+                    assert_eq!(ret, Some(want), "max({x},{y})");
+                    assert_eq!(paths, 1, "單點域 = 1 組合");
+                    assert_eq!(excluded, 0);
+                }
+                other => panic!("max({x},{y}) 應 Certified，得到 {:?}", other),
+            }
+        }
+        // 多值域：全組合認證，ret 不唯一 → None + paths
+        let d = decide_entry(&root, "max", &vec![vec![1, 9], vec![5]]).expect("max 存在");
+        match d {
+            Decision::Certified { ret, paths, .. } => {
+                assert_eq!(paths, 2);
+                assert_eq!(ret, None, "max(1,5)=5、max(9,5)=9 → ret 不唯一");
+            }
+            other => panic!("多值域 max 應 Certified，得到 {:?}", other),
+        }
+    }
+
+    #[test]
+    fn c4_match_option_enum_switch_certified() {
+        // match_option(o)：輸入 enum（判別值軸全枚舉）+ Some 臂欄位投影
+        let root = load("match_option");
+        let d = decide_entry(&root, "match_option", &vec![vec![0, 7]]).expect("存在");
+        match d {
+            Decision::Certified {
+                paths, excluded, ..
+            } => {
+                // 軸：None(disc 0) + Some(disc 1, x∈{0,7}) = 3 組合
+                assert_eq!(paths, 3, "None 1 + Some×2");
+                assert_eq!(excluded, 0);
+            }
+            other => panic!("match_option 應 Certified，得到 {:?}", other),
+        }
+        // 域 {7}：None 臂 + Some(7) 兩組合
+        let d = decide_entry(&root, "match_option", &dom(&[7])).expect("存在");
+        match d {
+            Decision::Certified { paths, .. } => assert_eq!(paths, 2),
+            other => panic!("應 Certified，得到 {:?}", other),
+        }
+    }
+
+    #[test]
+    fn c4_unwrap_or_two_params_certified() {
+        // unwrap_or(self, d)：self=自訂 enum（域=欄位值）、d=int
+        // unwrap_or=7;5 → self 域 {7}、d 域 {5}：組合 (None,5) ret=5 + (Some(7),5) ret=7
+        let root = load("enum_option");
+        let d = decide_entry(&root, "unwrap_or", &dom(&[7, 5])).expect("存在");
+        match d {
+            Decision::Certified { ret, paths, .. } => {
+                assert_eq!(paths, 2);
+                assert_eq!(ret, None, "兩組合 ret 不同（5/7）");
+            }
+            other => panic!("unwrap_or 應 Certified，得到 {:?}", other),
         }
     }
 
@@ -694,90 +984,154 @@ mod tests {
             name: name.to_string(),
             full_path: vec![name.to_string()],
             body_kind: BodyKind::Structured,
-            raw: Value::Obj(vec![(
-                "body".to_string(),
-                Value::Obj(vec![(
-                    "Structured".to_string(),
-                    Value::Obj(vec![
-                        (
-                            "locals".to_string(),
-                            Value::Obj(vec![
-                                ("arg_count".to_string(), n("0")),
-                                ("locals".to_string(), Value::Arr(vec![Value::Null])),
-                            ]),
-                        ),
-                        (
-                            "body".to_string(),
-                            Value::Obj(vec![(
-                                "statements".to_string(),
-                                Value::Arr(vec![
-                                    Value::Obj(vec![(
-                                        "kind".to_string(),
+            raw: Value::Obj(vec![
+                (
+                    "signature".to_string(),
+                    Value::Obj(vec![("inputs".to_string(), Value::Arr(vec![]))]),
+                ),
+                (
+                    "body".to_string(),
+                    Value::Obj(vec![(
+                        "Structured".to_string(),
+                        Value::Obj(vec![
+                            (
+                                "locals".to_string(),
+                                Value::Obj(vec![
+                                    ("arg_count".to_string(), n("0")),
+                                    ("locals".to_string(), Value::Arr(vec![Value::Null])),
+                                ]),
+                            ),
+                            (
+                                "body".to_string(),
+                                Value::Obj(vec![(
+                                    "statements".to_string(),
+                                    Value::Arr(vec![
                                         Value::Obj(vec![(
-                                            "Assign".to_string(),
-                                            Value::Arr(vec![local_place("2"), agg_rv.clone()]),
-                                        )]),
-                                    )]),
-                                    Value::Obj(vec![(
-                                        "kind".to_string(),
-                                        Value::Obj(vec![(
-                                            "Assign".to_string(),
-                                            Value::Arr(vec![
-                                                local_place("3"),
-                                                Value::Obj(vec![(
-                                                    "Use".to_string(),
-                                                    Value::Arr(vec![Value::Obj(vec![(
-                                                        "Copy".to_string(),
-                                                        local_place("2"),
-                                                    )])]),
-                                                )]),
-                                            ]),
-                                        )]),
-                                    )]),
-                                    Value::Obj(vec![(
-                                        "kind".to_string(),
-                                        if extra_switch {
-                                            // Switch(Move L3)：scrutinee 判別值已知
+                                            "kind".to_string(),
                                             Value::Obj(vec![(
-                                                "Switch".to_string(),
-                                                Value::Obj(vec![(
-                                                    "data".to_string(),
-                                                    Value::Obj(vec![(
-                                                        "scrutinee".to_string(),
-                                                        Value::Obj(vec![(
-                                                            "Value".to_string(),
-                                                            Value::Obj(vec![(
-                                                                "Move".to_string(),
-                                                                local_place("3"),
-                                                            )]),
-                                                        )]),
-                                                    )]),
-                                                )]),
-                                            )])
-                                        } else {
-                                            // L0 := Discriminant(L3) → 常數 3
+                                                "Assign".to_string(),
+                                                Value::Arr(vec![local_place("2"), agg_rv.clone()]),
+                                            )]),
+                                        )]),
+                                        Value::Obj(vec![(
+                                            "kind".to_string(),
                                             Value::Obj(vec![(
                                                 "Assign".to_string(),
                                                 Value::Arr(vec![
-                                                    local_place("0"),
+                                                    local_place("3"),
                                                     Value::Obj(vec![(
-                                                        "Discriminant".to_string(),
-                                                        local_place("3"),
+                                                        "Use".to_string(),
+                                                        Value::Arr(vec![Value::Obj(vec![(
+                                                            "Copy".to_string(),
+                                                            local_place("2"),
+                                                        )])]),
                                                     )]),
                                                 ]),
+                                            )]),
+                                        )]),
+                                        Value::Obj(vec![(
+                                            "kind".to_string(),
+                                            if extra_switch {
+                                                // Switch(Move L3)：scrutinee 判別值已知（3）→
+                                                // C4 靜態選臂：行常數 3 之臂（空），唔行 0 臂
+                                                Value::Obj(vec![(
+                                                "Switch".to_string(),
+                                                Value::Obj(vec![
+                                                    (
+                                                        "data".to_string(),
+                                                        Value::Obj(vec![
+                                                            (
+                                                                "scrutinee".to_string(),
+                                                                Value::Obj(vec![(
+                                                                    "Value".to_string(),
+                                                                    Value::Obj(vec![(
+                                                                        "Move".to_string(),
+                                                                        local_place("3"),
+                                                                    )]),
+                                                                )]),
+                                                            ),
+                                                            (
+                                                                "branches".to_string(),
+                                                                Value::Arr(vec![Value::Arr(vec![
+                                                                    int_const("3"),
+                                                                    n("0"),
+                                                                ])]),
+                                                            ),
+                                                            ("fallback".to_string(), n("1")),
+                                                        ]),
+                                                    ),
+                                                    (
+                                                        "branches".to_string(),
+                                                        Value::Arr(vec![
+                                                            // 臂 0（常數 3 →）：L0 := 7
+                                                            Value::Obj(vec![(
+                                                                "statements".to_string(),
+                                                                Value::Arr(vec![Value::Obj(vec![(
+                                                                    "kind".to_string(),
+                                                                    Value::Obj(vec![(
+                                                                        "Assign".to_string(),
+                                                                        Value::Arr(vec![
+                                                                            local_place("0"),
+                                                                            Value::Obj(vec![(
+                                                                                "Use".to_string(),
+                                                                                Value::Arr(vec![Value::Obj(vec![(
+                                                                                    "Const".to_string(),
+                                                                                    int_const("7"),
+                                                                                )])]),
+                                                                            )]),
+                                                                        ]),
+                                                                    )]),
+                                                                )])]),
+                                                            )]),
+                                                            // 臂 1（fallback →）：L0 := 999
+                                                            Value::Obj(vec![(
+                                                                "statements".to_string(),
+                                                                Value::Arr(vec![Value::Obj(vec![(
+                                                                    "kind".to_string(),
+                                                                    Value::Obj(vec![(
+                                                                        "Assign".to_string(),
+                                                                        Value::Arr(vec![
+                                                                            local_place("0"),
+                                                                            Value::Obj(vec![(
+                                                                                "Use".to_string(),
+                                                                                Value::Arr(vec![Value::Obj(vec![(
+                                                                                    "Const".to_string(),
+                                                                                    int_const("999"),
+                                                                                )])]),
+                                                                            )]),
+                                                                        ]),
+                                                                    )]),
+                                                                )])]),
+                                                            )]),
+                                                        ]),
+                                                    ),
+                                                ]),
                                             )])
-                                        },
-                                    )]),
-                                    Value::Obj(vec![(
-                                        "kind".to_string(),
-                                        Value::Str("Return".to_string()),
-                                    )]),
-                                ]),
-                            )]),
-                        ),
-                    ]),
-                )]),
-            )]),
+                                            } else {
+                                                // L0 := Discriminant(L3) → 常數 3
+                                                Value::Obj(vec![(
+                                                    "Assign".to_string(),
+                                                    Value::Arr(vec![
+                                                        local_place("0"),
+                                                        Value::Obj(vec![(
+                                                            "Discriminant".to_string(),
+                                                            local_place("3"),
+                                                        )]),
+                                                    ]),
+                                                )])
+                                            },
+                                        )]),
+                                        Value::Obj(vec![(
+                                            "kind".to_string(),
+                                            Value::Str("Return".to_string()),
+                                        )]),
+                                    ]),
+                                )]),
+                            ),
+                        ]),
+                    )]),
+                ),
+            ]),
         };
 
         // 1）Discriminant 常數傳播 → Certified ret=3（非 variant id 1）
@@ -789,14 +1143,8 @@ mod tests {
         // 2）Switch：降級 + scrutinee 判別值提示
         let fun2 = mk_fun("ctor_switch", true);
         match decide_fun_in(&types, &fun2, &[]) {
-            Decision::Unknown { reason } => {
-                assert!(reason.contains("Switch"), "reason={reason}");
-                assert!(
-                    reason.contains("判別值=3"),
-                    "應附 scrutinee 判別值=3 提示：{reason}"
-                );
-            }
-            other => panic!("ctor_switch 應 Unknown，得到 {:?}", other),
+            Decision::Certified { ret, .. } => assert_eq!(ret, Some(7), "靜態選臂：行常數 3 臂"),
+            other => panic!("ctor_switch 應 Certified（靜態選臂），得到 {:?}", other),
         }
     }
 

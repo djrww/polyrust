@@ -574,10 +574,12 @@ fn main() {
                     n_vars,
                     n_eqs,
                     overflow_asserted,
+                    paths,
+                    excluded,
                 } => {
                     format!(
-                        "CERTIFIED ret={:?} vars={} eqs={} overflow_asserted={}",
-                        ret, n_vars, n_eqs, overflow_asserted
+                        "CERTIFIED ret={:?} vars={} eqs={} overflow_asserted={} paths={} excluded={}",
+                        ret, n_vars, n_eqs, overflow_asserted, paths, excluded
                     )
                 }
                 polyrust_core::polyir_encode::Decision::Unknown { reason } => {
