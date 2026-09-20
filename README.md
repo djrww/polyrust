@@ -54,6 +54,13 @@ polyrust 已从「内建样本的验证器」升级为「可输入的验证型�
 ```bash
 ./target/release/polyrust check examples/sqr.poly          # 完整管線：判定 + 生成碼
 ./target/release/polyrust check examples/sqr.poly --json   # 結構化 JSON（供前端/LLM）
+
+# v4 真 Rust 鏈（C5 預設切換）——需要 charon（--charon 或 CHARON_BIN）：
+./target/debug/polyrust-llbc-check foo.rs                    # 預設 v4：真 charon → 真 serde → core v4 判定
+./target/debug/polyrust-llbc-check foo.llbc                  # 直接行已編譯 LLBC（唔使 charon）
+./target/debug/polyrust-llbc-check foo.poly                  # .poly 預設 v1 後備鏈
+# 輸出統一 JSON；exit code：Sat=0 / Unsat=1 / Unknown=2 / 錯誤=3
+# rustc 拒絕（E-code）自動映射 UNSAT（同 C2 差分口徑）
 ./target/release/polyrust expand examples/sqr.poly         # 純宏展開（描述→展開碼）
 ./target/release/polyrust gen examples/template.poly       # 描述→生成碼（@import + @set 模板）
 cat foo.poly | ./target/release/polyrust check - --json    # stdin 模式（LLM agent）

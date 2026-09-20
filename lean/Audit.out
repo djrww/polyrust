@@ -82,3 +82,8 @@
 'Polyrust.parse_gen' depends on axioms: [propext, Quot.sound]
 'Polyrust.arm_gating' depends on axioms: [propext]
 'Polyrust.arm_gating_root' depends on axioms: [propext]
+
+# == C5.2 Polyrust.UnrollSound 追加（2026-09-20）==
+'Polyrust.UnrollSound.steps_add' depends on axioms: [propext]
+'Polyrust.UnrollSound.steps_mono' depends on axioms: [propext]
+'Polyrust.UnrollSound.unroll_unsat_reflects' depends on axioms: [propext]

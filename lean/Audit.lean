@@ -159,3 +159,6 @@ open Polyrust
 #print axioms Polyrust.parse_gen
 #print axioms Polyrust.arm_gating
 #print axioms Polyrust.arm_gating_root
+#print axioms Polyrust.UnrollSound.steps_add
+#print axioms Polyrust.UnrollSound.steps_mono
+#print axioms Polyrust.UnrollSound.unroll_unsat_reflects

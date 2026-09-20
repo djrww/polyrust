@@ -74,6 +74,7 @@ import Polyrust.UnsafeContext
 import Polyrust.AsyncStateMachine
 import Polyrust.StdlibEncoding
 import Polyrust.LoopContract
+import Polyrust.UnrollSound
 import Polyrust.TraitImpl
 import Polyrust.F4
 import Polyrust.F5

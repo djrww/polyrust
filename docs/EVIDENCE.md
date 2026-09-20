@@ -409,3 +409,30 @@ i32 運算溢出語義不建模（Mini-Rust 簡化）；server 無連線數上�
 * `AuditAll`：受檢宣告 **1787**、純構造 **970**、零 `sorry`、零自訂公理
   ⇒ `AUDIT_RESULT=CLEAN`。新主定理僅依賴標準三公理
   （`Classical.choice` 來自見證選取，屬可追蹤的標準公理）。
+
+---
+
+## C5 補章（2026-09-20）：預設切換 + UnrollSound 三定理
+
+### 端到端真鏈（CLI `polyrust-llbc-check`，真 charon nightly-2026-09-17）
+
+| 案例 | 輸入 | 結果 | exit code |
+|---|---|---|---|
+| bad.rs（`let x: i32 = true;`） | .rs → charon → serde → v4 | `Unsat` + `rustc-reject: error[E0308]` | 1 |
+| ok.rs（struct Pt + assert） | 同上 | `Sat` + `assert_obligations=["Overflow"]` | 0 |
+| sqr.llbc | 直達（唔經 charon） | `Sat` | 0 |
+| arith.poly | v1 後備自動選擇 | `Sat` | 0 |
+
+### Lean UnrollSound（C5.2）
+
+三定理全部真機械驗證，`#print axioms` 僅 `[propext]`（已 append 落 `lean/Audit.out`）：
+
+- `Polyrust.UnrollSound.steps_add`：k₁+k₂ 步到達 ⟺ 可拆兩段（bounded unroll 編碼忠實）
+- `Polyrust.UnrollSound.steps_mono`：抽象層放大 ⇒ 到達關係放大（抽象唔刪執行）
+- `Polyrust.UnrollSound.unroll_unsat_reflects`：抽象層 UNSAT ⟹ 原語義無 K 步執行（C3/C4 markers 口徑嘅邏輯根）
+
+lake build：44 jobs 全綠（Lean v4.33.1）。
+
+### TCB 補強（C5.3）
+
+`docs/TCB_WHITEPAPER.md`：四層信任計算基邊界圖＋Charon/rustc 章節＋殘餘風險冊＋marker 變更紀律。
