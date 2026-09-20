@@ -104,6 +104,7 @@ fn report(r: &PipelineResult, verbose_poly: bool) {
         }
     } else {
         println!("□ 判定：1 ∉ G ⇒ 系統可解 ⇒ SAT；求解得見證 σ（0/1 賦值）");
+        println!("    （口徑：v1 子集語義之無界判定；有界三值判定請用 `certify`——CERTIFIED/UNKNOWN/UNSAT）");
         let types: Vec<String> = {
             let mut v: Vec<(usize, String)> = r
                 .node_types

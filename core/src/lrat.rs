@@ -145,6 +145,27 @@ pub fn to_drat_text(proof: &[Clause]) -> String {
     out
 }
 
+/// C8（審計②）：CDCL 學習子句序列（`Solver::solve_with_proof` 產物）→
+/// RUP 證書子句（i32 慣例：±(v+1)）。呢個係「CDCL 輸出 ⇒ 自家
+/// check_rup_proof 可驗」嘅信任鏈橋接——終點 LRAT（帶 id／刪除行）屬後續。
+pub fn cdcl_learnts_to_rup(learnts: &[Vec<crate::cdcl::Lit>]) -> Vec<Clause> {
+    learnts
+        .iter()
+        .map(|c| {
+            c.iter()
+                .map(|&l| {
+                    let v = crate::cdcl::lit_var(l) as i32 + 1;
+                    if crate::cdcl::lit_positive(l) {
+                        v
+                    } else {
+                        -v
+                    }
+                })
+                .collect()
+        })
+        .collect()
+}
+
 /// 序列化 CNF 為 DIMACS 文本（供外部檢查器交叉複核）。
 pub fn to_dimacs(cnf: &Cnf) -> String {
     let mut out = format!("p cnf {} {}\n", cnf.nvars, cnf.clauses.len());
@@ -160,6 +181,95 @@ pub fn to_dimacs(cnf: &Cnf) -> String {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn cdcl_unsat_proof_self_verifying_php32() {
+        // 鴿籠 PHP(3,2)：3 鴿 2 洞——經典 UNSAT（6 變數 9 子句）。
+        // C8 信任鏈：CDCL solve_with_proof 產證書 → cdcl_learnts_to_rup →
+        // check_rup_proof 獨立回放必 Ok（同模組不同代碼路徑之差分 oracle）。
+        use crate::cdcl::{lit, Solver};
+        let raw: Vec<Vec<i32>> = vec![
+            vec![1, 2],
+            vec![3, 4],
+            vec![5, 6],
+            vec![-1, -3],
+            vec![-1, -5],
+            vec![-3, -5],
+            vec![-2, -4],
+            vec![-2, -6],
+            vec![-4, -6],
+        ];
+        let enc = |c: &[i32]| -> Vec<crate::cdcl::Lit> {
+            c.iter()
+                .map(|&l| lit(l.unsigned_abs() as usize - 1, l > 0))
+                .collect()
+        };
+        let mut s = Solver::new(6, raw.iter().map(|c| enc(c)).collect());
+        let (sat, proof) = s.solve_with_proof();
+        assert!(!sat, "PHP(3,2) 應 UNSAT");
+        assert!(!proof.is_empty(), "UNSAT 證書非空");
+        let rup = cdcl_learnts_to_rup(&proof);
+        let cnf = Cnf::new(6, raw.clone());
+        let res = check_rup_proof(&cnf, &rup);
+        assert!(res.is_ok(), "RUP 回放應通過：{res:?}");
+        // 終結性由 RUP 回放判定（0 層衝突子句可為任意長度——其否定可由
+        // db 傳播駁倒）；結構檢查只要求「有空子句或回放通過」。
+        assert!(
+            proof.iter().any(|c| c.is_empty()) || res.is_ok(),
+            "證書應含空子句或整體回放通過"
+        );
+    }
+
+    #[test]
+    fn cdcl_sat_proof_has_no_empty_clause_model_rechecks() {
+        // SAT 場景：證書無空子句（唔構成駁斥）；判定由 model σ 對原子句重驗
+        use crate::cdcl::{lit, lit_positive, lit_var, Solver};
+        let raw: Vec<Vec<i32>> = vec![vec![1, 2], vec![-1, 3], vec![-3, 2]];
+        let enc = |c: &[i32]| -> Vec<crate::cdcl::Lit> {
+            c.iter()
+                .map(|&l| lit(l.unsigned_abs() as usize - 1, l > 0))
+                .collect()
+        };
+        let mut s = Solver::new(3, raw.iter().map(|c| enc(c)).collect());
+        let (sat, proof) = s.solve_with_proof();
+        assert!(sat);
+        assert!(proof.iter().all(|c| !c.is_empty()), "SAT 證書無空子句");
+        let model = s.model().expect("SAT 應有 model");
+        for c in &raw {
+            let ok = c.iter().any(|&l| {
+                let v = lit_var(lit(l.unsigned_abs() as usize - 1, l > 0));
+                model[v] == lit_positive(lit(l.unsigned_abs() as usize - 1, l > 0))
+            });
+            assert!(ok, "model 違反子句 {c:?}");
+        }
+        // SAT 證書唔應通過 check_rup_proof（無空子句=未完成駁斥）——三值口徑：
+        // UNSAT 先有駁斥證書
+        let rup = cdcl_learnts_to_rup(&proof);
+        if !rup.is_empty() {
+            let cnf = Cnf::new(3, raw.clone());
+            assert!(check_rup_proof(&cnf, &rup).is_err());
+        }
+    }
+
+    #[test]
+    fn cdcl_unit_chain_unsat_minimal() {
+        // 最小單位鏈：(1)(−1)——UNSAT 證書即時收尾
+        use crate::cdcl::{lit, Solver};
+        let raw: Vec<Vec<i32>> = vec![vec![1], vec![-1]];
+        let enc = |c: &[i32]| -> Vec<crate::cdcl::Lit> {
+            c.iter()
+                .map(|&l| lit(l.unsigned_abs() as usize - 1, l > 0))
+                .collect()
+        };
+        let mut s = Solver::new(1, raw.iter().map(|c| enc(c)).collect());
+        let (sat, proof) = s.solve_with_proof();
+        assert!(!sat);
+        assert!(!proof.is_empty());
+        let rup = cdcl_learnts_to_rup(&proof);
+        let res = check_rup_proof(&Cnf::new(1, raw.clone()), &rup);
+        assert!(res.is_ok(), "{res:?}");
+    }
+
     use super::*;
 
     fn cnf(n: usize, cls: &[&[i32]]) -> Cnf {

@@ -1,5 +1,16 @@
 // SPDX-License-Identifier: (AGPL-3.0-only OR LicenseRef-PolyRust-Commercial)
-//! PolyIR — Charon LLBC 同 polyrust 下半段（GB／QAP）之間嘅自家 IR（C1 骨架）。
+//! PolyIR — Charon LLBC 同 polyrust 下半段（GB／QAP）之間嘅自家 IR。
+//!
+//! **語義覆蓋自白（審計對口：呢層係「模板化投影」而唔係通用 lowering）**。
+//! 認證語義覆蓋面：Assign（Use/BinaryOp 未檢查及已檢查 tuple/Discriminant）、
+//! Assert（溢出旗標）、SwitchInt（靜態分流＋enum 參數值軸）、Call（本地純
+//! 函數；C7 自遞迴模板）、Loop（C6 單調 while 模板）、Continue/Break（出口
+//! 臂白名單）、places：Local/Field（含 tuple .0）/Deref（別名透明）。
+//! **唔支援**（LLBC 全量語言之已知缺口，一律如實 UNKNOWN 而非静音）：Ref/
+//! 借用語義（除 Deref 別名）、raw pointer、dyn/GAT/async/RPIT（missing_decl
+//! 口徑）、enum 值傳參/ADT 返回、嵌套動態 Switch、多出口迴圈、mutual
+//! recursion。TCB 四重承擔：charon.pin／模板認形白名單（模板外降級）／
+//! 見證模擬＋溢出排除／見證模式逐槽恆等化編碼。
 //!
 //! 定位（藍圖 §3 分層）：
 //! ```text

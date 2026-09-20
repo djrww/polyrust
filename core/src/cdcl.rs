@@ -32,6 +32,10 @@ pub struct Solver {
     n_vars: usize,
     clauses: Vec<Vec<Lit>>,
     n_orig: usize,
+    /// C8（審計②）：RUP 證書——依序記錄學習子句；UNSAT 收尾追加終結子句
+    /// （0 層全假衝突子句或空子句，其否定可由累積子句集傳播駁倒）。
+    /// SAT 時無空子句（判定由 model σ 重驗）。消費：`solve_with_proof`。
+    proof_out: Vec<Vec<Lit>>,
     watches: Vec<Vec<usize>>, // 每文字 → 監視的子句索引
     values: Vec<Option<bool>>,
     level: Vec<u32>,
@@ -53,6 +57,7 @@ impl Solver {
             n_vars,
             clauses: vec![],
             n_orig: 0,
+            proof_out: Vec::new(),
             watches: vec![vec![]; 2 * n_vars.max(1)],
             values: vec![None; n_vars],
             level: vec![0; n_vars],
@@ -230,7 +235,9 @@ impl Solver {
                 Some(ci) => {
                     if p.is_none() {
                         debug_assert!(
-                            self.clauses[ci].iter().all(|&l| self.value_of(l) == Some(false)),
+                            self.clauses[ci]
+                                .iter()
+                                .all(|&l| self.value_of(l) == Some(false)),
                             "衝突子句非全假：{:?}",
                             self.clauses[ci]
                         );
@@ -353,24 +360,35 @@ impl Solver {
 
     pub fn solve(&mut self) -> bool {
         if !self.ok {
+            // 0 層預檢矛盾（new 時單位對等）：db 0 層傳播已衝突 ⇒
+            // 空子句 RUP-valid，作終結證據
+            self.proof_out.push(Vec::new());
             return false;
         }
         loop {
             match self.propagate() {
                 Some(confl) => {
                     debug_assert!(
-                        self.clauses[confl].iter().all(|&l| self.value_of(l) == Some(false)),
+                        self.clauses[confl]
+                            .iter()
+                            .all(|&l| self.value_of(l) == Some(false)),
                         "衝突子句並非全假：{:?} 賦值={:?}",
                         self.clauses[confl],
                         self.values
                     );
                     self.stats.conflicts += 1;
                     if self.current_level() == 0 {
+                        // 0 層賦值全來自 db 單元傳播 ⇒ db 自身已矛盾 ⇒
+                        // 空子句 RUP-valid（DRAT 慣例終結步）
+                        self.proof_out.push(Vec::new());
                         return false;
                     }
                     let (learnt, lvl) = self.analyze(confl);
                     debug_assert!(
-                        learnt.iter().skip(1).all(|&l| self.value_of(l) == Some(false)),
+                        learnt
+                            .iter()
+                            .skip(1)
+                            .all(|&l| self.value_of(l) == Some(false)),
                         "學習子句尾文字並非全假：{:?} 賦值={:?} 層級={:?}",
                         learnt,
                         self.values,
@@ -379,11 +397,16 @@ impl Solver {
                     self.var_inc /= 0.95;
                     self.cancel_until(lvl);
                     if learnt.is_empty() {
+                        self.proof_out.push(Vec::new());
                         return false;
                     }
                     self.stats.learned += 1;
+                    self.proof_out.push(learnt.clone());
                     let ci = self.add_clause_raw(learnt.clone());
                     if !self.ok {
+                        // 新 learnt 與 0 層單位矛盾：db 0 層傳播已衝突 ⇒
+                        // 空子句 RUP-valid，作終結證據
+                        self.proof_out.push(Vec::new());
                         return false;
                     }
                     if let Some(ci) = ci {
@@ -401,7 +424,10 @@ impl Solver {
                 None => match self.decide() {
                     None => {
                         self.model = Some(
-                            self.values.iter().map(|v| v.expect("SAT 但有未賦值變量")).collect(),
+                            self.values
+                                .iter()
+                                .map(|v| v.expect("SAT 但有未賦值變量"))
+                                .collect(),
                         );
                         return true;
                     }
@@ -419,6 +445,17 @@ impl Solver {
         self.model.clone()
     }
 
+    /// C8（審計②）：求解並輸出可自證 RUP 證書。
+    /// UNSAT ⇒ 證書非空且末尾為終結子句（0 層衝突子句或空子句），
+    /// 交 `lrat::check_rup_proof` 回放即獨立可驗。
+    /// SAT ⇒ 證書只有中途學習子句（無空子句，唔構成駁斥）；判定由
+    /// model σ 對原子句逐條重驗。
+    pub fn solve_with_proof(&mut self) -> (bool, Vec<Vec<Lit>>) {
+        self.proof_out.clear();
+        let sat = self.solve();
+        (sat, std::mem::take(&mut self.proof_out))
+    }
+
     pub fn stats(&self) -> &CdclStats {
         &self.stats
     }
@@ -427,7 +464,6 @@ impl Solver {
     pub fn learned_clauses(&self) -> Vec<Vec<Lit>> {
         self.clauses[self.n_orig..].to_vec()
     }
-
 }
 
 fn lit_neg_of_var(v: usize, s: &Solver) -> Lit {
@@ -455,15 +491,16 @@ pub fn brute_force_sat(n_vars: usize, clauses: &[Vec<Lit>]) -> Option<Vec<bool>>
 
 /// 賦值是否滿足子句集。
 pub fn satisfies(assign: &[bool], clauses: &[Vec<Lit>]) -> bool {
-    clauses.iter().all(|c| {
-        c.iter().any(|&l| assign[lit_var(l)] == lit_positive(l))
-    })
+    clauses
+        .iter()
+        .all(|c| c.iter().any(|&l| assign[lit_var(l)] == lit_positive(l)))
 }
 
 /// 實際使用：cdcl.rs 文件清單 — 優化 with_capacity
 pub fn cdcl_file_list() -> Vec<(&'static str, &'static str, &'static str)> {
-    vec![
-        ("cdcl.rs", "cdcl.rs 正式運作 — 優化 with_capacity", "core/src/cdcl.rs"),
-    ]
+    vec![(
+        "cdcl.rs",
+        "cdcl.rs 正式運作 — 優化 with_capacity",
+        "core/src/cdcl.rs",
+    )]
 }
-

@@ -21,9 +21,8 @@ use crate::frac::Frac;
 use crate::minirust::mir_lower::{self, MirSystem};
 use crate::poly::Poly;
 use crate::polyir::{
-    concretize_cap, lower_fun_in, self_recursion_step, ConcErr, ParamVal, Part,
-    PirBinOp, PirBody, PirOperand, PirPath, PirStmtKind, PirVerdict, Slot, CALL_DEPTH_CAP,
-    REC_DEPTH_HARD_CAP,
+    concretize_cap, lower_fun_in, self_recursion_step, ConcErr, ParamVal, Part, PirBinOp, PirBody,
+    PirOperand, PirPath, PirStmtKind, PirVerdict, Slot, CALL_DEPTH_CAP, REC_DEPTH_HARD_CAP,
 };
 use crate::vanishing::{l0_prime_params_of, vanishing_poly, L0PrimeParams};
 use std::collections::BTreeMap;
@@ -48,6 +47,12 @@ pub struct Encoded {
 pub enum Decision {
     /// 全部參數組合（見證模式）或系統見證（直線模式）通過獨立認證。
     /// `ret` 為返回槽之（有符）值；多組合且 ret 不唯一時 = None。
+    ///
+    /// **三值口徑（審計③）：本判定係有界判定**——認證範圍＝顯式參數域×
+    /// 逐組合（見證模式）或直線見證；終止性由模板（C6 單調步進／C7 遞迴
+    /// 深度上限）與 LOOP_ITERS_HARD_CAP／REC_DEPTH_HARD_CAP 硬上限承擔。
+    /// 超出範圍一律 `Unknown`（附原因）或溢出排除——**絕不表述為無界
+    /// SAT**。無界判定屬後續 slice，本枚舉無此變體。
     Certified {
         ret: Option<i64>,
         n_vars: usize,
