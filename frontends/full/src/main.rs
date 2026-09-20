@@ -23,6 +23,8 @@ mod syn_bridge;
 mod syn_explain;
 #[cfg(feature = "syn")]
 mod syn_visit;
+#[cfg(feature = "syn")]
+mod syn_100;
 mod oracle;
 
 use axum::{routing::{get, post}, Router, Json, http::StatusCode, response::Html};
@@ -67,6 +69,21 @@ async fn syn_visit_handler(Json(payload): Json<Value>) -> (StatusCode, Json<Valu
 }
 #[cfg(not(feature = "syn"))]
 async fn syn_visit_handler(Json(_payload): Json<Value>) -> (StatusCode, Json<Value>) {
+    (StatusCode::OK, Json(serde_json::json!({"ok": false, "error": "syn feature not enabled"})))
+}
+
+#[cfg(feature = "syn")]
+async fn syn_100_handler(Json(payload): Json<Value>) -> (StatusCode, Json<Value>) {
+    let src = payload.get("source").and_then(|v| v.as_str()).unwrap_or("");
+    if src.trim().is_empty() {
+        let once = syn_100::continuous_scan_once();
+        return (StatusCode::OK, Json(serde_json::json!({"ok": true, "scan": once, "syn_full": true, "visit": true, "proc_macro2": true})));
+    }
+    let gt = syn_100::grab_groundtruth(src).map(|g| format!("{:#?}", g)).unwrap_or_else(|e| e);
+    (StatusCode::OK, Json(serde_json::json!({"ok": true, "groundtruth": gt})))
+}
+#[cfg(not(feature = "syn"))]
+async fn syn_100_handler(Json(_payload): Json<Value>) -> (StatusCode, Json<Value>) {
     (StatusCode::OK, Json(serde_json::json!({"ok": false, "error": "syn feature not enabled"})))
 }
 
@@ -512,6 +529,7 @@ async fn main() {
         .route("/api/v2/fix_oracle", post(api::fix_oracle))
         .route("/api/v2/syn_explain", post(syn_explain_handler))
         .route("/api/v2/syn_visit", post(syn_visit_handler))
+        .route("/api/v2/syn_100", post(syn_100_handler))
         .route("/api/check", post(check_v1))
         .route("/api/expand", post(expand_v1))
         .layer(CorsLayer::permissive());
@@ -524,6 +542,7 @@ async fn main() {
         .route("/api/v2/fix_oracle", post(api::fix_oracle))
         .route("/api/v2/syn_explain", post(syn_explain_handler))
         .route("/api/v2/syn_visit", post(syn_visit_handler))
+        .route("/api/v2/syn_100", post(syn_100_handler))
         .route("/api/check", post(check_v1))
         .route("/api/expand", post(expand_v1));
 
