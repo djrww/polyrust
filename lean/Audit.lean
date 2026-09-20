@@ -166,3 +166,8 @@ open Polyrust
 #print axioms Polyrust.whileMonoF_sufficient
 #print axioms Polyrust.triSum_mono
 #print axioms Polyrust.invSumF_spec
+
+/-! ## M3-C7：自遞迴模板（Recursion）-/
+
+#print axioms Polyrust.factF_spec
+#print axioms Polyrust.fact_pos

@@ -23,7 +23,7 @@ namespace Polyrust
 /-- 帶燃料嘅 C6 單調 while 模板（cond：`i < bound`、body：
 `i := i + step + 1`）。`step` 係零基偏移——實際步長 `step + 1 ≥ 1`，
 保證每輪嚴格單調（模板終止性嘅來源）。 -/
-def whileMonoF : Nat → Nat → Nat → Nat
+def whileMonoF : Nat → Nat → Nat → Nat → Nat
   | 0, _step, _bound, i => i
   | fuel + 1, step, bound, i =>
       if i < bound then whileMonoF fuel step bound (i + step + 1) else i
@@ -100,7 +100,7 @@ def invSumF : Nat → Nat → Nat → Nat → Nat
 `invSumF fuel n 0 0 = T n`（Σ_{k<n} k 嘅閉式）——即 CLI 對 n=5 認證
 ret=10 = T 5 嘅形式化版本。 -/
 theorem invSumF_spec (n : Nat) : ∀ fuel i acc, n - i ≤ fuel →
-    invSumF fuel n i acc = acc + triSum n - triSum i := by
+    invSumF fuel n i acc = acc + (triSum n - triSum i) := by
   intro fuel
   induction fuel with
   | zero =>
@@ -117,7 +117,7 @@ theorem invSumF_spec (n : Nat) : ∀ fuel i acc, n - i ≤ fuel →
       have h6 : triSum (i + 1) = triSum i + i := rfl
       have h2 := ih (i + 1) (acc + i) h1
       have h4 : triSum i + i ≤ triSum n := by
-        have h5 := triSum_mono (i + 1) n (by omega)
+        have h5 := triSum_mono n (i + 1) (by omega)
         omega
       omega
     · simp only [invSumF, if_neg hlt]

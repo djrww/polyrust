@@ -21,8 +21,9 @@ use crate::frac::Frac;
 use crate::minirust::mir_lower::{self, MirSystem};
 use crate::poly::Poly;
 use crate::polyir::{
-    concretize, lower_fun_in, ConcErr, ParamVal, Part, PirBinOp, PirBody, PirOperand, PirPath,
-    PirStmtKind, PirVerdict, Slot,
+    concretize_cap, lower_fun_in, self_recursion_step, ConcErr, ParamVal, Part,
+    PirBinOp, PirBody, PirOperand, PirPath, PirStmtKind, PirVerdict, Slot, CALL_DEPTH_CAP,
+    REC_DEPTH_HARD_CAP,
 };
 use crate::vanishing::{l0_prime_params_of, vanishing_poly, L0PrimeParams};
 use std::collections::BTreeMap;
@@ -491,7 +492,7 @@ pub fn decide_fun_in(
     fun: &FunDeclRef,
     arg_domains: &[Vec<i64>],
 ) -> Decision {
-    let callees = prelower(funs, &fun.name);
+    let callees = prelower(funs);
     match lower_fun_in(types, funs, fun) {
         PirVerdict::NoBody { kind } => Decision::Unknown {
             reason: format!("body 缺失（{:?}）", kind),
@@ -557,6 +558,8 @@ pub fn certify_fun_report(
     });
     let lean_theorem = if has_loop {
         Some("Polyrust.LoopInvariant.invSumF_spec")
+    } else if self_recursion_step(body).is_some() {
+        Some("Polyrust.Recursion.factF_spec")
     } else {
         None
     };
@@ -589,7 +592,8 @@ pub fn certify_fun_report(
         lean_theorem,
     };
     for params in &combos {
-        let out = match concretize(body, params, callees) {
+        let cap = rec_depth_cap(body, params);
+        let out = match concretize_cap(body, params, callees, cap) {
             Ok(o) => o,
             Err(ConcErr::Overflow) => {
                 rep.n_excluded += 1;
@@ -669,7 +673,7 @@ pub fn certify_fun_report_in(
     fun: &FunDeclRef,
     arg_domains: &[Vec<i64>],
 ) -> FunCertReport {
-    let callees = prelower(funs, &fun.name);
+    let callees = prelower(funs);
     match lower_fun_in(types, funs, fun) {
         PirVerdict::NoBody { kind } => FunCertReport {
             name: fun.name.clone(),
@@ -695,11 +699,32 @@ pub fn certify_fun_report_in(
     }
 }
 
-/// C5：全部 Structured fun → PirBody 表（`skip` = 判定對象自身，唔入表，
-/// 遞迴呼叫由模擬深限如實降級）。
-fn prelower(funs: &[FunDeclRef], skip: &str) -> BTreeMap<String, PirBody> {
+/// C7：遞迴模板嘅模擬深度上限——self-call 步進 Δ、入口參數 p0 →
+/// 層數 ≈ |p0|/|Δ| + 8（夠行到 base case），clamp 至 REC_DEPTH_HARD_CAP；
+/// 非模板 → CALL_DEPTH_CAP 預設（如實降級路徑）。
+fn rec_depth_cap(body: &PirBody, params: &[ParamVal]) -> usize {
+    match self_recursion_step(body) {
+        Some(delta) if delta != 0 => {
+            let p0 = params
+                .iter()
+                .find_map(|p| match p {
+                    ParamVal::Int(v) => Some(*v),
+                    ParamVal::Enum { .. } => None,
+                })
+                .unwrap_or(0i64);
+            let need = p0.abs() / delta.abs() + 8;
+            need.clamp(0, REC_DEPTH_HARD_CAP as i64) as usize
+        }
+        _ => CALL_DEPTH_CAP,
+    }
+}
+
+/// C5/C7：全部 Structured fun → PirBody 表（**含判定對象本人**——自遞迴
+/// 由模板認形＋模擬深度上限承擔；mutual recursion 無模板 → 預設深限
+/// 如實降級）。
+fn prelower(funs: &[FunDeclRef]) -> BTreeMap<String, PirBody> {
     funs.iter()
-        .filter(|f| f.body_kind == BodyKind::Structured && f.name != skip)
+        .filter(|f| f.body_kind == BodyKind::Structured)
         .filter_map(|f| match lower_fun_in(&Value::Null, funs, f) {
             PirVerdict::ValueTrace(b) => Some((f.name.clone(), b)),
             _ => None,
@@ -785,7 +810,8 @@ fn decide_paths(
     let mut excluded = 0usize;
     let mut overflow_reason: Option<String> = None;
     for params in &combos {
-        let out = match concretize(body, params, callees) {
+        let cap = rec_depth_cap(body, params);
+        let out = match concretize_cap(body, params, callees, cap) {
             Ok(o) => o,
             Err(ConcErr::Overflow) => {
                 excluded += 1;
@@ -926,6 +952,7 @@ fn single_path_body(body: &PirBody, idx: usize) -> PirBody {
         scrutinee: None,
         value: None,
         fallback: false,
+        excl: Vec::new(),
         stmts: p.stmts,
     }];
     b
@@ -1610,18 +1637,35 @@ mod tests {
     }
 
     #[test]
-    fn c5_recursion_degrades_honestly() {
-        // 真檔 fact：自遞迴（Call def_id=自己）→ lowering 階段如實降級
+    fn c7_fact_recursion_certified_real_file() {
+        // 真檔 fact：自遞迴模板（n − 1 單一 self-call）→ C7 認證
         let root = load_m0("fact");
         let d = decide_entry(&root, "fact", &dom(&[3])).expect("fact 存在");
-        // fact 嘅降級點：遞迴 self-call（或先撞 Deduplicated 常數——同屬
-        // 能力邊界如實申報）
-        let reason = d
+        match d {
+            Decision::Certified { ret, excluded, .. } => {
+                assert_eq!(ret, Some(6), "fact(3)=6");
+                assert_eq!(excluded, 0);
+            }
+            other => panic!("fact(3) 應 Certified（C7 遞迴模板），得到 {other:?}"),
+        }
+        // 深度上限：巨大 n → 如實降級（模板終止假設失效／超硬上限）。
+        // 4096 層模擬遞迴：debug 框架大過預設 test thread stack——
+        // 用 64MB stack thread 執行。
+        let d2 = std::thread::Builder::new()
+            .stack_size(64 << 20)
+            .spawn(|| {
+                let root = load_m0("fact");
+                decide_entry(&root, "fact", &dom(&[100_000])).expect("fact 存在")
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+        let reason = d2
             .reason()
-            .unwrap_or_else(|| panic!("fact 應 Unknown（遞迴），得到 {d:?}"));
+            .unwrap_or_else(|| panic!("fact(100000) 應 Unknown，得到 {d2:?}"));
         assert!(
-            reason.contains("遞迴") || reason.contains("Deduplicated"),
-            "reason={reason}"
+            reason.contains("深度超限") || reason.contains("硬上限"),
+            "應指向深度上限：{reason}"
         );
     }
 

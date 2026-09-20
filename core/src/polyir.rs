@@ -251,6 +251,10 @@ pub struct PirPath {
     pub scrutinee: Option<Slot>,
     pub value: Option<i64>,
     pub fallback: bool,
+    /// C7 補洞：fallback path 嘅分流常數表（switch branches 值）——guard
+    /// 驗證要求 scrutinee 值 ∉ excl（唔中任何 branch 先算行 fallback）。
+    /// 非 fallback path 恆空。
+    pub excl: Vec<i64>,
     pub stmts: Vec<PirStmt>,
 }
 
@@ -388,6 +392,7 @@ fn lower_fun_inner(
                 scrutinee: None,
                 value: None,
                 fallback: false,
+                excl: Vec::new(),
                 stmts,
             },
         );
@@ -702,6 +707,11 @@ fn lower_seq(
                         scrutinee: Some(scrutinee.clone()),
                         value: Some(v),
                         fallback: is_fallback,
+                        excl: if is_fallback {
+                            covered.iter().copied().collect()
+                        } else {
+                            Vec::new()
+                        },
                         stmts: path_stmts,
                     });
                 }
@@ -747,11 +757,8 @@ fn lower_seq(
                         "{name}: stmt[{i}] Call def_id={fun_id} 唔係本地可模擬函數（Opaque／缺失 body）"
                     )
                 })?;
-                if callee == name {
-                    return fail(format!(
-                        "{name}: stmt[{i}] 遞迴呼叫唔支援（不動點屬後續 slice）"
-                    ));
-                }
+                // C7：self-call 照收（模板認形＋模擬深度上限承擔終止；
+                // 超限模擬階段如實降級，mutual recursion 一樣有界如實降級）
                 let arg_vals = call
                     .get("args")
                     .and_then(|v| v.as_arr())
@@ -1667,10 +1674,21 @@ pub enum ConcErr {
 
 /// 參數組合 → 路徑選擇 + 全程模擬。路徑選擇：guard 值查表（enum 判別值軸
 /// ／比較 {0,1}），fallback path 接收唔中任何 branch 常數嘅值。
+/// C5/C6 慣用入口（預設深度上限 CALL_DEPTH_CAP；遞迴模板請用
+/// `concretize_cap`＋`rec_depth_cap` 推導值）。
 pub fn concretize(
     body: &PirBody,
     params: &[ParamVal],
     callees: &BTreeMap<String, PirBody>,
+) -> Result<ConcOut, ConcErr> {
+    concretize_cap(body, params, callees, CALL_DEPTH_CAP)
+}
+
+pub fn concretize_cap(
+    body: &PirBody,
+    params: &[ParamVal],
+    callees: &BTreeMap<String, PirBody>,
+    depth_cap: usize,
 ) -> Result<ConcOut, ConcErr> {
     if params.len() != body.arg_count {
         return Err(ConcErr::Reason(format!(
@@ -1695,14 +1713,116 @@ pub fn concretize(
             }
         }
     }
-    simulate_body(body, &init, callees, 0)
+    simulate_body(body, &init, callees, 0, depth_cap)
 }
 
-/// C5 調用鏈模擬深度上限（超限 = 遞迴／超深調用，如實降級）。
-const CALL_DEPTH_CAP: usize = 4;
+/// C5 調用鏈模擬深度上限（非遞迴模板嘅預設；超限如實降級）。
+pub const CALL_DEPTH_CAP: usize = 4;
 
 /// C6：loop 迭代模擬硬上限（防大界值 DoS；超限如實降級，大 n 唔擔保認證）
 const LOOP_ITERS_HARD_CAP: usize = 4096;
+
+/// C7：遞迴模板模擬深度硬上限（推導上限=min(|p0|/|Δ|+8, 本值）；超限如實降級）
+pub const REC_DEPTH_HARD_CAP: usize = 4096;
+
+/// C7：自遞迴模板認形——單一 int 參數、單一 self-call、遞迴實參 =
+/// 參數 ± c（|c| ≥ 1，可經 Copy 鏈/checked tuple t.0 投影）。返回每層
+/// 實參變化量 Δ；模板外（多 self-call 如 fib、常數實參、多參數）→ None
+/// （模擬深度維持 CALL_DEPTH_CAP 預設，如實降級）。
+pub fn self_recursion_step(body: &PirBody) -> Option<i64> {
+    if body.arg_count != 1 {
+        return None;
+    }
+    let mut delta: Option<i64> = None;
+    let mut n_calls = 0usize;
+    for path in &body.paths {
+        // 參數別名集：Copy 鏈自 local 1（LLBC 慣例：checked sub 前先 Copy
+        // 參數至臨時槽——真檔 fact 形態 L7 := Copy(L1); L8 := SubChecked(L7,1)）
+        let mut aliases: std::collections::BTreeSet<usize> = [1usize].into_iter().collect();
+        loop {
+            let mut grew = false;
+            for q in path.stmts.iter() {
+                if let PirStmtKind::Copy { src } = &q.kind {
+                    if q.dst.part == Part::Whole
+                        && src.part == Part::Whole
+                        && aliases.contains(&src.local)
+                        && !aliases.contains(&q.dst.local)
+                    {
+                        aliases.insert(q.dst.local);
+                        grew = true;
+                    }
+                }
+            }
+            if !grew {
+                break;
+            }
+        }
+        for (si, s) in path.stmts.iter().enumerate() {
+            if let PirStmtKind::Call { callee, args } = &s.kind {
+                if callee != &body.fun_name || args.len() != 1 {
+                    continue;
+                }
+                n_calls += 1;
+                if n_calls > 1 {
+                    return None;
+                }
+                let PirOperand::Slot(a0) = &args[0] else {
+                    return None; // 常數實參：唔係遞迴計數器形
+                };
+                // 實參槽：整槽 temp 或 checked tuple 值投影 t.0（真 LLBC 形態：
+                // call fact(L_t.0)）——兩者都由 t.local 追產生語句
+                let mut cur = match a0.part {
+                    Part::Whole | Part::Field(0) => a0.local,
+                    _ => return None,
+                };
+                let mut step: Option<i64> = None;
+                for _ in 0..3 {
+                    let prod = path.stmts[..si]
+                        .iter()
+                        .rev()
+                        .find(|q| q.dst.part == Part::Whole && q.dst.local == cur)?;
+                    match &prod.kind {
+                        PirStmtKind::Copy { src } => {
+                            if src.part == Part::Whole || src.part == Part::Field(0) {
+                                cur = src.local;
+                                continue;
+                            }
+                            return None;
+                        }
+                        PirStmtKind::BinOp { op, a, b: bop, .. } => {
+                            // 一邊 = 參數（local 1 或其 Copy 別名）、另一邊 = Const c
+                            let param_side = |x: &PirOperand| {
+                                matches!(
+                                    x,
+                                    PirOperand::Slot(sl)
+                                        if sl.part == Part::Whole && aliases.contains(&sl.local)
+                                )
+                            };
+                            let c = match (a, bop) {
+                                (x, PirOperand::Const(c)) if param_side(x) => Some(*c),
+                                (PirOperand::Const(c), x) if param_side(x) => Some(*c),
+                                _ => None,
+                            };
+                            let c = c?;
+                            if c.abs() < 1 {
+                                return None;
+                            }
+                            step = match op {
+                                PirBinOp::Sub => Some(-c), // arg = param - c：每層 -c
+                                PirBinOp::Add => Some(c),  // arg = param + c：每層 +c
+                                _ => return None,
+                            };
+                            break;
+                        }
+                        _ => return None,
+                    }
+                }
+                delta = step;
+            }
+        }
+    }
+    delta
+}
 
 /// 核心：逐 path 嘗試模擬 + guard 驗證（scrutinee 槽值 == path.value；
 /// fallback path 接收唔中任何 branch 常數嘅值）。guard 值由模擬確定。
@@ -1712,6 +1832,7 @@ fn simulate_body(
     init: &BTreeMap<Slot, i64>,
     callees: &BTreeMap<String, PirBody>,
     depth: usize,
+    depth_cap: usize,
 ) -> Result<ConcOut, ConcErr> {
     let name = body.fun_name.clone();
     let err = |m: String| ConcErr::Reason(m);
@@ -1725,16 +1846,20 @@ fn simulate_body(
             body.ret_slot.as_ref(),
             callees,
             depth,
+            depth_cap,
         ) {
             Ok(ret) => {
                 // guard 驗證
                 if let (Some(s), Some(v)) = (&path.scrutinee, path.value) {
                     match values.get(s) {
                         Some(&actual) if actual == v => {}
-                        Some(_) if path.fallback => {}
+                        Some(&actual) if path.fallback && !path.excl.contains(&actual) => {}
                         _ => {
-                            last =
-                                Some(err(format!("path[{idx}] guard 驗證失敗（唔係呢條 path）")));
+                            // C7：guard 失敗都係 Reason——保留首個（唔好掩蓋
+                            // 真正 path 嘅深度/溢出等真因）
+                            last.get_or_insert(err(format!(
+                                "path[{idx}] guard 驗證失敗（唔係呢條 path）"
+                            )));
                             continue;
                         }
                     }
@@ -1746,12 +1871,15 @@ fn simulate_body(
                 });
             }
             Err(ConcErr::Overflow) => {
-                // 記住但試下一 path：真正行嘅 path 未必係呢條
+                // 溢出最優先（真實執行 panic——排除語義不可被其他 path 嘅
+                // 錯誤掩蓋）
                 last = Some(ConcErr::Overflow);
                 continue;
             }
             Err(e) => {
-                last = Some(e);
+                // C7：Reason 保留首個（path 序最接近真實執行路徑；後續 path
+                // 嘅 guard/其他錯誤唔好掩蓋真因）
+                last.get_or_insert(e);
                 continue;
             }
         }
@@ -1760,7 +1888,7 @@ fn simulate_body(
 }
 
 /// 直線語句模擬（真語義；C2 口徑：checked 溢出 → Overflow、旗標非零 → Overflow）。
-/// C5：Call 遞迴模擬（callee 經 callees lookup，深限 CALL_DEPTH_CAP）。
+/// C5：Call 遞迴模擬（callee 經 callees lookup；C7 深限=depth_cap 參數）。
 #[allow(clippy::too_many_arguments)]
 fn simulate(
     name: &str,
@@ -1769,6 +1897,7 @@ fn simulate(
     ret_slot: Option<&Slot>,
     callees: &BTreeMap<String, PirBody>,
     depth: usize,
+    depth_cap: usize,
 ) -> Result<Option<i64>, ConcErr> {
     for st in stmts {
         match &st.kind {
@@ -1825,9 +1954,9 @@ fn simulate(
             PirStmtKind::Call { callee, args } => {
                 // C5：本地純函數調用——遞迴模擬 callee body（值語義），
                 // ret 寫入 dst 槽。enum 值傳參／ADT ret 屬後續 slice。
-                if depth >= CALL_DEPTH_CAP {
+                if depth >= depth_cap {
                     return Err(ConcErr::Reason(format!(
-                        "{name}: 調用鏈深度超限 {CALL_DEPTH_CAP}（遞迴／超深調用）"
+                        "{name}: 調用鏈深度超限 {depth_cap}（遞迴模板終止假設失效／超深調用）"
                     )));
                 }
                 let cb = callees.get(callee).ok_or_else(|| {
@@ -1854,7 +1983,7 @@ fn simulate(
                     })?;
                     init.insert(Slot::whole(k + 1), v);
                 }
-                let out = simulate_body(cb, &init, callees, depth + 1)?;
+                let out = simulate_body(cb, &init, callees, depth + 1, depth_cap)?;
                 let rv = out.ret.ok_or_else(|| {
                     ConcErr::Reason(format!(
                         "{name}: callee `{callee}` 無模擬 ret 值（ADT ret 屬後續 slice）"
@@ -1889,7 +2018,7 @@ fn simulate(
                 }
                 let mut n = 0usize;
                 loop {
-                    simulate(name, head, values, None, callees, depth)?;
+                    simulate(name, head, values, None, callees, depth, depth_cap)?;
                     let x = values
                         .get(cond_a)
                         .copied()
@@ -1907,7 +2036,7 @@ fn simulate(
                             "{name}: loop 步數超上限 {iters_cap}（單調終止模板失效）"
                         )));
                     }
-                    simulate(name, body, values, None, callees, depth)?;
+                    simulate(name, body, values, None, callees, depth, depth_cap)?;
                 }
             }
             PirStmtKind::Aggregate { fields, .. } => {
