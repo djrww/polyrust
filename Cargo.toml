@@ -37,7 +37,8 @@ serde_json = { version = "1", default-features = false, features = ["std"] }
 tower-http = { version = "0.6", default-features = false, features = ["cors"] }
 # syn：full + extra-traits 提供 Debug/Clone，light 模式可關閉
 # 需顯式啟用 clone-impls/parsing/printing/derive/proc-macro 以支持 no-default-features
-syn = { version = "2", default-features = false, features = ["full", "extra-traits", "clone-impls", "parsing", "printing", "derive", "proc-macro"] }
+syn = { version = "2", default-features = false, features = ["full", "extra-traits", "clone-impls", "parsing", "printing", "derive", "proc-macro", "visit", "visit-mut"] }
+proc-macro2 = { version = "1", default-features = false }
 # quote：無額外
 quote = { version = "1", default-features = false }
 # ureq：基線無特性（最輕），由 frontends/llm 的 features 控制 tls/json

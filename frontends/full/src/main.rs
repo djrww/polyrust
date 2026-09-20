@@ -19,6 +19,10 @@ mod lower;
 mod syn_lower;
 #[cfg(feature = "syn")]
 mod syn_bridge;
+#[cfg(feature = "syn")]
+mod syn_explain;
+#[cfg(feature = "syn")]
+mod syn_visit;
 mod oracle;
 
 use axum::{routing::{get, post}, Router, Json, http::StatusCode, response::Html};
@@ -26,6 +30,45 @@ use polyrust_core::{formal};
 use serde_json::Value;
 #[cfg(feature = "cors")]
 use tower_http::cors::CorsLayer;
+
+
+#[cfg(feature = "syn")]
+async fn syn_explain_handler(Json(payload): Json<Value>) -> (StatusCode, Json<Value>) {
+    let src = payload.get("source").and_then(|v| v.as_str()).unwrap_or("");
+    let result = syn_explain::explain_wrp_r2_all_for_src(src);
+    (StatusCode::OK, Json(serde_json::json!({
+        "ok": true,
+        "explain": result,
+        "syn_used": true
+    })))
+}
+#[cfg(not(feature = "syn"))]
+async fn syn_explain_handler(Json(_payload): Json<Value>) -> (StatusCode, Json<Value>) {
+    (StatusCode::OK, Json(serde_json::json!({"ok": false, "error": "syn feature not enabled"})))
+}
+
+#[cfg(feature = "syn")]
+async fn syn_visit_handler(Json(payload): Json<Value>) -> (StatusCode, Json<Value>) {
+    let src = payload.get("source").and_then(|v| v.as_str()).unwrap_or("");
+    let file_pure = src.contains("# @pure") || src.contains("#[pure]");
+    let report = syn_visit::analyze_with_visit(src, file_pure).map(|r| format!("{:#?}", r)).unwrap_or_else(|e| e);
+    let decide = syn_visit::visit_decide(src).map(|b| if b { "UNSAT".to_string() } else { "SAT".to_string() }).unwrap_or_else(|e| e);
+    let align = syn_visit::visit_align_100();
+    let demo = syn_visit::demo_proc_macro2_visit(src).unwrap_or_else(|e| e);
+    (StatusCode::OK, Json(serde_json::json!({
+        "ok": true,
+        "decide": decide,
+        "report": report,
+        "align": format!("{}/{}", align.0, align.1),
+        "demo": demo,
+        "syn_used": true,
+        "proc_macro2_used": true
+    })))
+}
+#[cfg(not(feature = "syn"))]
+async fn syn_visit_handler(Json(_payload): Json<Value>) -> (StatusCode, Json<Value>) {
+    (StatusCode::OK, Json(serde_json::json!({"ok": false, "error": "syn feature not enabled"})))
+}
 
 async fn health() -> Json<Value> {
     Json(serde_json::json!({
@@ -467,6 +510,8 @@ async fn main() {
         .route("/api/v2/check", post(api::check_v2))
         .route("/api/v2/lower", post(api::lower_v2))
         .route("/api/v2/fix_oracle", post(api::fix_oracle))
+        .route("/api/v2/syn_explain", post(syn_explain_handler))
+        .route("/api/v2/syn_visit", post(syn_visit_handler))
         .route("/api/check", post(check_v1))
         .route("/api/expand", post(expand_v1))
         .layer(CorsLayer::permissive());
@@ -477,6 +522,8 @@ async fn main() {
         .route("/api/v2/check", post(api::check_v2))
         .route("/api/v2/lower", post(api::lower_v2))
         .route("/api/v2/fix_oracle", post(api::fix_oracle))
+        .route("/api/v2/syn_explain", post(syn_explain_handler))
+        .route("/api/v2/syn_visit", post(syn_visit_handler))
         .route("/api/check", post(check_v1))
         .route("/api/expand", post(expand_v1));
 
