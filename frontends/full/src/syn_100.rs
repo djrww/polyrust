@@ -24,8 +24,19 @@ pub struct GroundTruth {
     pub structs: Vec<String>,
     pub enums: Vec<String>,
     pub fns: Vec<String>,
+    pub consts: Vec<String>,
+    pub statics: Vec<String>,
+    pub type_aliases: Vec<String>,
+    pub mods: Vec<String>,
+    pub uses: Vec<String>,
+    pub traits: Vec<String>,
+    pub unions: Vec<String>,
+    pub macros: Vec<String>,
     pub types: Vec<String>,
     pub lifetimes: Vec<String>,
+    pub generics: Vec<String>,      // where/GAT 真接入：泛型参数名
+    pub where_clauses: Vec<String>, // where 子句文本
+    pub gat: Vec<String>,           // GAT 关联类型
 }
 
 /// Visit 收集所有 Ident 作为 groundtruth
@@ -35,8 +46,19 @@ struct GroundTruthVisitor {
     structs: HashSet<String>,
     enums: HashSet<String>,
     fns: HashSet<String>,
+    consts: HashSet<String>,
+    statics: HashSet<String>,
+    type_aliases: HashSet<String>,
+    mods: HashSet<String>,
+    uses: HashSet<String>,
+    traits: HashSet<String>,
+    unions: HashSet<String>,
+    macros: HashSet<String>,
     types: HashSet<String>,
     lifetimes: HashSet<String>,
+    generics: HashSet<String>,
+    where_clauses: HashSet<String>,
+    gat: HashSet<String>,
 }
 
 #[cfg(feature = "syn")]
@@ -45,6 +67,7 @@ impl<'ast> Visit<'ast> for GroundTruthVisitor {
         self.idents.insert(i.to_string());
         visit::visit_ident(self, i);
     }
+    // 12 Item 补齐 — 真接入 syn::Item 全部变体
     fn visit_item_struct(&mut self, i: &'ast syn::ItemStruct) {
         self.structs.insert(i.ident.to_string());
         self.idents.insert(i.ident.to_string());
@@ -60,9 +83,98 @@ impl<'ast> Visit<'ast> for GroundTruthVisitor {
         self.idents.insert(i.sig.ident.to_string());
         visit::visit_item_fn(self, i);
     }
+    fn visit_item_const(&mut self, i: &'ast syn::ItemConst) {
+        self.consts.insert(i.ident.to_string());
+        self.idents.insert(i.ident.to_string());
+        visit::visit_item_const(self, i);
+    }
+    fn visit_item_static(&mut self, i: &'ast syn::ItemStatic) {
+        self.statics.insert(i.ident.to_string());
+        self.idents.insert(i.ident.to_string());
+        visit::visit_item_static(self, i);
+    }
+    fn visit_item_type(&mut self, i: &'ast syn::ItemType) {
+        self.type_aliases.insert(i.ident.to_string());
+        self.idents.insert(i.ident.to_string());
+        visit::visit_item_type(self, i);
+    }
+    fn visit_item_mod(&mut self, i: &'ast syn::ItemMod) {
+        self.mods.insert(i.ident.to_string());
+        self.idents.insert(i.ident.to_string());
+        visit::visit_item_mod(self, i);
+    }
+    fn visit_item_use(&mut self, i: &'ast syn::ItemUse) {
+        // use 收集首段
+        let s = quote::quote!(#i.tree).to_string();
+        self.uses.insert(s.clone());
+        visit::visit_item_use(self, i);
+    }
+    fn visit_item_trait(&mut self, i: &'ast syn::ItemTrait) {
+        self.traits.insert(i.ident.to_string());
+        self.idents.insert(i.ident.to_string());
+        visit::visit_item_trait(self, i);
+    }
+    fn visit_item_impl(&mut self, i: &'ast syn::ItemImpl) {
+        // impl 已在 visit_item_impl 中单独处理，此处仅收集
+        visit::visit_item_impl(self, i);
+    }
     fn visit_item_union(&mut self, i: &'ast syn::ItemUnion) {
+        self.unions.insert(i.ident.to_string());
         self.idents.insert(i.ident.to_string());
         visit::visit_item_union(self, i);
+    }
+    fn visit_item_macro(&mut self, i: &'ast syn::ItemMacro) {
+        let path = i.mac.path.segments.iter().map(|s| s.ident.to_string()).collect::<Vec<_>>().join("::");
+        self.macros.insert(path);
+        visit::visit_item_macro(self, i);
+    }
+    fn visit_item_foreign_mod(&mut self, i: &'ast syn::ItemForeignMod) {
+        visit::visit_item_foreign_mod(self, i);
+    }
+    fn visit_item_extern_crate(&mut self, i: &'ast syn::ItemExternCrate) {
+        self.idents.insert(i.ident.to_string());
+        visit::visit_item_extern_crate(self, i);
+    }
+    // where / GAT 真接入 — 不转字符串，直接遍历 syn 类型
+    fn visit_generics(&mut self, g: &'ast syn::Generics) {
+        for param in &g.params {
+            match param {
+                syn::GenericParam::Type(t) => { self.generics.insert(t.ident.to_string()); self.idents.insert(t.ident.to_string()); },
+                syn::GenericParam::Lifetime(lt) => { self.lifetimes.insert(format!("'{}", lt.lifetime.ident)); },
+                syn::GenericParam::Const(c) => { self.generics.insert(c.ident.to_string()); self.idents.insert(c.ident.to_string()); },
+            }
+        }
+        if let Some(where_clause) = &g.where_clause {
+            for pred in &where_clause.predicates {
+                let s = quote::quote!(#pred).to_string();
+                self.where_clauses.insert(s);
+                // GAT 真接入：WherePredicate::Type 含关联类型 bounds
+                if let syn::WherePredicate::Type(pt) = pred {
+                    for bound in &pt.bounds {
+                        if let syn::TypeParamBound::Trait(tb) = bound {
+                            for seg in &tb.path.segments {
+                                if let syn::PathArguments::AngleBracketed(ab) = &seg.arguments {
+                                    for arg in &ab.args {
+                                        if let syn::GenericArgument::AssocType(at) = arg {
+                                            self.gat.insert(at.ident.to_string());
+                                            self.idents.insert(at.ident.to_string());
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        visit::visit_generics(self, g);
+    }
+    fn visit_generic_argument(&mut self, arg: &'ast syn::GenericArgument) {
+        if let syn::GenericArgument::AssocType(at) = arg {
+            self.gat.insert(at.ident.to_string());
+            self.idents.insert(at.ident.to_string());
+        }
+        visit::visit_generic_argument(self, arg);
     }
     fn visit_type(&mut self, ty: &'ast syn::Type) {
         let s = quote::quote!(#ty).to_string();
@@ -108,8 +220,19 @@ pub fn grab_groundtruth(src: &str) -> Result<GroundTruth, String> {
         structs: HashSet::new(),
         enums: HashSet::new(),
         fns: HashSet::new(),
+        consts: HashSet::new(),
+        statics: HashSet::new(),
+        type_aliases: HashSet::new(),
+        mods: HashSet::new(),
+        uses: HashSet::new(),
+        traits: HashSet::new(),
+        unions: HashSet::new(),
+        macros: HashSet::new(),
         types: HashSet::new(),
         lifetimes: HashSet::new(),
+        generics: HashSet::new(),
+        where_clauses: HashSet::new(),
+        gat: HashSet::new(),
     };
     v.visit_file(&file);
     let mut idents: Vec<String> = v.idents.into_iter().collect();
@@ -124,7 +247,18 @@ pub fn grab_groundtruth(src: &str) -> Result<GroundTruth, String> {
     types.sort();
     let mut lifetimes: Vec<String> = v.lifetimes.into_iter().collect();
     lifetimes.sort();
-    Ok(GroundTruth { idents, structs, enums, fns, types, lifetimes })
+    let mut consts: Vec<String> = v.consts.into_iter().collect(); consts.sort();
+    let mut statics: Vec<String> = v.statics.into_iter().collect(); statics.sort();
+    let mut type_aliases: Vec<String> = v.type_aliases.into_iter().collect(); type_aliases.sort();
+    let mut mods: Vec<String> = v.mods.into_iter().collect(); mods.sort();
+    let mut uses: Vec<String> = v.uses.into_iter().collect(); uses.sort();
+    let mut traits: Vec<String> = v.traits.into_iter().collect(); traits.sort();
+    let mut unions: Vec<String> = v.unions.into_iter().collect(); unions.sort();
+    let mut macros: Vec<String> = v.macros.into_iter().collect(); macros.sort();
+    let mut generics: Vec<String> = v.generics.into_iter().collect(); generics.sort();
+    let mut where_clauses: Vec<String> = v.where_clauses.into_iter().collect(); where_clauses.sort();
+    let mut gat: Vec<String> = v.gat.into_iter().collect(); gat.sort();
+    Ok(GroundTruth { idents, structs, enums, fns, consts, statics, type_aliases, mods, uses, traits, unions, macros, types, lifetimes, generics, where_clauses, gat })
 }
 
 /// 100 语法定义：直接取 `all_semantic_cases` 的 100 个 poly_src 的语法

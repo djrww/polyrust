@@ -93,19 +93,62 @@ fn syn_type_to_typev2(ty: &Type) -> TypeV2 {
 }
 
 fn generics_to_strings(generics: &syn::Generics) -> (Vec<String>, Vec<String>, Vec<String>) {
+    // 真接入 syn::Generics + WhereClause + GAT（GenericArgument::AssocType）
     let mut gen = vec![];
     let mut lifetimes = vec![];
     let mut where_clauses = vec![];
     for param in &generics.params {
         match param {
-            GenericParam::Type(t) => gen.push(t.ident.to_string()),
+            GenericParam::Type(t) => {
+                // 收集 GAT 前置：T: Trait<Assoc = Type> 中的 Assoc
+                gen.push(t.ident.to_string());
+                for bound in &t.bounds {
+                    if let syn::TypeParamBound::Trait(tb) = bound {
+                        for seg in &tb.path.segments {
+                            if let syn::PathArguments::AngleBracketed(ab) = &seg.arguments {
+                                for arg in &ab.args {
+                                    if let syn::GenericArgument::AssocType(at) = arg {
+                                        // GAT 真接入：记录关联类型名
+                                        where_clauses.push(format!("GAT:{}={}", at.ident, quote::quote!(#at.ty).to_string().replace(" ", "")));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
             GenericParam::Lifetime(lt) => lifetimes.push(format!("'{}", lt.lifetime.ident)),
             GenericParam::Const(c) => gen.push(c.ident.to_string()),
         }
     }
     if let Some(where_clause) = &generics.where_clause {
         for pred in &where_clause.predicates {
-            where_clauses.push(quote::quote!(#pred).to_string());
+            // 真接入 WherePredicate 三变体
+            match pred {
+                syn::WherePredicate::Lifetime(lt) => {
+                    where_clauses.push(quote::quote!(#pred).to_string());
+                },
+                syn::WherePredicate::Type(pt) => {
+                    let mut s = quote::quote!(#pred).to_string();
+                    for bound in &pt.bounds {
+                        if let syn::TypeParamBound::Trait(tb) = bound {
+                            for seg in &tb.path.segments {
+                                if let syn::PathArguments::AngleBracketed(ab) = &seg.arguments {
+                                    for arg in &ab.args {
+                                        if let syn::GenericArgument::AssocType(at) = arg {
+                                            s.push_str(&format!(" /*GAT {}*/", at.ident));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    where_clauses.push(s);
+                },
+                _ => {
+                    where_clauses.push(quote::quote!(#pred).to_string());
+                },
+            }
         }
     }
     (gen, lifetimes, where_clauses)
@@ -246,6 +289,44 @@ fn parse_trait_item(item: &syn::ItemTrait) -> TraitDefV2 {
     TraitDefV2 { name, generics, lifetimes, methods, is_pub, is_unsafe, where_clauses, supertraits }
 }
 
+fn parse_const_item(item: &syn::ItemConst) -> polyrust_core::minirust::ast::ConstDefV2 {
+    let name = item.ident.to_string();
+    let is_pub = matches!(item.vis, Visibility::Public(_));
+    let ty = syn_type_to_typev2(&item.ty);
+    let expr = Some(quote::quote!(#item.expr).to_string());
+    polyrust_core::minirust::ast::ConstDefV2 { name, ty, expr, is_pub }
+}
+
+fn parse_static_item(item: &syn::ItemStatic) -> polyrust_core::minirust::ast::StaticDefV2 {
+    let name = item.ident.to_string();
+    let is_pub = matches!(item.vis, Visibility::Public(_));
+    let mutbl = matches!(item.mutability, syn::StaticMutability::Mut(_));
+    let ty = syn_type_to_typev2(&item.ty);
+    let expr = Some(quote::quote!(#item.expr).to_string());
+    polyrust_core::minirust::ast::StaticDefV2 { name, ty, mutbl, expr, is_pub }
+}
+
+fn parse_type_alias_item(item: &syn::ItemType) -> polyrust_core::minirust::ast::TypeAliasDefV2 {
+    let name = item.ident.to_string();
+    let is_pub = matches!(item.vis, Visibility::Public(_));
+    let (generics, _, _) = generics_to_strings(&item.generics);
+    let ty = syn_type_to_typev2(&item.ty);
+    polyrust_core::minirust::ast::TypeAliasDefV2 { name, generics, ty, is_pub }
+}
+
+fn parse_union_item(item: &syn::ItemUnion) -> polyrust_core::minirust::ast::UnionDefV2 {
+    let name = item.ident.to_string();
+    let is_pub = matches!(item.vis, Visibility::Public(_));
+    let (generics, lifetimes, where_clauses) = generics_to_strings(&item.generics);
+    let mut fields = vec![];
+    for f in &item.fields.named {
+        let fname = f.ident.as_ref().map(|i| i.to_string()).unwrap_or_default();
+        let fty = syn_type_to_typev2(&f.ty);
+        fields.push((fname, fty));
+    }
+    polyrust_core::minirust::ast::UnionDefV2 { name, generics, lifetimes, fields, is_pub, where_clauses }
+}
+
 fn parse_mod_item(item: &syn::ItemMod) -> ModDefV2 {
     let name = item.ident.to_string();
     let is_pub = matches!(item.vis, Visibility::Public(_));
@@ -262,21 +343,27 @@ fn parse_mod_item(item: &syn::ItemMod) -> ModDefV2 {
 
 fn syn_item_to_v2(item: &Item) -> Option<Vec<ItemV2>> {
     match item {
+        // 12 ItemV2 补齐 — 真接入 syn::Item 全量
         Item::Struct(s) => Some(vec![ItemV2::Struct(parse_struct_item(s))]),
         Item::Enum(e) => Some(vec![ItemV2::Enum(parse_enum_item(e))]),
+        Item::Union(u) => Some(vec![ItemV2::Union(parse_union_item(u))]),
         Item::Fn(f) => {
             let fd = parse_fn_item(f);
-            if fd.sig.name == "main" {
-                // main 單獨處理，調用方會收集
-                Some(vec![ItemV2::Fn(fd)])
-            } else {
-                Some(vec![ItemV2::Fn(fd)])
-            }
-        }
+            Some(vec![ItemV2::Fn(fd)])
+        },
         Item::Impl(i) => Some(vec![ItemV2::Impl(parse_impl_item(i))]),
         Item::Trait(t) => Some(vec![ItemV2::Trait(parse_trait_item(t))]),
         Item::Mod(m) => Some(vec![ItemV2::Mod(parse_mod_item(m))]),
+        Item::Const(c) => Some(vec![ItemV2::Const(parse_const_item(c))]),
+        Item::Static(s) => Some(vec![ItemV2::Static(parse_static_item(s))]),
+        Item::Type(ty) => Some(vec![ItemV2::TypeAlias(parse_type_alias_item(ty))]),
         Item::Use(u) => Some(vec![ItemV2::Use(quote::quote!(#u).to_string())]),
+        Item::Macro(m) => Some(vec![ItemV2::Macro(quote::quote!(#m).to_string())]),
+        // ExternCrate / ForeignMod / TraitAlias / Verbatim 归为 Macro/Use 占位（保持 12 全量可编译）
+        Item::ExternCrate(ec) => Some(vec![ItemV2::Use(format!("extern crate {}", ec.ident))]),
+        Item::ForeignMod(fm) => Some(vec![ItemV2::Macro(format!("extern {{ {} }}", fm.items.len()))]),
+        Item::TraitAlias(ta) => Some(vec![ItemV2::Trait(TraitDefV2 { name: ta.ident.to_string(), generics: vec![], lifetimes: vec![], methods: vec![], is_pub: false, is_unsafe: false, where_clauses: vec![], supertraits: vec![] })]),
+        Item::Verbatim(ts) => Some(vec![ItemV2::Macro(ts.to_string())]),
         _ => None,
     }
 }
@@ -320,6 +407,12 @@ pub fn parse_rust_to_program_v2(src: &str) -> Result<ProgramV2, String> {
                             }
                             ItemV2::Impl(im) => {
                                 prog.universe.insert_closure(im.self_ty.clone());
+                            }
+                            ItemV2::Const(c) => { prog.universe.insert_closure(c.ty.clone()); }
+                            ItemV2::Static(s) => { prog.universe.insert_closure(s.ty.clone()); }
+                            ItemV2::TypeAlias(ta) => { prog.universe.insert_closure(ta.ty.clone()); }
+                            ItemV2::Union(u) => {
+                                for (_, ty) in &u.fields { prog.universe.insert_closure(ty.clone()); }
                             }
                             _ => {}
                         }
