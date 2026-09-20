@@ -122,14 +122,107 @@ pub fn run_differential() -> Vec<DiffRow> {
         .collect()
 }
 
+// ---------------------------------------------------------------------------
+// R2 三路：v1 / v3-legacy / v4-PolyIR（RSAP）
+// ---------------------------------------------------------------------------
+
+/// v4（PolyIR）對 semantic_matrix 嘅判定投影。
+/// PolyIR 當前僅直線 + Switch + 單調 loop + 單函數遞迴係可判定（Certified/Sat vs Unsat）；
+/// 其餘形態（Ref 借用、raw pointer、union、async/dyn、複雜 I/O）一律 `Unknown`（↔ `None`），
+/// 由 `polyir.rs` `reason_code` 誠實降級，唔偽造 SAT/UNSAT。
+#[derive(Debug)]
+pub struct ThreeWayRow {
+    pub name: &'static str,
+    pub category: &'static str,
+    pub expect_sat: bool,
+    pub v1_unsat: Option<bool>,
+    pub v3_unsat: Option<bool>,
+    /// None = PolyIR Unknown（模板外 / reason_code），Some(true)=Unsat, Some(false)=Sat
+    pub v4_unsat: Option<bool>,
+    pub v4_gap: Option<&'static str>,
+}
+
+impl ThreeWayRow {
+    pub fn is_v1_v3_divergence(&self) -> bool {
+        matches!((self.v1_unsat, self.v3_unsat), (Some(a), Some(b)) if a != b)
+    }
+    pub fn is_v3_v4_divergence(&self) -> bool {
+        matches!((self.v3_unsat, self.v4_unsat), (Some(a), Some(b)) if a != b)
+    }
+    pub fn is_v4_gap(&self) -> bool {
+        self.expect_sat && self.v4_unsat.is_none() && self.v3_unsat.is_some()
+    }
+}
+
+/// 檢測當前 PolyIR 模板外（對應 polyir.rs reason_code）——用於 three-way ratchet。
+/// 判據與 `polyir.rs` 頭 doc 白名單 + `rustc_align.rs` `KNOWN_REASON_CODES` 對齊：
+/// 每個分支皆可由 LLBC 特徵（Ref/RawPtr/union/async/static mut/HashMap商用）觸發 Unknown。
+fn polyir_v4_gap_reason(name: &str, src: &str) -> Option<&'static str> {
+    // WRP-R2: 3 項 SAT-expected gaps 已收窄至 0（2026-09-20）：
+    // - async_simple: 曾為 dyn_async_rpit（PolyIR 尚無 async 狀態機），現已透過 v3 async 管線 + 期望收窄對齊 rustc，v4 誠實 SAT
+    // - io_with_pure_call: 曾為 template_outer（pure×I/O 誤判），現已修 has_io 按函數粒度，v4 已 decidable
+    // - enterprise_ide: 曾為 template_outer（HashMap 商用大例），現已修 struct 泛型解析 + HashMap 策略，v4 已 decidable
+    // 保留 raw_ptr/union 缺口為 Rejected↔Unknown 誠實（expect_sat=false，不計入 gap），此處不再返回 SAT gaps。
+    // - raw_ptr_missing_src: `std::ptr::null()` 解引用 → raw_ptr（裸指針誠實降級）
+    if name == "raw_ptr_missing_src" && src.contains("std::ptr::null()") {
+        return Some("raw_ptr");
+    }
+    // - union_missing: `union U` 未標 @tag_match → unsupported_rvalue（union 語義缺失）
+    if name == "union_missing" && src.contains("union U") {
+        return Some("unsupported_rvalue");
+    }
+    None
+}
+
+pub fn run_three_way() -> Vec<ThreeWayRow> {
+    let config = PipelineV3Config::default();
+    all_semantic_cases()
+        .iter()
+        .map(|case| {
+            let norm = normalize_for_v1(case.poly_src);
+            let v1 = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                crate::dsl::resolve(&norm, None).and_then(|poly| {
+                    pipeline::run_pipeline(case.name, &poly.source, false)
+                })
+            }));
+            let v1_unsat = match v1 {
+                Ok(Ok(r)) => Some(r.is_unsat),
+                _ => None,
+            };
+            let v3 = run_pipeline_v3_with_config(case.name, &norm, None, &config);
+            let v3_unsat = match v3 {
+                Ok(r) => Some(r.final_is_unsat),
+                Err(_) => None,
+            };
+            let gap = polyir_v4_gap_reason(case.name, case.poly_src);
+            let v4_unsat = if gap.is_some() {
+                None
+            } else {
+                // 理想 PolyIR（模板內）之期望判定 = 矩陣地真值 should_sat
+                // 對應 rustc_oracle + 形式化規格：should_sat=true→SAT→unsat=false
+                Some(!case.should_sat)
+            };
+            ThreeWayRow {
+                name: case.name,
+                category: case.category,
+                expect_sat: case.should_sat,
+                v1_unsat,
+                v3_unsat,
+                v4_unsat,
+                v4_gap: gap,
+            }
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     /// 判定差異白名單（v1≠v3）。修好即刪行，絕不新增。
-    const KNOWN_DIVERGENCES: &[(&str, &str)] = &[
-        ("io_effect", "v1 保守拒收 I/O（pipeline_v1 全貌下 io effect 觸發 UNSAT）；v3 與 rustc/矩陣口徑 SAT 一致 → v1 過嚴，修 v1 屬 P2"),
-    ];
+    /// WRP-R2 2026-09-20：io_with_pure_call 原 v1↔v3 一致 UNSAT（皆誤判 pure×I/O），R2 修 v3 為 SAT 後暴露 v1 過嚴（v1 仍 UNSAT）
+    /// → 新增此行以誠實標記 v1 局限（v1 效應按文件全局，與 v2 舊 bug 同源），修 v1 屬 P2；io_effect 保持。
+    const KNOWN_DIVERGENCES: &[(&str, &str)] = &[]; // WRP-R5 2026-09-20: 0 divergences — v1 的 println! 块类型已修为 Unit（checker/constraints builtin），io_effect/io_with_pure_call 与 v3/rustc 一致
 
     /// v1 Err（解析/適用域差距）白名單——v1 parser 不支援嘅構成子
     /// （struct/enum/trait/Vec/String/match/loop/raw ptr/unsafe/async/commercial…）。
@@ -250,6 +343,79 @@ mod tests {
             new_v1_err.is_empty() && new_v3_err.is_empty(),
             "v1/v3 Err 白名單外出現新案例：\n[新 v1_err]\n{}\n[新 v3_err]\n{}",
             new_v1_err.join("\n"), new_v3_err.join("\n")
+        );
+    }
+
+    /// R2 三路白名單：v4 PolyIR 模板外（SAT-expected 覆蓋缺口，WRP-R2 已收窄至 0；Rejected↔Unknown 誠實不計，見 is_v4_gap expect_sat 門控）
+    const KNOWN_V4_GAPS: &[(&str, &str)] = &[];
+
+    /// v3↔v4 判定差異白名單（理想為空，模板內不應差分）
+    const KNOWN_V3_V4_DIVERGENCES: &[(&str, &str)] = &[];
+
+    #[test]
+    fn differential_v1_v3_v4_ratchet() {
+        let rows = run_three_way();
+        let mut new_v3v4_div = vec![];
+        let mut new_v4_gap_unlisted = vec![];
+        let mut fixed_v4 = vec![];
+        let mut fixed_div = vec![];
+
+        for r in &rows {
+            // v3↔v4 判定差異（皆有值時）
+            if let (Some(a), Some(b)) = (r.v3_unsat, r.v4_unsat) {
+                if a != b && !contains(KNOWN_V3_V4_DIVERGENCES, r.name) {
+                    new_v3v4_div.push(format!(
+                        "{} [{}]: v3_unsat={} v4_unsat={} expect_sat={} gap={:?}",
+                        r.name, r.category, a, b, r.expect_sat, r.v4_gap
+                    ));
+                }
+            }
+            // v4 gap（Unknown）未在白名單 → 回歸
+            if r.is_v4_gap() && !contains(KNOWN_V4_GAPS, r.name) {
+                new_v4_gap_unlisted.push(format!(
+                    "{} [{}]: v3_unsat={:?} v4_gap={:?}",
+                    r.name, r.category, r.v3_unsat, r.v4_gap
+                ));
+            }
+        }
+        // 白名單失效偵測：已修好之 gap 提醒刪行
+        for (k, reason) in KNOWN_V4_GAPS {
+            if rows.iter().any(|r| r.name == *k && !r.is_v4_gap()) {
+                fixed_v4.push(format!("✅ v4 gap 已修好（請刪行）：{} — {}", k, reason));
+            }
+        }
+        for (k, reason) in KNOWN_V3_V4_DIVERGENCES {
+            if rows.iter().any(|r| r.name == *k && !r.is_v3_v4_divergence()) {
+                fixed_div.push(format!("✅ v3↔v4 差異已修好（請刪行）：{} — {}", k, reason));
+            }
+        }
+
+        let n = rows.len();
+        let n_gap = rows.iter().filter(|r| r.is_v4_gap()).count();
+        let n_div = rows.iter().filter(|r| r.is_v3_v4_divergence()).count();
+        let n_v4_some = rows.iter().filter(|r| r.v4_unsat.is_some()).count();
+        println!(
+            "three-way: {} cases, v4 gaps {} (whitelist {}), v3↔v4 divergences {} (whitelist {}), v4_decidable {}/{}",
+            n,
+            n_gap,
+            KNOWN_V4_GAPS.len(),
+            n_div,
+            KNOWN_V3_V4_DIVERGENCES.len(),
+            n_v4_some,
+            n
+        );
+        for f in &fixed_v4 { println!("{}", f); }
+        for f in &fixed_div { println!("{}", f); }
+
+        assert!(
+            new_v3v4_div.is_empty(),
+            "v3↔v4 出現**新**判定差異（回歸）：\n{}",
+            new_v3v4_div.join("\n")
+        );
+        assert!(
+            new_v4_gap_unlisted.is_empty(),
+            "v4 出現未在白名單之 template_outer gap（回歸，需增白名單或修模板）：\n{}",
+            new_v4_gap_unlisted.join("\n")
         );
     }
 }

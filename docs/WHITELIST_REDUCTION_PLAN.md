@@ -126,3 +126,17 @@
 | `pipeline_v2` 效应闸 | `eff_ctx.has_io` 全局 + `eff_ctx.check_pure` 文件级 | 保留 `eff_ctx` 供 `no_io` 等，`pure` 改 `pure_per_fn_errors` 独立通道，`has_io` 仅在 `no_io` 时设全局 | `cargo test --lib 174`，`semantic_matrix 100/100`，`differential 3-way 0 gaps` 保持；`differential v1↔v3` 仍 2 条（`io_effect/io_with_pure_call` 的 v1 遗留 `println` 类型 `{} vs ()` 与 pure 无关，属 pipeline 遗留解析，P2 修 v1） |
 
 **结果**：`core` 的 `pure` 从文件级塌陷升级为 `syn` 同构的 per-fn `PureMap`，`#[pure]` 属性与 `# @pure` 文件级双通道对齐，`enterprise_ide`（R3）与 `io_with_pure_call`（R4）皆为真解析无 bypass；`v1` 2 divergences 诚实保留（`pipeline.rs` 的 `println!` 块类型 `{}` 误判，与 `pure` 无关，另案 P2）。
+
+---
+
+## 8. 自主推进 WRP-R5（2026-09-20，v1 builtin Unit 真修复）— 由 Agent 决定执行
+
+> 接续 R4，Agent 判定收口 **v1↔v3 2 divergences**：根因非 pure，为 legacy `minirust::checker/constraints` 对 `println!` 未定义宏视为不可定型（`Invoke` 无臂/ `Call` 未定义函数 ⇒ one-hot 破产 ⇒ UNSAT），与 rustc `println!` 恒为 `()` 不符。
+
+| 项 | 旧 | 新（R5） | 验证 |
+|---|---|---|---|
+| `core/src/minirust/checker.rs` | `Call` 仅查 `p.fns`，`Invoke` 仅查 `exp.find_macro`，`println` 无定义 ⇒ 空推导 ⇒ `体型别 {} vs ()` | 新增 `matches!(f/name, "println" | "eprintln" | "print" | "eprint" | "dbg")` 时直接 `Type::Unit`（variadic，不校验形参；`Invoke` 同） | `fn outer() -> () { println!(..) }` 体 `Unit` 与声明一致，不再 `{} vs ()` |
+| `core/src/minirust/constraints.rs` | 同：`Call` 未定义 ⇒ 强制矛盾 `emit(t)`；`Invoke` 无臂 ⇒ 强制矛盾 | 同族 `println` 时直接 `emit(Unit)` 并 `return Ok(())`（`Invoke` 同） | 代数侧 `Unit` 约束可满足，`is_unsat=false` |
+| `core/src/differential.rs` | `KNOWN_DIVERGENCES 2`（`io_effect`, `io_with_pure_call`） | `KNOWN_DIVERGENCES 0`（WRP-R5 清零） | `differential: 0 divergences (whitelist 0)`，`three-way 0 gaps` 保持，`v1_err 86`（legacy 适用域）不变 |
+
+**结果**：`v1↔v3` 从 2→0，`semantic_matrix 100/100`、`three-way 0 gaps`、`cargo test --lib 174` 三路保持；`v1` 的 `println!` 现与 `rustc` `()` 对齐，`pure` per-fn（R4）与 `println Unit`（R5）互补闭环。

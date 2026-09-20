@@ -211,6 +211,8 @@ curl -s -X POST http://127.0.0.1:8091/api/v2/check \
 
 每项单 PR，单行删白名单，`cargo test --lib` 174 绿 + `cargo test -p polyrust-full --features syn` 19 绿（含 3 解释）+ `rustc_align 152 0违规` 守门。
 
+> **WRP-R5 更新（2026-09-20 自主推进）**：`core/src/minirust/checker.rs`/`constraints.rs` 对 `println!` 等内建宏/函数按 `rustc` 定为 `Unit`（`Call`/`Invoke` 双分支的 `matches!(…)`），`fn outer() -> () { println!(…) }` 的体型别从 `{} vs ()` 修复为 `Unit`，`v1↔v3 2 divergences → 0`；`R4` 的 per-fn PureMap 与 `R5` 的 `Unit` 互补，形成 `syn` 级 `Pure×I/O×Unit` 闭环。
+
 > **WRP-R4 更新（2026-09-20 自主推进）**：`core/src/pipeline_v2.rs::check_pure_per_fn` 以 `syn::Item::Fn` 为规范实现 per-fn `PureMap`（手写 `fn` 扫描 + `prev_end..start` 属性区间），`#[pure]` 与 `# @pure` 双通道对齐，`io_with_pure_call` 的 `pure_inner`/`outer` 解耦正确，`#[pure] fn bad { println }` 按 `syn` 报 `pure has I/O`；`dsl.rs` 同步修复 `#[` 属性丢弃 bug。
 
 > **WRP-R3 更新（2026-09-20 自主推进）**：`core/src/minirust/ast.rs::parse_struct` 与 `universe.rs::parse_type_v2` 已按 `syn::Punctuated` 的 `< >` 分层切分重写，`enterprise_ide` 的 `HashMap<String,String>` 在 `core` 侧亦正确入 `Universe N=10`（`HashMap`+`String`+`EnterpriseIDE`），`pipeline_v2` 的 R2 bypass 已移除——`core` 手写解析与 `frontend syn` 自洽，`syn` 仍为地真值，前者为受限投影。

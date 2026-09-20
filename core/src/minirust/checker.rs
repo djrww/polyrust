@@ -277,6 +277,25 @@ fn check_expr(e: &E, scope: &Scope, p: &Program, exp: &mut Expander) -> Vec<Deri
             }
         }
         EKind::Call(f, args) => {
+            // WRP-R5: builtin IO 宏/函数（println 等）视为 Unit，rustc 同：不经 p.fns 查表
+            if matches!(f.as_str(), "println" | "eprintln" | "print" | "eprint" | "println!" | "eprintln!" | "print!" | "eprint!" | "dbg") {
+                let mut nt = HashMap::new();
+                nt.insert(e.id, Type::Unit);
+                let mut ac = HashMap::new();
+                let mut ok = true;
+                for a in args {
+                    let ds = check_expr(a, scope, p, exp);
+                    if ds.is_empty() { ok = false; break; }
+                    // 取首条推导合并（variadic，不校验形参类型）
+                    let d = &ds[0];
+                    for (k,v) in &d.node_types { nt.insert(*k, *v); }
+                    for (k,v) in &d.arm_choice { ac.insert(*k, *v); }
+                }
+                if ok {
+                    out.push(Derivation { ty: Type::Unit, node_types: nt, arm_choice: ac });
+                }
+                return out;
+            }
             if let Some(fd) = p.fns.iter().find(|f_| f_.name == *f) {
                 // 參數個數必須一致
                 if fd.params.len() != args.len() {
@@ -323,6 +342,11 @@ fn check_expr(e: &E, scope: &Scope, p: &Program, exp: &mut Expander) -> Vec<Deri
             }
         }
         EKind::Invoke(name, toks) => {
+            // WRP-R5: builtin println 类宏直接视为 Unit（无需宏定义）
+            if matches!(name.as_str(), "println" | "eprintln" | "print" | "eprint" | "println!" | "eprintln!" | "print!" | "eprint!") {
+                out.push(simple(e.id, Type::Unit));
+                return out;
+            }
             let mac = match exp.find_macro(name) {
                 Some(m) => m,
                 None => return out,

@@ -340,6 +340,12 @@ fn walk(e: &E, c: &mut Ctx<'_>, scope: &mut Scope, p: &Program, ctx: &Poly) -> R
             emit(c, var_poly(c, _ts[Type::Unit.index()]).sub(&Poly::constant(Frac::ONE)), ctx);
         }
         EKind::Call(f, args) => {
+            // WRP-R5: builtin println 类视为 Unit（variadic，不校验签名）
+            if matches!(f.as_str(), "println" | "eprintln" | "print" | "eprint" | "println!" | "eprintln!" | "print!" | "eprint!" | "dbg") {
+                for a in args { walk(a, c, scope, p, ctx)?; }
+                emit(c, var_poly(c, _ts[Type::Unit.index()]).sub(&Poly::constant(Frac::ONE)), ctx);
+                return Ok(());
+            }
             for a in args {
                 walk(a, c, scope, p, ctx)?;
             }
@@ -372,6 +378,11 @@ fn walk(e: &E, c: &mut Ctx<'_>, scope: &mut Scope, p: &Program, ctx: &Poly) -> R
             }
         }
         EKind::Invoke(name, toks) => {
+            // WRP-R5: builtin println 类宏直接视为 Unit
+            if matches!(name.as_str(), "println" | "eprintln" | "print" | "eprint" | "println!" | "eprintln!" | "print!" | "eprint!") {
+                emit(c, var_poly(c, _ts[Type::Unit.index()]).sub(&Poly::constant(Frac::ONE)), ctx);
+                return Ok(());
+            }
             let mac = c.exp.find_macro(name);
             let arms = mac.map(|m| c.exp.matching_arms(m, toks)).unwrap_or_default();
             if arms.is_empty() {
