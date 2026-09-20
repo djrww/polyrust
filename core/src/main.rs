@@ -600,6 +600,179 @@ fn main() {
         std::process::exit(if all_ok { 0 } else { 1 });
     }
 
+    if mode == "certify" {
+        // certify <file.llbc> [--out report.json] [fun=1;2,3 ...]
+        // M3（SPA1）：單一命令端到端——域 → 逐組合見證 → 𝔽_p 系統 →
+        // 求解 → 認證 → 機讀 JSON 證書（含 Lean 對應定理名）＋人讀摘要。
+        fn json_escape(s: &str) -> String {
+            let mut out = String::with_capacity(s.len());
+            for c in s.chars() {
+                match c {
+                    '"' => out.push_str("\\\""),
+                    '\\' => out.push_str("\\\\"),
+                    '\n' => out.push_str("\\n"),
+                    '\r' => out.push_str("\\r"),
+                    '\t' => out.push_str("\\t"),
+                    c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
+                    c => out.push(c),
+                }
+            }
+            out
+        }
+        let mut path: Option<&String> = None;
+        let mut outfile: Option<&String> = None;
+        let mut dom_map: Vec<(String, Vec<Vec<i64>>)> = Vec::new();
+        let mut it = args.iter().skip(2);
+        while let Some(spec) = it.next() {
+            if spec == "--out" {
+                outfile = it.next();
+            } else if let Some((name, doms)) = spec.split_once('=') {
+                let parsed: Result<Vec<Vec<i64>>, _> = doms
+                    .split(';')
+                    .map(|arg| arg.split(',').map(|v| v.parse::<i64>()).collect())
+                    .collect();
+                match parsed {
+                    Ok(d) => dom_map.push((name.to_string(), d)),
+                    Err(_) => {
+                        eprintln!("參數域格式錯誤：{}", spec);
+                        std::process::exit(2);
+                    }
+                }
+            } else if path.is_none() {
+                path = Some(spec);
+            }
+        }
+        let Some(path) = path else {
+            eprintln!("用法：polyrust certify <file.llbc> [--out report.json] [fun=1;2,3 ...]");
+            std::process::exit(2);
+        };
+        let text = std::fs::read_to_string(path).unwrap_or_else(|e| {
+            eprintln!("讀檔失敗 {}: {}", path, e);
+            std::process::exit(2);
+        });
+        let root = match polyrust_core::charon_llbc::LlbcRoot::parse(&text) {
+            Ok(r) => r,
+            Err(e) => {
+                eprintln!("LLBC schema 錯誤：{}", e.msg);
+                std::process::exit(2);
+            }
+        };
+        let types = root
+            .raw_translated
+            .get("type_decls")
+            .unwrap_or(&polyrust_core::charon_llbc::Value::Null);
+        let mut all_ok = true;
+        let mut json_funs: Vec<String> = Vec::new();
+        for f in &root.funs {
+            let doms = dom_map
+                .iter()
+                .find(|(n, _)| *n == f.name)
+                .map(|(_, d)| d.clone());
+            let rep = polyrust_core::polyir_encode::certify_fun_report_in(
+                types,
+                &root.funs,
+                f,
+                doms.as_deref().unwrap_or(&[]),
+            );
+            let mark = if rep.verdict == "Certified" {
+                "✓"
+            } else {
+                "·"
+            };
+            match &rep.reason {
+                Some(r) if rep.verdict == "Unknown" => {
+                    println!("[·] {} → Unknown({})", rep.name, r)
+                }
+                _ => println!(
+                    "[{}] {} → {} 組合={} 認證={} 排除={} lean={}",
+                    mark,
+                    rep.name,
+                    rep.verdict,
+                    rep.n_combos,
+                    rep.n_certified,
+                    rep.n_excluded,
+                    rep.lean_theorem.unwrap_or("-")
+                ),
+            }
+            for (i, c) in rep.combos.iter().enumerate() {
+                if c.overflow_excluded {
+                    println!("    combo[{}] params={:?} → 溢出排除", i, c.params);
+                } else {
+                    println!(
+                        "    combo[{}] params={:?} ret={:?} vars={} eqs={} l0={:?}",
+                        i, c.params, c.ret, c.nvars, c.npolys, c.l0
+                    );
+                }
+            }
+            let mut combo_js: Vec<String> = rep
+                .combos
+                .iter()
+                .map(|c| {
+                    let ps: Vec<String> = c
+                        .params
+                        .iter()
+                        .map(|p| format!("\"{}\"", json_escape(p)))
+                        .collect();
+                    let sg: Vec<String> = c.sigma.iter().map(|v| v.to_string()).collect();
+                    format!(
+                        "{{\"params\":[{}],\"ret\":{},\"overflow_excluded\":{},\"nvars\":{},\"npolys\":{},\"l0\":[{},{},{},{}],\"sigma\":[{}]}}",
+                        ps.join(","),
+                        match c.ret {
+                            Some(v) => v.to_string(),
+                            None => "null".to_string(),
+                        },
+                        c.overflow_excluded,
+                        c.nvars,
+                        c.npolys,
+                        c.l0.0,
+                        c.l0.1,
+                        c.l0.2,
+                        c.l0.3,
+                        sg.join(",")
+                    )
+                })
+                .collect();
+            combo_js.sort();
+            let reason_js = match &rep.reason {
+                Some(r) => format!("\"{}\"", json_escape(r)),
+                None => "null".to_string(),
+            };
+            json_funs.push(format!(
+                "{{\"name\":\"{}\",\"verdict\":\"{}\",\"reason\":{},\"n_combos\":{},\"n_certified\":{},\"n_excluded\":{},\"lean_theorem\":{},\"combos\":[{}]}}",
+                json_escape(&rep.name),
+                rep.verdict,
+                reason_js,
+                rep.n_combos,
+                rep.n_certified,
+                rep.n_excluded,
+                match rep.lean_theorem {
+                    Some(t) => format!("\"{}\"", t),
+                    None => "null".to_string(),
+                },
+                combo_js.join(",")
+            ));
+            all_ok &= matches!(rep.verdict, "Certified" | "Unknown");
+        }
+        let json = format!(
+            "{{\"crate\":\"{}\",\"charon\":\"{}\",\"funs\":[{}]}}\n",
+            json_escape(&root.crate_name),
+            json_escape(&root.charon_version),
+            json_funs.join(",\n")
+        );
+        match outfile {
+            Some(p) => {
+                std::fs::write(p, &json).unwrap_or_else(|e| {
+                    eprintln!("寫報告失敗 {}: {}", p, e);
+                    std::process::exit(2);
+                });
+                println!("report: {}（JSON 證書）", p);
+            }
+            None => print!("{}", json),
+        }
+        println!("certify: 完成（UNKNOWN = 能力邊界如實申報，非錯誤）");
+        std::process::exit(if all_ok { 0 } else { 1 });
+    }
+
     if mode == "all" || mode == "obligations" {
         hr("義務自證（十條定理的機械化檢查）");
         let results = obligations::run_all();

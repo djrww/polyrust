@@ -501,6 +501,200 @@ pub fn decide_fun_in(
     }
 }
 
+/// M3（SPA1）：逐組合證書——每個輸入組合嘅見證解與系統摘要（機讀報告）。
+/// 語義 = decide_paths 強制逐組合見證模式：每組合 concretize 模擬＋
+/// 單點域編碼＋求解＋認證；溢出組合如實標記 excluded（永不入認證）。
+#[derive(Debug, Clone)]
+pub struct ComboCert {
+    /// 參數顯示字串（Int 直書；Enum 顯示 disc/field）
+    pub params: Vec<String>,
+    pub ret: Option<i64>,
+    pub overflow_excluded: bool,
+    pub nvars: usize,
+    pub npolys: usize,
+    /// L0PrimeParams 摘要 (n_terms, max_abs_coeff, max_abs_value, degree)
+    pub l0: (u64, u64, u64, u32),
+    /// 見證解 σ（slot_var 順序；𝔽_p 代表元之整數視）
+    pub sigma: Vec<i64>,
+}
+
+/// M3（SPA1）：單一函數之證書報告。
+#[derive(Debug, Clone)]
+pub struct FunCertReport {
+    pub name: String,
+    /// "Certified" | "Unknown" | "Unsat"
+    pub verdict: &'static str,
+    pub reason: Option<String>,
+    pub n_combos: usize,
+    pub n_certified: usize,
+    pub n_excluded: usize,
+    pub combos: Vec<ComboCert>,
+    /// 模板對應 Lean 定理（C6 Loop 模板 → Polyrust.LoopInvariant.invSumF_spec；
+    /// 其他形態屬後續 slice 對接，如實 None）
+    pub lean_theorem: Option<&'static str>,
+}
+
+fn param_disp(p: &ParamVal) -> String {
+    match p {
+        ParamVal::Int(v) => v.to_string(),
+        ParamVal::Enum { disc, field } => match field {
+            Some(f) => format!("enum(disc={disc},field={f})"),
+            None => format!("enum(disc={disc})"),
+        },
+    }
+}
+
+/// 對已 lowering 之 body 產生逐組合證書報告（M3/SPA1 核心）。
+pub fn certify_fun_report(
+    body: &PirBody,
+    arg_domains: &[Vec<i64>],
+    callees: &BTreeMap<String, PirBody>,
+) -> FunCertReport {
+    let has_loop = body.paths.iter().any(|p| {
+        p.stmts
+            .iter()
+            .any(|s| matches!(s.kind, PirStmtKind::Loop { .. }))
+    });
+    let lean_theorem = if has_loop {
+        Some("Polyrust.LoopInvariant.invSumF_spec")
+    } else {
+        None
+    };
+    let blank = |verdict, reason: Option<String>| FunCertReport {
+        name: body.fun_name.clone(),
+        verdict,
+        reason,
+        n_combos: 0,
+        n_certified: 0,
+        n_excluded: 0,
+        combos: Vec::new(),
+        lean_theorem,
+    };
+    let axes = match build_axes(body, arg_domains) {
+        Ok(a) => a,
+        Err(reason) => return blank("Unknown", Some(reason)),
+    };
+    let combos = match cart_product(&axes) {
+        Ok(c) => c,
+        Err(reason) => return blank("Unknown", Some(reason)),
+    };
+    let mut rep = FunCertReport {
+        name: body.fun_name.clone(),
+        verdict: "Certified",
+        reason: None,
+        n_combos: combos.len(),
+        n_certified: 0,
+        n_excluded: 0,
+        combos: Vec::new(),
+        lean_theorem,
+    };
+    for params in &combos {
+        let out = match concretize(body, params, callees) {
+            Ok(o) => o,
+            Err(ConcErr::Overflow) => {
+                rep.n_excluded += 1;
+                rep.reason.get_or_insert_with(|| {
+                    format!(
+                        "{}: 部分組合 checked 溢出（真實執行 panic，排除於認證範圍）",
+                        rep.name
+                    )
+                });
+                rep.combos.push(ComboCert {
+                    params: params.iter().map(param_disp).collect(),
+                    ret: None,
+                    overflow_excluded: true,
+                    nvars: 0,
+                    npolys: 0,
+                    l0: (0, 0, 0, 0),
+                    sigma: Vec::new(),
+                });
+                continue;
+            }
+            Err(ConcErr::Reason(r)) => {
+                rep.verdict = "Unknown";
+                rep.reason = Some(r);
+                break;
+            }
+        };
+        // 單點域：int 參數 = 值本身；enum 參數 = 欄位值（無欄位 variant 域空）
+        let doms: Vec<Vec<i64>> = params.iter().map(param_domain).collect();
+        let body1 = single_path_body(body, out.path_idx);
+        let enc = match encode_body(&body1, &doms, Some(&out.values)) {
+            Ok(e) => e,
+            Err(reason) => {
+                rep.verdict = "Unknown";
+                rep.reason = Some(reason);
+                break;
+            }
+        };
+        let Some(sigma) = mir_lower::solve_domains(&enc.sys) else {
+            rep.verdict = "Unsat";
+            break;
+        };
+        let cert = mir_lower::certify_mir(&enc.sys, &sigma);
+        if !cert.certified {
+            rep.verdict = "Unknown";
+            rep.reason = Some(format!("見證認證失敗：{:?}", cert.first_bad));
+            break;
+        }
+        let sys = &enc.sys;
+        rep.combos.push(ComboCert {
+            params: params.iter().map(param_disp).collect(),
+            ret: enc.ret_var.and_then(|i| sigma.get(i).map(fp_to_i64)),
+            overflow_excluded: false,
+            nvars: sys.nvars,
+            npolys: sys.polys.len(),
+            l0: (
+                sys.l0.n_terms,
+                sys.l0.max_abs_coeff,
+                sys.l0.max_abs_value,
+                sys.l0.degree,
+            ),
+            sigma: sigma.iter().map(fp_to_i64).collect(),
+        });
+        rep.n_certified += 1;
+    }
+    if rep.verdict == "Certified" && rep.n_certified == 0 && rep.n_excluded > 0 {
+        rep.verdict = "Unknown";
+        rep.reason
+            .get_or_insert_with(|| format!("{}: 全部組合 checked 溢出（無可認證組合）", rep.name));
+    }
+    rep
+}
+
+/// M3（SPA1）：FunDeclRef 級報告入口（鏡像 decide_fun_in：prelower+lowering）。
+pub fn certify_fun_report_in(
+    types: &Value,
+    funs: &[FunDeclRef],
+    fun: &FunDeclRef,
+    arg_domains: &[Vec<i64>],
+) -> FunCertReport {
+    let callees = prelower(funs, &fun.name);
+    match lower_fun_in(types, funs, fun) {
+        PirVerdict::NoBody { kind } => FunCertReport {
+            name: fun.name.clone(),
+            verdict: "Unknown",
+            reason: Some(format!("body 缺失（{:?}）", kind)),
+            n_combos: 0,
+            n_certified: 0,
+            n_excluded: 0,
+            combos: Vec::new(),
+            lean_theorem: None,
+        },
+        PirVerdict::Unknown { reason } => FunCertReport {
+            name: fun.name.clone(),
+            verdict: "Unknown",
+            reason: Some(reason),
+            n_combos: 0,
+            n_certified: 0,
+            n_excluded: 0,
+            combos: Vec::new(),
+            lean_theorem: None,
+        },
+        PirVerdict::ValueTrace(body) => certify_fun_report(&body, arg_domains, &callees),
+    }
+}
+
 /// C5：全部 Structured fun → PirBody 表（`skip` = 判定對象自身，唔入表，
 /// 遞迴呼叫由模擬深限如實降級）。
 fn prelower(funs: &[FunDeclRef], skip: &str) -> BTreeMap<String, PirBody> {
@@ -1919,6 +2113,106 @@ mod tests {
             reason.contains("唔支援") || reason.contains("模板"),
             "應指向模板外：{reason}"
         );
+    }
+
+    #[test]
+    fn m3_report_while_sum_certified_with_combos() {
+        // M3：certify_fun_report 端到端——loop 模板 → lean_theorem 標注、
+        // 多值域 → 逐組合 ret（n=0 → 0、n=5 → 10）
+        use crate::charon_llbc::Value;
+        let fun = c6_while_sum_fdr();
+        let d = certify_fun_report_in(&Value::Null, &[], &fun, &vec![vec![0, 5]]);
+        assert_eq!(d.verdict, "Certified");
+        assert_eq!(d.n_combos, 2);
+        assert_eq!(d.n_certified, 2);
+        assert_eq!(d.n_excluded, 0);
+        assert_eq!(d.lean_theorem, Some("Polyrust.LoopInvariant.invSumF_spec"));
+        let rets: Vec<Option<i64>> = {
+            let mut v: Vec<Option<i64>> = d.combos.iter().map(|c| c.ret).collect();
+            v.sort();
+            v
+        };
+        assert_eq!(rets, vec![Some(0), Some(10)]);
+        for c in &d.combos {
+            assert!(!c.overflow_excluded);
+            assert!(!c.sigma.is_empty());
+        }
+        // 無域組合（空域）：單一 default 組合——n 未定義 → 模擬如實降級
+        let d2 = certify_fun_report_in(&Value::Null, &[], &fun, &[]);
+        assert_eq!(d2.verdict, "Unknown");
+        assert!(d2.reason.is_some());
+    }
+
+    #[test]
+    fn m3_report_non_loop_has_no_lean_theorem_yet() {
+        // 非迴圈直線函數：lean_theorem = None（Lean 對接屬後續 slice，如實標注）
+        use crate::charon_llbc::{BodyKind, FunDeclRef, Value};
+        let num = |s: &str| Value::Num(s.to_string());
+        let sng = |k: &str, v: Value| Value::Obj(vec![(k.to_string(), v)]);
+        let arrv = |xs: Vec<Value>| Value::Arr(xs);
+        let o = |ps: Vec<(&str, Value)>| {
+            Value::Obj(ps.into_iter().map(|(k, v)| (k.to_string(), v)).collect())
+        };
+        let sgn = |v: &str| {
+            sng(
+                "Integer",
+                sng(
+                    "Signed",
+                    arrv(vec![Value::Str("I64".into()), Value::Str(v.into())]),
+                ),
+            )
+        };
+        let int_const = |v: &str| {
+            sng(
+                "Value",
+                arrv(vec![Value::Null, arrv(vec![sgn(v), Value::Null])]),
+            )
+        };
+        let place = |idx: &str| o(vec![("kind", sng("Local", num(idx))), ("ty", Value::Null)]);
+        let assign =
+            |dst: &str, rhs: Value| sng("kind", sng("Assign", arrv(vec![place(dst), rhs])));
+        let fun = FunDeclRef {
+            def_id: 0,
+            name: "const42".to_string(),
+            full_path: vec!["const42".to_string()],
+            body_kind: BodyKind::Structured,
+            raw: o(vec![
+                ("signature", sng("inputs", arrv(vec![]))),
+                (
+                    "body",
+                    sng(
+                        "Structured",
+                        o(vec![
+                            (
+                                "locals",
+                                o(vec![
+                                    ("arg_count", num("0")),
+                                    ("locals", arrv(vec![Value::Null; 3])),
+                                ]),
+                            ),
+                            (
+                                "body",
+                                sng(
+                                    "statements",
+                                    arrv(vec![
+                                        assign(
+                                            "0",
+                                            sng("Use", arrv(vec![sng("Const", int_const("42"))])),
+                                        ),
+                                        sng("kind", Value::Str("Return".into())),
+                                    ]),
+                                ),
+                            ),
+                        ]),
+                    ),
+                ),
+            ]),
+        };
+        let d = certify_fun_report_in(&Value::Null, &[], &fun, &[]);
+        assert_eq!(d.verdict, "Certified");
+        assert_eq!(d.combos.len(), 1);
+        assert_eq!(d.combos[0].ret, Some(42));
+        assert_eq!(d.lean_theorem, None);
     }
 
     #[test]

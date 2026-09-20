@@ -159,3 +159,10 @@ open Polyrust
 #print axioms Polyrust.parse_gen
 #print axioms Polyrust.arm_gating
 #print axioms Polyrust.arm_gating_root
+
+/-! ## M3：C6 簡單 while 迴圈（LoopInvariant）-/
+
+#print axioms Polyrust.whileMonoF_invariant
+#print axioms Polyrust.whileMonoF_sufficient
+#print axioms Polyrust.triSum_mono
+#print axioms Polyrust.invSumF_spec

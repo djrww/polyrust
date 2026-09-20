@@ -36,6 +36,7 @@
 | `Polyrust.AsyncStateMachine` | Async | Future 狀態機、輪詢約束、one-hot 狀態 |
 | `Polyrust.StdlibEncoding` | Stdlib | Vec/String/HashMap 的多項式編碼 |
 | `Polyrust.LoopContract` | Loop | 循環不變量、歸納契約 |
+| `Polyrust.LoopInvariant` | **M3/C6**（單調 while 模板） | `whileMonoF` 功能模型；不變式健全性 `whileMonoF_invariant`；出口條件 `whileMonoF_sufficient`；三角數閉式 `invSumF_spec`（Σ_{k<n}k，對應真檔 inv_sum CERTIFIED 首例） |
 | `Polyrust.TraitImpl` | Trait | trait/impl 解析、方法歸約 |
 | `Polyrust.F4` | **F4**（批矩陣） | 符號預處理、矩陣構建、行階梯保持理想、塊對角、稀疏、平方自由化、F4 理想不變量 |
 | `Polyrust.F5` | **F5**（簽名準則） | Signature、sigLT 傳遞/反自反、F5Criterion、RewrittenCriterion、sig-safe 消元、F4F5 結合、85% 零歸約消除 |
@@ -76,6 +77,7 @@ import Polyrust.UnsafeContext
 import Polyrust.AsyncStateMachine
 import Polyrust.StdlibEncoding
 import Polyrust.LoopContract
+import Polyrust.LoopInvariant
 import Polyrust.TraitImpl
 import Polyrust.F4
 import Polyrust.F5
