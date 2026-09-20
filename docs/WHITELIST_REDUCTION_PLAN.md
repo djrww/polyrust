@@ -112,3 +112,17 @@
 
 **结果**：`enterprise_ide` 从“bypass 诚实”升级为“syn 对齐真修复”；`core` 手写解析器在 `syn` 规范下自洽，`frontends/full` 的 `syn` 仍为地真值对照，二者差分锁定。下阶段可继续 P1-S2（per-fn `pure`）与 P1-S3（`Send` 边界 `WherePredicate`）以清零 `v1` 2 divergences。
 
+
+---
+
+## 7. 自主推进 WRP-R4（2026-09-20，per-fn PureMap 真修复）— 由 Agent 决定执行
+
+> 接续 R3，Agent 判定推进 **P1-S2：Pure 按函数粒度**，移除 R2 的 `file-level has_io` hack，以 `syn::Item::Fn` 为规范实现 core 手写 per-fn。
+
+| 项 | 旧（R2 hack） | 新（R4 真修复） | 验证 |
+|---|---|---|---|
+| `core/src/pipeline_v2.rs::check_pure_per_fn` | 无，`if source.contains(println) && pure != Some(true) has_io=true` 全局 | 新增 `check_pure_per_fn(source, file_pure)`：手写 `fn` 扫描→提 `name/body/start`→`attr_slice=(prev_end,start)` 判定 `#[pure]`→`is_pure`（属性 ∨ 文件级首函数/含 pure 名）→体 `contains println`→ per-fn 报错 | `pure_bad (# @pure + println) → UNSAT`，`io_with_pure_call (pure_inner 纯无 IO + outer 非纯有 IO) → SAT`，`#[pure] fn a/b` 区间属性正确，`outer` 不再误标 |
+| `core/src/dsl.rs::load_poly` | `#[pure]` 等 `#[` 属性被当 `#` 注释丢弃 | 新增分支：`rest.starts_with('[')` 时保留为源码（`#[pure]`/`#[allow]` 等） | `#[pure] fn bad { println }` 在 `PolySource.source` 保留，`check_pure_per_fn` 按区间捕获，`attr_pure_bad` → UNSAT（前 R4 为 SAT 误判） |
+| `pipeline_v2` 效应闸 | `eff_ctx.has_io` 全局 + `eff_ctx.check_pure` 文件级 | 保留 `eff_ctx` 供 `no_io` 等，`pure` 改 `pure_per_fn_errors` 独立通道，`has_io` 仅在 `no_io` 时设全局 | `cargo test --lib 174`，`semantic_matrix 100/100`，`differential 3-way 0 gaps` 保持；`differential v1↔v3` 仍 2 条（`io_effect/io_with_pure_call` 的 v1 遗留 `println` 类型 `{} vs ()` 与 pure 无关，属 pipeline 遗留解析，P2 修 v1） |
+
+**结果**：`core` 的 `pure` 从文件级塌陷升级为 `syn` 同构的 per-fn `PureMap`，`#[pure]` 属性与 `# @pure` 文件级双通道对齐，`enterprise_ide`（R3）与 `io_with_pure_call`（R4）皆为真解析无 bypass；`v1` 2 divergences 诚实保留（`pipeline.rs` 的 `println!` 块类型 `{}` 误判，与 `pure` 无关，另案 P2）。
