@@ -803,16 +803,6 @@ fn lower_seq(
     Ok(SeqEnd::FallThrough)
 }
 
-/// 步進運算元係計數器本人或其 loop-head reread 臨時槽（同義槽）。
-fn is_counter_ref(local: usize, ca: &Slot, reread: &BTreeMap<usize, Slot>) -> bool {
-    if local == ca.local {
-        return true;
-    }
-    reread
-        .get(&local)
-        .is_some_and(|s| s.part == Part::Whole && s.local == ca.local)
-}
-
 /// C6：LLBC `Loop` block → 簡單 while 認形（invariant 路線）。
 /// 形態（實證 while_sum）：頭部 = carried 重讀（Copy）+ cond 比較賦值；
 /// 內嵌 bool Switch（false 常數臂 = 出口、fallback 臂 = body 尾 Continue）。
@@ -965,19 +955,6 @@ fn lower_loop(ctx: &mut LowerCtx, types: &Value, payload: &Value) -> Result<PirS
         .get("branches")
         .and_then(|v| v.as_arr())
         .ok_or_else(|| format!("{name}: loop Switch branches 缺失"))?;
-    let mut has_false_arm = false;
-    for b in brs {
-        let ba = b
-            .as_arr()
-            .ok_or_else(|| format!("{name}: loop branch 非陣列"))?;
-        let c = parse_const(&name, 0, &ba[0])?;
-        if c == 0 {
-            has_false_arm = true;
-        }
-    }
-    if !has_false_arm {
-        return Err(format!("{name}: loop Switch 無 false 臂（模板外）"));
-    }
     let fallback_idx = data
         .get("fallback")
         .and_then(|v| v.as_num())
@@ -987,9 +964,87 @@ fn lower_loop(ctx: &mut LowerCtx, types: &Value, payload: &Value) -> Result<PirS
         .get("branches")
         .and_then(|v| v.as_arr())
         .ok_or_else(|| format!("{name}: loop Switch 臂缺失"))?;
-    let body_arm = arms
-        .get(fallback_idx)
-        .ok_or_else(|| format!("{name}: loop body 臂 {fallback_idx} 缺失"))?;
+    if arms.len() != 2 {
+        return Err(format!(
+            "{name}: loop Switch {} 臂（模板只做單 body／單出口）",
+            arms.len()
+        ));
+    }
+    // 臂分類：以尾語句定性——Continue 結尾 = body 臂；空／Break 結尾 = 出口臂
+    // （實證兩形：false→出口/fallback=body；false→Break/fallback=body）。
+    fn arm_tail(a: &Value) -> Option<&str> {
+        // kind 係純字串（Return）或單鍵 Obj（Continue/Break: id）
+        a.get("statements")
+            .and_then(|v| v.as_arr())
+            .and_then(|v| v.last())
+            .and_then(|s| s.get("kind"))
+            .and_then(|k| {
+                k.as_str().or_else(|| match k {
+                    Value::Obj(pairs) if pairs.len() == 1 => Some(pairs[0].0.as_str()),
+                    _ => None,
+                })
+            })
+    }
+    let body_idx = (0..2)
+        .find(|&i| arm_tail(&arms[i]) == Some("Continue"))
+        .ok_or_else(|| format!("{name}: loop 無 Continue 臂（模板外）"))?;
+    let exit_idx = 1 - body_idx;
+    // 出口臂只容許無害語句（Storage*/Nop）＋可選 Break 尾；其他 = 模板外
+    for s in arms[exit_idx]
+        .get("statements")
+        .and_then(|v| v.as_arr())
+        .ok_or_else(|| format!("{name}: loop 出口臂缺 statements"))?
+    {
+        let t = s
+            .get("kind")
+            .and_then(|k| {
+                k.as_str().or_else(|| match k {
+                    Value::Obj(pairs) if pairs.len() == 1 => Some(pairs[0].0.as_str()),
+                    _ => None,
+                })
+            })
+            .ok_or_else(|| format!("{name}: loop 出口臂含複合語句（模板外）"))?;
+        if !matches!(
+            t,
+            "Break" | "StorageLive" | "StorageDead" | "Borrowck" | "Nop"
+        ) {
+            return Err(format!("{name}: loop 出口臂含 `{t}`（模板外）"));
+        }
+    }
+    // 條件極性驗證：body 必須喺 cond 為真時執行（分派：常數命中優先、否則 fallback）
+    let body_when = if brs.is_empty() {
+        fallback_idx == body_idx
+    } else {
+        if brs.len() != 1 {
+            return Err(format!(
+                "{name}: loop Switch {} 個常數分支（模板外）",
+                brs.len()
+            ));
+        }
+        let ba = brs[0]
+            .as_arr()
+            .ok_or_else(|| format!("{name}: loop branch 非陣列"))?;
+        let c = parse_const(&name, 0, &ba[0])?;
+        let b_idx = ba[1]
+            .as_num()
+            .and_then(|s| s.parse::<usize>().ok())
+            .ok_or_else(|| format!("{name}: loop branch 臂索引非數字"))?;
+        if b_idx == body_idx {
+            c == 1
+        } else if fallback_idx == body_idx {
+            c != 1
+        } else {
+            return Err(format!(
+                "{name}: loop Switch fallback 非身體臂（異形；模板外）"
+            ));
+        }
+    };
+    if !body_when {
+        return Err(format!(
+            "{name}: loop 條件極性相反（body 喺 cond 假時執行；模板外）"
+        ));
+    }
+    let body_arm = &arms[body_idx];
     let body_stmts = body_arm
         .get("statements")
         .and_then(|v| v.as_arr())
@@ -1008,9 +1063,9 @@ fn lower_loop(ctx: &mut LowerCtx, types: &Value, payload: &Value) -> Result<PirS
         return Err(format!("{name}: loop body 含動態 Switch（嵌套模板外）"));
     }
 
-    // ---- 步進認形（LLBC 實證 temp-Copy 兩段式：t := i ± c; i := t）----
-    // 單一更新點（多重更新 = 模板外降級）；先認 i 的 Copy 來源臨時槽，
-    // 再認該臨時槽的 Add/Sub(i, c) 步進。
+    // ---- 步進認形（LLBC 實證：t := i ± c; i := t 或 t.0 投影直寫 i := t.0）----
+    // 單一更新點（多重更新 = 模板外降級）；步進運算元須指到計數器本人或其
+    // 同義槽（head reread 臨時槽／body 內任意 Copy 別名鏈）。
     let mut updated: Option<Slot> = None;
     for s in &body {
         if let PirStmtKind::Copy { src } = &s.kind {
@@ -1025,25 +1080,50 @@ fn lower_loop(ctx: &mut LowerCtx, types: &Value, payload: &Value) -> Result<PirS
             }
         }
     }
-    let Some(temp) = updated else {
-        return Err(format!(
-            "{name}: loop 計數器無單調步進（i±c；invariant 推唔出）"
-        ));
+    // 更新點：Copy 入計數器 → 其來源槽；直寫形（無 Copy）→ 計數器本人
+    let temp = match updated {
+        Some(src) => Slot::whole(src.local),
+        None => Slot::whole(ca.local),
     };
+    // 計數器同義槽集合：本人 + head reread + body 內 Copy 別名鏈（到不動點）
+    let mut aliases: Vec<usize> = vec![ca.local];
+    aliases.extend(
+        reread
+            .iter()
+            .filter(|(_, s)| s.part == Part::Whole && s.local == ca.local)
+            .map(|(&l, _)| l),
+    );
+    loop {
+        let mut grew = false;
+        for s in &body {
+            if let PirStmtKind::Copy { src } = &s.kind {
+                if s.dst.part == Part::Whole
+                    && src.part == Part::Whole
+                    && aliases.contains(&src.local)
+                    && !aliases.contains(&s.dst.local)
+                {
+                    aliases.push(s.dst.local);
+                    grew = true;
+                }
+            }
+        }
+        if !grew {
+            break;
+        }
+    }
     let mut step_c: Option<i64> = None;
     for s in &body {
-        // 步進容許 checked（AddChecked 等）：步進溢出語義由模擬承擔
         // 步進容許 checked（AddChecked 等）：步進溢出語義由模擬承擔
         if let PirStmtKind::BinOp { op, a, b: bop, .. } = &s.kind {
             if s.dst.part == Part::Whole && s.dst.local == temp.local {
                 let (iop, c) = match (a, bop) {
                     (PirOperand::Slot(x), PirOperand::Const(c))
-                        if x.part == Part::Whole && is_counter_ref(x.local, &ca, &reread) =>
+                        if x.part == Part::Whole && aliases.contains(&x.local) =>
                     {
                         (op, *c)
                     }
                     (PirOperand::Const(c), PirOperand::Slot(x))
-                        if x.part == Part::Whole && is_counter_ref(x.local, &ca, &reread) =>
+                        if x.part == Part::Whole && aliases.contains(&x.local) =>
                     {
                         (op, *c)
                     }
@@ -1495,6 +1575,13 @@ fn parse_const(fname: &str, i: usize, cval: &crate::charon_llbc::Value) -> Resul
         .and_then(|a| a.get(1))
         .and_then(|pair| pair.as_arr())
         .and_then(|a| a.first())
+        .or_else(|| {
+            // no-dedup（--no-dedup-serialized-ast）：Const = { Untagged: [literal, ty] }
+            // literal 與舊 Value 內層節點同形；ty（第二元素）忽略。
+            cval.get("Untagged")
+                .and_then(|v| v.as_arr())
+                .and_then(|a| a.first())
+        })
         .unwrap_or(cval);
     match lit {
         Value::Obj(pairs) if pairs.len() == 1 => match (pairs[0].0.as_str(), &pairs[0].1) {
@@ -1849,6 +1936,54 @@ fn slot_or_const(op: &PirOperand, values: &BTreeMap<Slot, i64>) -> Option<i64> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn parse_const_value_and_untagged_shapes() {
+        // 舊 dedup 形態：Const = { Value: [meta, [literal, ty]] }
+        use crate::charon_llbc::Value;
+        let sng = |k: &str, v: Value| Value::Obj(vec![(k.to_string(), v)]);
+        let arrv = |xs: Vec<Value>| Value::Arr(xs);
+        let old = sng(
+            "Value",
+            arrv(vec![
+                Value::Null,
+                arrv(vec![
+                    sng(
+                        "Integer",
+                        sng(
+                            "Signed",
+                            arrv(vec![Value::Str("I64".into()), Value::Str("42".into())]),
+                        ),
+                    ),
+                    Value::Null,
+                ]),
+            ]),
+        );
+        assert_eq!(parse_const("t", 0, &old).unwrap(), 42);
+        // no-dedup 形態（--no-dedup-serialized-ast）：Const = { Untagged: [literal, ty] }
+        let new = sng(
+            "Untagged",
+            arrv(vec![
+                sng(
+                    "Integer",
+                    sng(
+                        "Signed",
+                        arrv(vec![Value::Str("I32".into()), Value::Str("-7".into())]),
+                    ),
+                ),
+                sng(
+                    "Untagged",
+                    sng("Scalar", sng("Integer", Value::Str("I32".into()))),
+                ),
+            ]),
+        );
+        assert_eq!(parse_const("t", 0, &new).unwrap(), -7);
+        let b = sng(
+            "Untagged",
+            arrv(vec![sng("Bool", Value::Bool(true)), Value::Null]),
+        );
+        assert_eq!(parse_const("t", 0, &b).unwrap(), 1);
+    }
+
     use super::*;
     use crate::charon_llbc::LlbcRoot;
 
