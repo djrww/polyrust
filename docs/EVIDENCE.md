@@ -451,3 +451,16 @@ i32 運算溢出語義不建模（Mini-Rust 簡化）；server 無連線數上�
 * **教訓入冊**：890cbb6 盲推紅 CI（whileMonoF type 欠箭嘴、Nat.sub 左結合
   數學錯、triSum_mono 參數反轉）→ 沙盒常駐 elan+Lean，Lean 模組本地
   編譯＋公理審計代理先 push（制度化）。
+
+### 13d. 信任鏈自證實證（2026-09-20，e318cb7）
+
+* `cdcl_unsat_proof_self_verifying_php32`：鴿籠 PHP(3,2)（6 變數 9 子句，
+  經典 UNSAT）——CDCL `solve_with_proof` 產證書 → `cdcl_learnts_to_rup`
+  → `check_rup_proof` 獨立回放 **Ok**。產證代碼與驗證代碼不同路徑，
+  構成差分 oracle。
+* `cdcl_unit_chain_unsat_minimal`：(1)(−1) 最小矛盾——證書即時空子句收尾。
+* `cdcl_sat_proof_has_no_empty_clause_model_rechecks`：SAT 證書無空子句
+  （唔構成駁斥）；判定由 model σ 對原子句逐條重驗。三值口徑：UNSAT 先有
+  駁斥證書，SAT 由見證自證。
+* 過程修正：終結步原 push 0 層衝突子句被 checker 正確拒收（終結語義＝
+  空子句）；`!self.ok` 出口證書斷尾——兩者均為測試捉出後修復。
