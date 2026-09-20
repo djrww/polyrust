@@ -411,3 +411,43 @@ i32 運算溢出語義不建模（Mini-Rust 簡化）；server 無連線數上�
 * `AuditAll`：受檢宣告 **1787**、純構造 **970**、零 `sorry`、零自訂公理
   ⇒ `AUDIT_RESULT=CLEAN`。新主定理僅依賴標準三公理
   （`Classical.choice` 來自見證選取，屬可追蹤的標準公理）。
+
+## 13. PolyIR 新鏈真檔認證首例（2026-09-20 新增）
+
+> 詳細過程見 [DEV_LOG_2026-09-20.md](DEV_LOG_2026-09-20.md)。新鏈＝
+> Charon LLBC → PolyIR 值軌跡 → 𝔽_p 編碼 → 求解 → 認證（`pir`/`certify`）。
+
+### 13a. CLI 實證（charon 0.1.265 真檔，`--no-dedup-serialized-ast` 重生成）
+
+| 函數 | 域 | 判定 | 對應定理 |
+|---|---|---|---|
+| `inv_sum`（while 累加） | n=5 | CERTIFIED ret=10 | `Polyrust.LoopInvariant.invSumF_spec`（Σ_{k<n}k） |
+| `inv_sum` | n=7 | CERTIFIED ret=21 | 同上 |
+| `fact`（自遞迴） | n=0/1 | CERTIFIED ret=1 | `Polyrust.Recursion.factF_spec` |
+| `fact` | n=3 | CERTIFIED ret=6 | 同上 |
+| `fact` | n=5 | CERTIFIED ret=120 | 同上 |
+| `fact` | n=10 | CERTIFIED ret=3628800 | 同上 |
+| `sqr` | x=7 | CERTIFIED ret=49 | （直線模板；Lean 對接屬後續 slice，如實 null） |
+| `io_with_pure_call::pure_inner` | x=5 | CERTIFIED ret=6 | 同上 |
+| `fact` | n=100 | UNKNOWN（checked 溢出，如實排除） | — |
+| `fact` | n=100000 | UNKNOWN（深度超限 4096，如實降級） | — |
+| `loop_break` | — | UNKNOWN（Break 多出口，屬後續 slice） | — |
+
+### 13b. Soundness 護欄實證（兩條都係「錯了會怎樣」級）
+
+* **fallback guard 洞**（已閂）：無 excl 表時 fact(100000) 遞迴路徑撞深限、
+  fallback path 對 scrutinee 任意值放行 → **誤認證 ret=1**（真實執行係
+  深限拒答）。修後同輸入 UNKNOWN（深度超限）——認證永唔覆蓋模擬唔到嘅組合。
+* **錯誤優先級**：Overflow 恆最優先、Reason 保留首個（path 序）——
+  真實執行 panic 嘅組合唔會被其他 path 嘅 guard 錯誤文字掩蓋。
+
+### 13c. Lean 側（新增兩模組，+8 條定理）
+
+* `Polyrust.LoopInvariant`：`whileMonoF_invariant`（不變式健全性）、
+  `whileMonoF_sufficient`（出口條件）、`invSumF_spec`（閉式）
+* `Polyrust.Recursion`：`factF_spec`（n ≤ fuel → 燃料版＝結構定義）、`fact_pos`
+* 公理審計（本地拼模組 `#print axioms`）：全部僅 propext/Quot.sound
+  （標準內）；零 sorryAx；CI lake build + AuditAll 綠（f341c30）。
+* **教訓入冊**：890cbb6 盲推紅 CI（whileMonoF type 欠箭嘴、Nat.sub 左結合
+  數學錯、triSum_mono 參數反轉）→ 沙盒常駐 elan+Lean，Lean 模組本地
+  編譯＋公理審計代理先 push（制度化）。
