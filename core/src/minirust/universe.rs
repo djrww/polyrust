@@ -649,7 +649,20 @@ pub fn parse_type_v2(s: &str) -> Result<TypeV2, String> {
             if s.ends_with('>') {
                 let name = s[..idx].trim().to_string();
                 let args_str = &s[idx+1..s.len()-1];
-                let args: Result<Vec<TypeV2>, String> = args_str.split(',')
+                // syn-alignment: Punctuated 按 < > 分层切分，支撑嵌套 HashMap<String, Vec<i32>>
+                let mut args_vec: Vec<String> = Vec::new();
+                let mut cur = String::new();
+                let mut depth: i32 = 0;
+                for ch in args_str.chars() {
+                    match ch {
+                        '<' => { depth += 1; cur.push(ch); }
+                        '>' => { if depth>0 { depth-=1; } cur.push(ch); }
+                        ',' if depth==0 => { args_vec.push(cur.clone()); cur.clear(); }
+                        _ => cur.push(ch),
+                    }
+                }
+                if !cur.trim().is_empty() { args_vec.push(cur); }
+                let args: Result<Vec<TypeV2>, String> = args_vec.into_iter()
                     .map(|a| parse_type_v2(a.trim()))
                     .collect();
                 let args = args?;

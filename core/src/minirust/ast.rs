@@ -551,7 +551,27 @@ impl ProgramV2 {
         if let Some(start) = collected.find('{') {
             if let Some(end) = collected.rfind('}') {
                 let inner = &collected[start+1..end];
-                for part in inner.split(',') {
+                // WRP-R3 / syn-alignment: 按 < > 分层切分，避免 HashMap<String, String> 内逗号误切
+                // 与 frontends/full/src/syn_explain.rs 的 split_fields_top_level 同构
+                let mut parts: Vec<String> = Vec::new();
+                let mut cur = String::new();
+                let mut angle_depth: i32 = 0;
+                let mut paren_depth: i32 = 0;
+                let mut brack_depth: i32 = 0;
+                for ch in inner.chars() {
+                    match ch {
+                        '<' => { angle_depth += 1; cur.push(ch); }
+                        '>' => { if angle_depth > 0 { angle_depth -= 1; } cur.push(ch); }
+                        '(' => { paren_depth += 1; cur.push(ch); }
+                        ')' => { if paren_depth > 0 { paren_depth -= 1; } cur.push(ch); }
+                        '[' => { brack_depth += 1; cur.push(ch); }
+                        ']' => { if brack_depth > 0 { brack_depth -= 1; } cur.push(ch); }
+                        ',' if angle_depth == 0 && paren_depth == 0 && brack_depth == 0 => { parts.push(cur.clone()); cur.clear(); }
+                        _ => cur.push(ch),
+                    }
+                }
+                if !cur.trim().is_empty() { parts.push(cur); }
+                for part in parts {
                     let part = part.trim();
                     if part.is_empty() { continue; }
                     if let Some(colon) = part.find(':') {
