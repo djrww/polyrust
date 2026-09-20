@@ -12,6 +12,11 @@ description = "polyrust 的 LLBC 前端：真 serde_json 文本解析 → core �
 name = "polyrust_llbc"
 path = "src/lib.rs"
 
+# C5.1 預設切換出口：真 .rs/.llbc/.poly → 判定 JSON（v4 默認，v1 後備 flag）。
+[[bin]]
+name = "polyrust-llbc-check"
+path = "src/llbc_check.rs"
+
 [dependencies]
 polyrust-core = { path = "../../core" }
 serde_json = { workspace = true }

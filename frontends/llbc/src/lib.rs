@@ -15,6 +15,13 @@
 
 use polyrust_core::charon_llbc::{LlbcError, LlbcRoot, Value};
 
+pub mod report;
+
+/// 源碼 `# @fuel` 註解（報告用途；分析用 `analyze_module_from_source`）。
+pub fn fuel_of(src: &str) -> usize {
+    polyrust_core::llbc_lower::scan_annotations(src).loop_fuel
+}
+
 /// serde_json 值 → core 零依賴 [`Value`] 樹。
 ///
 /// 數字以 serde_json 規範化後嘅原文保存（整數完全冇損；LLBC 全部 number

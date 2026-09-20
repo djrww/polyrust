@@ -88,7 +88,7 @@ impl QapCertificate {
             return false;
         }
         // 5. 時間戳檢查 (非未來)
-        let current = 1789871848i64;
+        let current = 1789875096i64;
         if self.timestamp > current + 3600 {
             msg!("Timestamp in future");
             return false;
@@ -196,7 +196,7 @@ mod tests {
             r1cs_wires: 114,
             risk_score: 140,
             qap_verified: true,
-            timestamp: 1789871848,
+            timestamp: 1789875096,
             certificate_hash: [0xAB; 32],
         };
         assert!(cert.verify());
@@ -211,7 +211,7 @@ mod tests {
             r1cs_wires: 50,
             risk_score: 100,
             qap_verified: true,
-            timestamp: 1789871848,
+            timestamp: 1789875096,
             certificate_hash: [0; 32],
         };
         assert!(!cert.verify());
@@ -225,7 +225,7 @@ mod tests {
             r1cs_wires: 50,
             risk_score: 900,
             qap_verified: true,
-            timestamp: 1789871848,
+            timestamp: 1789875096,
             certificate_hash: [0xAB; 32],
         };
         assert!(!cert.verify());
@@ -239,7 +239,7 @@ mod tests {
             qap_verified: true,
             groebner_algo: "f4f5".to_string(),
             type_universe: 7,
-            timestamp: 1789871848,
+            timestamp: 1789875096,
         };
         assert!(record.qap_verified);
     }

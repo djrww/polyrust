@@ -164,7 +164,7 @@ Cargo check:
 ```
 stdout: 
 stderr:     Checking missing_syntax_txt v0.1.0 (/tmp/polyrust_native/cargo_check_missing_syntax_txt)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.02s
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.04s
 
 ```
 

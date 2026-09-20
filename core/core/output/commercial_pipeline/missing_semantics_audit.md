@@ -1,6 +1,6 @@
 # Polyrust V3 商业审计报告 — missing_semantics
 
-**版本**: v3.0-commercial | **时间**: 1789871848 | **迭代**: 3
+**版本**: v3.0-commercial | **时间**: 1789875095 | **迭代**: 3
 
 **判定**: SAT ✅ | **风险**: 14.0 (low) | **ISO**: QM (Quality Management)
 
@@ -27,16 +27,16 @@
 
 | 标准 | 通过 | 说明 |
 |---|---|---|
-| MemorySafety | ✅ |  |
+| ZeroDependency | ✅ |  |
 | UnsafeAudited | ✅ |  |
-| QAP_Verified | ❌ |  |
-| TypeSafety | ✅ |  |
 | ISO26262_ASIL_A | ✅ |  |
+| ISO26262_ASIL_D | ✅ |  |
+| Lean_Formal | ✅ |  |
+| TypeSafety | ✅ |  |
+| MemorySafety | ✅ |  |
 | ISO26262_QM | ✅ |  |
 | ISO26262_ASIL_B | ✅ |  |
-| ISO26262_ASIL_D | ✅ |  |
-| ZeroDependency | ✅ |  |
-| Lean_Formal | ✅ |  |
+| QAP_Verified | ❌ |  |
 
 ## Lean 形式化证明引用
 
@@ -56,7 +56,7 @@
 |---|---|---|---|---|---|---|---|
 | 1 | SAT | 80 | 60 | classic | 8.0 | 28 |  |
 | 2 | SAT | 144 | 114 | f4f5 | 10.0 | 86 |  |
-| 3 | SAT | 144 | 114 | f4f5 | 12.0 | 87 | ✓ |
+| 3 | SAT | 144 | 114 | f4f5 | 12.0 | 85 | ✓ |
 
 ## 修复建议
 

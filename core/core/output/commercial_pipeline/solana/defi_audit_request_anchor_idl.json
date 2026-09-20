@@ -76,7 +76,7 @@
     "type_universe": 7,
     "groebner_algo": "f4f5",
     "certificate": "QAP-CERT-defi_audit_request-153-0",
-    "timestamp": 1789871841,
+    "timestamp": 1789875088,
     "lean_proofs": [
       "Polyrust.QAP.qap_verified_implies_sat",
       "Polyrust.IncrementalIteration.f4f5_iter_converges",

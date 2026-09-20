@@ -522,6 +522,40 @@ pub fn analyze_module(root: &LlbcRoot) -> Result<V4Outcome, String> {
     analyze_module_with(root, V4Opts::default())
 }
 
+/// 源碼雙軌總入口（C5.1 前端 CLI 用）：同一個 fn 由原始 .rs/.poly 源碼
+/// 掃 `# @fuel/@invariant` 註解 + 攞入口 fun 參數名接 `@require/@ensure` 合約，
+/// 再落 `analyze_module_with`。入口 fun 揀選邏輯唔複制——喺度做完前置先委託，
+/// 防止前端二次實作漂移。
+pub fn analyze_module_from_source(root: &LlbcRoot, source: &str) -> Result<V4Outcome, String> {
+    let mut opts = scan_annotations(source);
+    // 合約：由入口 fun 嘅 param_names（LLBC locals 1..=arg_count）接 `@require/@ensure`。
+    // body 雙重 parse 一次係平嘅（呢度只攞名，真正 lowering 喺 analyze_module_with）。
+    let type_decls: &[crate::charon_llbc::Value] = root
+        .raw_translated
+        .get("type_decls")
+        .and_then(|t| t.as_arr())
+        .unwrap_or(&[]);
+    if let Some(fun) = root
+        .funs
+        .iter()
+        .find(|f| f.body_kind == crate::charon_llbc::BodyKind::Structured)
+    {
+        let body = crate::llbc_body::parse_fun_body(&fun.raw, type_decls)
+            .map_err(|e| format!("body parse (contract prep): {e}"))?;
+        let names: Vec<String> = body
+            .param_names
+            .iter()
+            .filter(|n| !n.is_empty())
+            .cloned()
+            .collect();
+        let contract = crate::contract::parse_contract(source, &names);
+        if !contract.requires.is_empty() || !contract.ensures.is_empty() {
+            opts.contract = Some(contract);
+        }
+    }
+    analyze_module_with(root, opts)
+}
+
 pub fn analyze_module_with(root: &LlbcRoot, opts: V4Opts) -> Result<V4Outcome, String> {
     let type_decls: &[crate::charon_llbc::Value] = root
         .raw_translated
