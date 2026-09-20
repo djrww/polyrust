@@ -3,7 +3,7 @@
   "name": "sqr",
   "cat": "matrix/basic",
   "status": "ok",
-  "bytes": 15711,
+  "bytes": 21661,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -23,7 +23,7 @@
   "name": "add",
   "cat": "matrix/basic",
   "status": "ok",
-  "bytes": 15917,
+  "bytes": 21933,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -43,7 +43,7 @@
   "name": "fact",
   "cat": "matrix/basic",
   "status": "ok",
-  "bytes": 20584,
+  "bytes": 32911,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -63,7 +63,7 @@
   "name": "fib",
   "cat": "matrix/basic",
   "status": "ok",
-  "bytes": 23189,
+  "bytes": 40608,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -83,7 +83,7 @@
   "name": "max",
   "cat": "matrix/basic",
   "status": "ok",
-  "bytes": 7789,
+  "bytes": 9821,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -103,7 +103,7 @@
   "name": "is_even",
   "cat": "matrix/basic",
   "status": "ok",
-  "bytes": 8696,
+  "bytes": 11897,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -123,7 +123,7 @@
   "name": "abs",
   "cat": "matrix/basic",
   "status": "ok",
-  "bytes": 8500,
+  "bytes": 10982,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -143,7 +143,7 @@
   "name": "pow",
   "cat": "matrix/basic",
   "status": "ok",
-  "bytes": 21440,
+  "bytes": 34196,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -163,7 +163,7 @@
   "name": "gcd",
   "cat": "matrix/basic",
   "status": "ok",
-  "bytes": 12506,
+  "bytes": 17886,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -183,7 +183,7 @@
   "name": "sum_range",
   "cat": "matrix/basic",
   "status": "ok",
-  "bytes": 23928,
+  "bytes": 37504,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -203,7 +203,7 @@
   "name": "struct_point",
   "cat": "matrix/struct_enum",
   "status": "ok",
-  "bytes": 28365,
+  "bytes": 48228,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -223,7 +223,7 @@
   "name": "enum_option",
   "cat": "matrix/struct_enum",
   "status": "ok",
-  "bytes": 10791,
+  "bytes": 13138,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -243,7 +243,7 @@
   "name": "enum_result",
   "cat": "matrix/struct_enum",
   "status": "ok",
-  "bytes": 37154,
+  "bytes": 43695,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -263,7 +263,7 @@
   "name": "struct_rect",
   "cat": "matrix/struct_enum",
   "status": "ok",
-  "bytes": 18863,
+  "bytes": 26174,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -283,7 +283,7 @@
   "name": "impl_methods",
   "cat": "matrix/struct_enum",
   "status": "ok",
-  "bytes": 25948,
+  "bytes": 34693,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -303,7 +303,7 @@
   "name": "trait_display",
   "cat": "matrix/struct_enum",
   "status": "ok",
-  "bytes": 96832,
+  "bytes": 138678,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -323,7 +323,7 @@
   "name": "generic_struct",
   "cat": "matrix/struct_enum",
   "status": "ok",
-  "bytes": 23356,
+  "bytes": 33534,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -343,7 +343,7 @@
   "name": "enum_list",
   "cat": "matrix/struct_enum",
   "status": "ok",
-  "bytes": 68512,
+  "bytes": 112059,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -363,7 +363,7 @@
   "name": "struct_nested",
   "cat": "matrix/struct_enum",
   "status": "ok",
-  "bytes": 9213,
+  "bytes": 11258,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -389,7 +389,7 @@
   "name": "struct_with_enum",
   "cat": "matrix/struct_enum",
   "status": "ok",
-  "bytes": 12214,
+  "bytes": 14886,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -409,7 +409,7 @@
   "name": "impl_trait",
   "cat": "matrix/struct_enum",
   "status": "ok",
-  "bytes": 67285,
+  "bytes": 80906,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -435,7 +435,7 @@
   "name": "enum_with_data",
   "cat": "matrix/struct_enum",
   "status": "ok",
-  "bytes": 27616,
+  "bytes": 47763,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -455,7 +455,7 @@
   "name": "struct_methods_chain",
   "cat": "matrix/struct_enum",
   "status": "ok",
-  "bytes": 13708,
+  "bytes": 17016,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -475,7 +475,7 @@
   "name": "vec_new",
   "cat": "matrix/vec_string",
   "status": "ok",
-  "bytes": 91819,
+  "bytes": 171651,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -495,7 +495,7 @@
   "name": "vec_len",
   "cat": "matrix/vec_string",
   "status": "ok",
-  "bytes": 83678,
+  "bytes": 127808,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -515,7 +515,7 @@
   "name": "vec_get",
   "cat": "matrix/vec_string",
   "status": "ok",
-  "bytes": 141064,
+  "bytes": 235551,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -535,7 +535,7 @@
   "name": "vec_iter_sum",
   "cat": "matrix/vec_string",
   "status": "ok",
-  "bytes": 407208,
+  "bytes": 594640,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -555,7 +555,7 @@
   "name": "string_from",
   "cat": "matrix/vec_string",
   "status": "ok",
-  "bytes": 40848,
+  "bytes": 45448,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -575,7 +575,7 @@
   "name": "string_len",
   "cat": "matrix/vec_string",
   "status": "ok",
-  "bytes": 28492,
+  "bytes": 31192,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -595,7 +595,7 @@
   "name": "string_concat",
   "cat": "matrix/vec_string",
   "status": "ok",
-  "bytes": 66825,
+  "bytes": 82115,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -615,7 +615,7 @@
   "name": "hashmap_new",
   "cat": "matrix/vec_string",
   "status": "ok",
-  "bytes": 213770,
+  "bytes": 348740,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -635,7 +635,7 @@
   "name": "hashmap_get",
   "cat": "matrix/vec_string",
   "status": "ok",
-  "bytes": 232638,
+  "bytes": 349039,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -655,7 +655,7 @@
   "name": "vec_map",
   "cat": "matrix/vec_string",
   "status": "ok",
-  "bytes": 476122,
+  "bytes": 812871,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -675,7 +675,7 @@
   "name": "string_chars",
   "cat": "matrix/vec_string",
   "status": "ok",
-  "bytes": 368910,
+  "bytes": 406540,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -695,7 +695,7 @@
   "name": "vec_filter",
   "cat": "matrix/vec_string",
   "status": "ok",
-  "bytes": 489840,
+  "bytes": 824646,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -715,7 +715,7 @@
   "name": "hashmap_len",
   "cat": "matrix/vec_string",
   "status": "ok",
-  "bytes": 90570,
+  "bytes": 147284,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -735,7 +735,7 @@
   "name": "string_split",
   "cat": "matrix/vec_string",
   "status": "ok",
-  "bytes": 571670,
+  "bytes": 782080,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -755,7 +755,7 @@
   "name": "vec_sort",
   "cat": "matrix/vec_string",
   "status": "ok",
-  "bytes": 199748,
+  "bytes": 283709,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -775,7 +775,7 @@
   "name": "loop_break",
   "cat": "matrix/loop_match",
   "status": "ok",
-  "bytes": 20662,
+  "bytes": 28699,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -795,7 +795,7 @@
   "name": "while_loop",
   "cat": "matrix/loop_match",
   "status": "ok",
-  "bytes": 23928,
+  "bytes": 37504,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -815,7 +815,7 @@
   "name": "for_range",
   "cat": "matrix/loop_match",
   "status": "ok",
-  "bytes": 375296,
+  "bytes": 455817,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -835,7 +835,7 @@
   "name": "match_int",
   "cat": "matrix/loop_match",
   "status": "ok",
-  "bytes": 66430,
+  "bytes": 85323,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -855,7 +855,7 @@
   "name": "match_bool",
   "cat": "matrix/loop_match",
   "status": "ok",
-  "bytes": 5804,
+  "bytes": 6283,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -875,7 +875,7 @@
   "name": "loop_continue",
   "cat": "matrix/loop_match",
   "status": "ok",
-  "bytes": 380821,
+  "bytes": 465510,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -895,7 +895,7 @@
   "name": "nested_loop",
   "cat": "matrix/loop_match",
   "status": "ok",
-  "bytes": 384104,
+  "bytes": 501868,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -915,7 +915,7 @@
   "name": "match_guard",
   "cat": "matrix/loop_match",
   "status": "ok",
-  "bytes": 70051,
+  "bytes": 92099,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -935,7 +935,7 @@
   "name": "loop_return",
   "cat": "matrix/loop_match",
   "status": "ok",
-  "bytes": 460241,
+  "bytes": 722138,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -955,7 +955,7 @@
   "name": "while_let",
   "cat": "matrix/loop_match",
   "status": "ok",
-  "bytes": 96883,
+  "bytes": 158954,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -975,7 +975,7 @@
   "name": "match_option",
   "cat": "matrix/loop_match",
   "status": "ok",
-  "bytes": 16172,
+  "bytes": 21584,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -995,7 +995,7 @@
   "name": "match_result",
   "cat": "matrix/loop_match",
   "status": "ok",
-  "bytes": 40416,
+  "bytes": 57873,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1015,7 +1015,7 @@
   "name": "for_enumerate",
   "cat": "matrix/loop_match",
   "status": "ok",
-  "bytes": 473686,
+  "bytes": 741714,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1035,7 +1035,7 @@
   "name": "loop_invariant",
   "cat": "matrix/loop_match",
   "status": "ok",
-  "bytes": 23911,
+  "bytes": 37481,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1055,7 +1055,7 @@
   "name": "match_tuple",
   "cat": "matrix/loop_match",
   "status": "ok",
-  "bytes": 15359,
+  "bytes": 20406,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1075,7 +1075,7 @@
   "name": "borrow_immut",
   "cat": "matrix/borrowck",
   "status": "ok",
-  "bytes": 5006,
+  "bytes": 5339,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1095,7 +1095,7 @@
   "name": "borrow_mut",
   "cat": "matrix/borrowck",
   "status": "ok",
-  "bytes": 17765,
+  "bytes": 23856,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1115,7 +1115,7 @@
   "name": "move_semantic",
   "cat": "matrix/borrowck",
   "status": "ok",
-  "bytes": 26631,
+  "bytes": 29384,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1135,7 +1135,7 @@
   "name": "lifetime_simple",
   "cat": "matrix/borrowck",
   "status": "ok",
-  "bytes": 19731,
+  "bytes": 28003,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1155,7 +1155,7 @@
   "name": "borrow_two",
   "cat": "matrix/borrowck",
   "status": "ok",
-  "bytes": 16524,
+  "bytes": 22590,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1175,7 +1175,7 @@
   "name": "mut_borrow_exclusive",
   "cat": "matrix/borrowck",
   "status": "ok",
-  "bytes": 20350,
+  "bytes": 31274,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1195,7 +1195,7 @@
   "name": "nll_region",
   "cat": "matrix/borrowck",
   "status": "ok",
-  "bytes": 8226,
+  "bytes": 9548,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1215,7 +1215,7 @@
   "name": "outlives",
   "cat": "matrix/borrowck",
   "status": "ok",
-  "bytes": 16649,
+  "bytes": 22715,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1235,7 +1235,7 @@
   "name": "borrow_in_loop",
   "cat": "matrix/borrowck",
   "status": "ok",
-  "bytes": 429252,
+  "bytes": 542815,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1255,7 +1255,7 @@
   "name": "move_closure",
   "cat": "matrix/borrowck",
   "status": "ok",
-  "bytes": 63548,
+  "bytes": 88022,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1281,7 +1281,7 @@
   "name": "lifetime_struct",
   "cat": "matrix/borrowck",
   "status": "ok",
-  "bytes": 15733,
+  "bytes": 20845,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1301,7 +1301,7 @@
   "name": "borrow_match",
   "cat": "matrix/borrowck",
   "status": "ok",
-  "bytes": 16851,
+  "bytes": 24146,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1321,7 +1321,7 @@
   "name": "mut_borrow_split",
   "cat": "matrix/borrowck",
   "status": "ok",
-  "bytes": 121776,
+  "bytes": 221052,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1341,7 +1341,7 @@
   "name": "lifetime_elision",
   "cat": "matrix/borrowck",
   "status": "ok",
-  "bytes": 383235,
+  "bytes": 442240,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1361,7 +1361,7 @@
   "name": "raw_ptr_valid",
   "cat": "matrix/unsafe",
   "status": "ok",
-  "bytes": 10369,
+  "bytes": 13414,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1381,7 +1381,7 @@
   "name": "raw_ptr_box",
   "cat": "matrix/unsafe",
   "status": "ok",
-  "bytes": 83364,
+  "bytes": 161424,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1401,7 +1401,7 @@
   "name": "static_mut_exclusive",
   "cat": "matrix/unsafe",
   "status": "ok",
-  "bytes": 20935,
+  "bytes": 28339,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1421,7 +1421,7 @@
   "name": "static_mut_mutex",
   "cat": "matrix/unsafe",
   "status": "ok",
-  "bytes": 143106,
+  "bytes": 287374,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1441,7 +1441,7 @@
   "name": "union_tag",
   "cat": "matrix/unsafe",
   "status": "ok",
-  "bytes": 7883,
+  "bytes": 9322,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1461,7 +1461,7 @@
   "name": "unsafe_fn_precond",
   "cat": "matrix/unsafe",
   "status": "ok",
-  "bytes": 19986,
+  "bytes": 26663,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1481,7 +1481,7 @@
   "name": "unsafe_trait_invariant",
   "cat": "matrix/unsafe",
   "status": "ok",
-  "bytes": 8692,
+  "bytes": 9152,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1501,7 +1501,7 @@
   "name": "raw_ptr_missing_src",
   "cat": "matrix/unsafe",
   "status": "ok",
-  "bytes": 195305,
+  "bytes": 222897,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1521,7 +1521,7 @@
   "name": "static_mut_missing",
   "cat": "matrix/unsafe",
   "status": "ok",
-  "bytes": 10872,
+  "bytes": 13158,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1541,7 +1541,7 @@
   "name": "union_missing",
   "cat": "matrix/unsafe",
   "status": "ok",
-  "bytes": 7815,
+  "bytes": 9254,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1561,7 +1561,7 @@
   "name": "async_simple",
   "cat": "matrix/async_io",
   "status": "ok_with_missing",
-  "bytes": 3784,
+  "bytes": 3815,
   "missing_marks": 1,
   "top_lists": {
    "translated.target_information": 1,
@@ -1581,7 +1581,7 @@
   "name": "async_await",
   "cat": "matrix/async_io",
   "status": "ok_with_missing",
-  "bytes": 4682,
+  "bytes": 4724,
   "missing_marks": 1,
   "top_lists": {
    "translated.target_information": 1,
@@ -1601,7 +1601,7 @@
   "name": "io_pure",
   "cat": "matrix/async_io",
   "status": "ok",
-  "bytes": 15304,
+  "bytes": 20817,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1621,7 +1621,7 @@
   "name": "io_effect",
   "cat": "matrix/async_io",
   "status": "ok",
-  "bytes": 21469,
+  "bytes": 26824,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1647,7 +1647,7 @@
   "name": "future_combinator",
   "cat": "matrix/async_io",
   "status": "ok_with_missing",
-  "bytes": 3767,
+  "bytes": 3765,
   "missing_marks": 1,
   "top_lists": {
    "translated.target_information": 1,
@@ -1667,7 +1667,7 @@
   "name": "io_file",
   "cat": "matrix/async_io",
   "status": "ok",
-  "bytes": 58749,
+  "bytes": 73436,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1687,7 +1687,7 @@
   "name": "async_loop",
   "cat": "matrix/async_io",
   "status": "ok_with_missing",
-  "bytes": 3828,
+  "bytes": 3825,
   "missing_marks": 1,
   "top_lists": {
    "translated.target_information": 1,
@@ -1707,7 +1707,7 @@
   "name": "pure_no_io",
   "cat": "matrix/async_io",
   "status": "ok",
-  "bytes": 421806,
+  "bytes": 528199,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1727,7 +1727,7 @@
   "name": "io_with_pure_call",
   "cat": "matrix/async_io",
   "status": "ok",
-  "bytes": 69700,
+  "bytes": 115905,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1747,7 +1747,7 @@
   "name": "password_gen",
   "cat": "matrix/commercial",
   "status": "ok",
-  "bytes": 37299,
+  "bytes": 45003,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1767,7 +1767,7 @@
   "name": "text_buffer",
   "cat": "matrix/commercial",
   "status": "ok",
-  "bytes": 36080,
+  "bytes": 42382,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1787,7 +1787,7 @@
   "name": "file_tree",
   "cat": "matrix/commercial",
   "status": "ok",
-  "bytes": 23974,
+  "bytes": 26942,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1807,7 +1807,7 @@
   "name": "reactive_ui",
   "cat": "matrix/commercial",
   "status": "ok",
-  "bytes": 105415,
+  "bytes": 158196,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1827,7 +1827,7 @@
   "name": "enterprise_ide",
   "cat": "matrix/commercial",
   "status": "ok",
-  "bytes": 197790,
+  "bytes": 327588,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1847,7 +1847,7 @@
   "name": "defi_audit",
   "cat": "matrix/commercial",
   "status": "ok",
-  "bytes": 110138,
+  "bytes": 131161,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1867,7 +1867,7 @@
   "name": "embedded_cert",
   "cat": "matrix/commercial",
   "status": "ok",
-  "bytes": 98384,
+  "bytes": 147805,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1887,7 +1887,7 @@
   "name": "llm_guardrail",
   "cat": "matrix/commercial",
   "status": "ok",
-  "bytes": 111419,
+  "bytes": 135910,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1907,7 +1907,7 @@
   "name": "web3_audit",
   "cat": "matrix/commercial",
   "status": "ok",
-  "bytes": 31891,
+  "bytes": 35722,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1927,7 +1927,7 @@
   "name": "self_evolving",
   "cat": "matrix/commercial",
   "status": "ok",
-  "bytes": 91990,
+  "bytes": 136989,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1947,7 +1947,7 @@
   "name": "examples/arith",
   "cat": "examples",
   "status": "ok",
-  "bytes": 42287,
+  "bytes": 62991,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -1991,7 +1991,7 @@
   "name": "examples/sqr",
   "cat": "examples",
   "status": "ok",
-  "bytes": 30583,
+  "bytes": 62757,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -2017,7 +2017,7 @@
   "name": "phase3/async_sat",
   "cat": "examples",
   "status": "ok_with_missing",
-  "bytes": 11496,
+  "bytes": 13138,
   "missing_marks": 1,
   "top_lists": {
    "translated.target_information": 1,
@@ -2049,7 +2049,7 @@
   "name": "phase3/break_sat",
   "cat": "examples",
   "status": "ok",
-  "bytes": 26588,
+  "bytes": 40964,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -2087,7 +2087,7 @@
   "name": "phase3/closure_sat",
   "cat": "examples",
   "status": "ok",
-  "bytes": 268475,
+  "bytes": 676070,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -2131,7 +2131,7 @@
   "name": "phase3/lifetime_sat",
   "cat": "examples",
   "status": "ok",
-  "bytes": 20004,
+  "bytes": 28727,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -2151,7 +2151,7 @@
   "name": "phase3/lifetime_unknown",
   "cat": "examples",
   "status": "ok",
-  "bytes": 16789,
+  "bytes": 21329,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -2171,7 +2171,7 @@
   "name": "phase3/lifetime_unsat",
   "cat": "examples",
   "status": "ok",
-  "bytes": 6277,
+  "bytes": 6936,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -2191,7 +2191,7 @@
   "name": "phase3/loop_sat",
   "cat": "examples",
   "status": "ok",
-  "bytes": 20334,
+  "bytes": 27963,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -2211,7 +2211,7 @@
   "name": "phase3/loop_unknown",
   "cat": "examples",
   "status": "ok",
-  "bytes": 20337,
+  "bytes": 27966,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -2231,7 +2231,7 @@
   "name": "phase3/loop_unsat",
   "cat": "examples",
   "status": "ok",
-  "bytes": 20283,
+  "bytes": 27967,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -2257,7 +2257,7 @@
   "name": "phase3/match_unknown",
   "cat": "examples",
   "status": "ok",
-  "bytes": 52125,
+  "bytes": 127631,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -2283,7 +2283,7 @@
   "name": "phase3/mod_sat",
   "cat": "examples",
   "status": "ok",
-  "bytes": 12657,
+  "bytes": 15472,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -2303,7 +2303,7 @@
   "name": "phase3/mod_unknown",
   "cat": "examples",
   "status": "ok",
-  "bytes": 11820,
+  "bytes": 14082,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -2341,7 +2341,7 @@
   "name": "phase3/pat_range_sat",
   "cat": "examples",
   "status": "ok",
-  "bytes": 24491,
+  "bytes": 38724,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -2367,7 +2367,7 @@
   "name": "phase3/return_break_sat",
   "cat": "examples",
   "status": "ok",
-  "bytes": 33395,
+  "bytes": 50318,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -2393,7 +2393,7 @@
   "name": "phase3/return_sat",
   "cat": "examples",
   "status": "ok",
-  "bytes": 23790,
+  "bytes": 32060,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -2419,7 +2419,7 @@
   "name": "phase3/struct_sat",
   "cat": "examples",
   "status": "ok",
-  "bytes": 76038,
+  "bytes": 104960,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -2475,7 +2475,7 @@
   "name": "phase3/unsafe_sat",
   "cat": "examples",
   "status": "ok",
-  "bytes": 7606,
+  "bytes": 8911,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -2495,7 +2495,7 @@
   "name": "phase3/unsafe_unknown",
   "cat": "examples",
   "status": "ok",
-  "bytes": 10351,
+  "bytes": 13185,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
@@ -2515,7 +2515,7 @@
   "name": "phase3/unsafe_unsat",
   "cat": "examples",
   "status": "ok",
-  "bytes": 8804,
+  "bytes": 10658,
   "missing_marks": 0,
   "top_lists": {
    "translated.target_information": 1,
